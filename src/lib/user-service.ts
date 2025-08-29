@@ -26,7 +26,6 @@ export class UserService {
             {
               wallet_address: walletAddress,
               points: 0,
-              nft_count: 0,
             }
           ])
           .select()
@@ -69,26 +68,7 @@ export class UserService {
     }
   }
 
-  // Update NFT count
-  static async updateUserNFTCount(walletAddress: string, nftCount: number): Promise<boolean> {
-    try {
-      const client = supabaseAdmin || supabase;
-      const { error } = await client
-        .from('shellies_raffle_users')
-        .update({ nft_count: nftCount, updated_at: new Date().toISOString() })
-        .eq('wallet_address', walletAddress);
-
-      if (error) {
-        console.error('Error updating NFT count:', error);
-        return false;
-      }
-
-      return true;
-    } catch (error) {
-      console.error('Unexpected error updating NFT count:', error);
-      return false;
-    }
-  }
+  // Note: NFT count functionality removed - NFTs are now checked directly from blockchain
 
   // Claim daily points
   static async claimDailyPoints(walletAddress: string, pointsToAdd: number): Promise<boolean> {
