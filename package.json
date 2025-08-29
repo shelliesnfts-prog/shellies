@@ -8,16 +8,25 @@
     "start": "next start"
   },
   "dependencies": {
+    "@rainbow-me/rainbowkit": "^2.2.0",
+    "@rainbow-me/rainbowkit-siwe-next-auth": "^0.5.0",
+    "@supabase/supabase-js": "^2.56.0",
+    "@tanstack/react-query": "^5.62.8",
+    "ethers": "^6.13.4",
+    "next": "15.5.0",
+    "next-auth": "^4.24.10",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "next": "15.5.0"
+    "siwe": "^2.3.2",
+    "viem": "^2.21.53",
+    "wagmi": "^2.12.38"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4"
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }
