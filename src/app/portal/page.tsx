@@ -115,7 +115,7 @@ export default function Portal() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const { data: session } = useSession();
   const { address, isConnected } = useAccount();
-  const { user, loading: userLoading } = useUser();
+  const { user, loading: userLoading, fetchUser } = useUser();
   const { claimStatus, claiming, executeClaim, error: claimError } = useClaiming();
   const [leaderboard, setLeaderboard] = useState([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
@@ -161,6 +161,8 @@ export default function Portal() {
   const handleClaimDaily = async () => {
     const result = await executeClaim();
     if (result.success) {
+      // Refresh user data to update points in sidebar
+      await fetchUser();
       // Refresh leaderboard after claiming
       fetchLeaderboard();
     }
@@ -504,7 +506,7 @@ export default function Portal() {
               {/* Stats Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* NFT Holdings Card */}
-                <div className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-lg hover:-translate-y-1 ${
+                <div className={`h-fit group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-lg hover:-translate-y-1 ${
                   isDarkMode 
                     ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 hover:border-purple-500' 
                     : 'bg-gradient-to-br from-white to-gray-50 border-gray-200 hover:border-purple-300'
@@ -532,7 +534,7 @@ export default function Portal() {
                 </div>
 
                 {/* Available Points Card */}
-                <div className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-lg hover:-translate-y-1 ${
+                <div className={`h-fit group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-lg hover:-translate-y-1 ${
                   isDarkMode 
                     ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 hover:border-blue-500' 
                     : 'bg-gradient-to-br from-white to-gray-50 border-gray-200 hover:border-blue-300'
@@ -592,7 +594,7 @@ export default function Portal() {
                                 ? 'text-green-600' 
                                 : isDarkMode ? 'text-gray-400' : 'text-gray-500'
                             }`}>
-                              <div className={`w-1.5 h-1.5 rounded-full ${
+                              <div className={`w-1.5 h-1.5 rounded-full mr-2 ${
                                 claimStatus.canClaim ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
                               }`} />
                               {claimStatus.canClaim ? 'Available now' : 'Check back later'}

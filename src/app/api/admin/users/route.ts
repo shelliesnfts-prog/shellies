@@ -42,12 +42,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
     }
 
-    const { action, userId, blocked } = await request.json();
+    const { action, userId, blocked, points, status } = await request.json();
 
     switch (action) {
       case 'toggle_block':
         const success = await AdminService.toggleUserBlock(userId, blocked);
         if (!success) {
+          return NextResponse.json({ error: 'Failed to update user' }, { status: 500 });
+        }
+        break;
+
+      case 'update':
+        const updateSuccess = await AdminService.updateUser(userId, { points, status });
+        if (!updateSuccess) {
           return NextResponse.json({ error: 'Failed to update user' }, { status: 500 });
         }
         break;

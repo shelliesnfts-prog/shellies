@@ -63,14 +63,14 @@ export async function POST(request: NextRequest) {
         }
         break;
 
-      case 'toggle':
-        if (!raffleId || typeof isActive !== 'boolean') {
-          return NextResponse.json({ error: 'Raffle ID and active status required' }, { status: 400 });
+      case 'end_early':
+        if (!raffleId) {
+          return NextResponse.json({ error: 'Raffle ID required' }, { status: 400 });
         }
         
-        const toggleSuccess = await AdminService.toggleRaffle(raffleId, isActive);
-        if (!toggleSuccess) {
-          return NextResponse.json({ error: 'Failed to toggle raffle' }, { status: 500 });
+        const endSuccess = await AdminService.endRaffleEarly(raffleId);
+        if (!endSuccess) {
+          return NextResponse.json({ error: 'Failed to end raffle early' }, { status: 500 });
         }
         break;
 

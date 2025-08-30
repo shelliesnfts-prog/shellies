@@ -81,6 +81,44 @@ export class AdminService {
     }
   }
 
+  // Update user (points and status)
+  static async updateUser(userId: string, updateData: { points?: number; status?: 'active' | 'blocked' }): Promise<boolean> {
+    try {
+      const client = supabaseAdmin || supabase;
+      
+      const updates: any = {};
+      
+      if (updateData.points !== undefined) {
+        updates.points = updateData.points;
+      }
+      
+      if (updateData.status !== undefined) {
+        // Use points to indicate status - negative for blocked, positive/zero for active
+        if (updateData.status === 'blocked') {
+          updates.points = -999999; // Blocked indicator
+        } else if (updateData.status === 'active' && updates.points === undefined) {
+          // If setting to active but no specific points provided, use 0
+          updates.points = Math.max(0, updates.points || 0);
+        }
+      }
+
+      const { error } = await client
+        .from('shellies_raffle_users')
+        .update(updates)
+        .eq('id', userId);
+
+      if (error) {
+        console.error('Error updating user:', error);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Unexpected error updating user:', error);
+      return false;
+    }
+  }
+
   // Delete user permanently
   static async deleteUser(userId: string): Promise<boolean> {
     try {
@@ -132,6 +170,7 @@ export class AdminService {
     image_url?: string;
     points_per_ticket: number;
     max_tickets_per_user: number;
+    max_participants?: number;
     end_date: string;
   }): Promise<Raffle | null> {
     try {
@@ -139,10 +178,7 @@ export class AdminService {
       
       const { data: raffle, error } = await client
         .from('shellies_raffle_raffles')
-        .insert([{
-          ...raffleData,
-          is_active: true,
-        }])
+        .insert([raffleData])
         .select()
         .single();
 
@@ -180,24 +216,24 @@ export class AdminService {
     }
   }
 
-  // Toggle raffle active status
-  static async toggleRaffle(raffleId: string, isActive: boolean): Promise<boolean> {
+  // End raffle early by setting end date to current time
+  static async endRaffleEarly(raffleId: string): Promise<boolean> {
     try {
       const client = supabaseAdmin || supabase;
       
       const { error } = await client
         .from('shellies_raffle_raffles')
-        .update({ is_active: isActive })
+        .update({ end_date: new Date().toISOString() })
         .eq('id', raffleId);
 
       if (error) {
-        console.error('Error toggling raffle:', error);
+        console.error('Error ending raffle early:', error);
         return false;
       }
 
       return true;
     } catch (error) {
-      console.error('Unexpected error toggling raffle:', error);
+      console.error('Unexpected error ending raffle early:', error);
       return false;
     }
   }

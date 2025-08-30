@@ -92,17 +92,6 @@ export function ClaimButtonWithCountdown({
 
   return (
     <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
-      <h3 className="text-lg font-semibold text-white mb-4">Daily Claim</h3>
-      
-      {/* NFT Status */}
-      <div className="mb-4 p-3 bg-black/20 rounded-lg">
-        <div className="text-sm text-gray-300 mb-1">Your Shellies NFTs:</div>
-        <div className="text-xl font-bold text-purple-400">{nftCount}</div>
-        <div className="text-xs text-gray-400">
-          {nftCount > 0 ? `Earn ${formatPoints(potentialPoints)} points` : 'Earn 0.1 points (no NFTs)'}
-        </div>
-      </div>
-
       {/* Claim Button or Countdown */}
       {localCanClaim ? (
         <button
