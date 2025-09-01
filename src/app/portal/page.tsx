@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 
 import { Raffle } from '@/lib/supabase';
+import { getTimeRemainingDays } from '@/lib/dateUtils';
 
 // Raffle Card Component
 interface RaffleCardProps {
@@ -214,17 +215,6 @@ export default function Portal() {
     );
   }
 
-  // Helper function to calculate time remaining
-  const getTimeRemaining = (endDate: string) => {
-    const now = new Date();
-    const end = new Date(endDate);
-    const diffTime = end.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays <= 0) return 'Ended';
-    if (diffDays === 1) return '1 day';
-    return `${diffDays} days`;
-  };
 
   return (
     <div className={`min-h-screen flex transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
@@ -497,7 +487,7 @@ export default function Portal() {
                     <RaffleCard 
                       key={raffle.id} 
                       raffle={raffle} 
-                      timeRemaining={getTimeRemaining(raffle.end_date)}
+                      timeRemaining={getTimeRemainingDays(raffle.end_date)}
                       isDarkMode={isDarkMode}
                       onJoinClick={() => handleJoinRaffle(raffle)}
                     />

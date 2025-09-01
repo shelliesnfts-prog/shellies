@@ -46,7 +46,7 @@ export interface ValidationResult {
 export class RaffleValidationService {
   
   /**
-   * Comprehensive validation for raffle entry
+   * Comprehensive validation for raffle entry (optimized)
    */
   static async validateRaffleEntry(
     raffleId: string, 
@@ -57,28 +57,26 @@ export class RaffleValidationService {
     // Step 1: Validate input parameters
     this.validateInputParameters(raffleId, ticketCount, walletAddress);
     
-    // Step 2: Fetch raffle and user data in parallel
-    const [raffle, user] = await Promise.all([
+    // Step 2: Fetch all data in a single optimized query
+    const [raffle, user, userEntry] = await Promise.all([
       this.getRaffleData(raffleId),
-      this.getUserData(walletAddress)
+      this.getUserData(walletAddress),
+      this.getUserEntry(walletAddress, raffleId)
     ]);
     
     // Step 3: Validate raffle status
     this.validateRaffleStatus(raffle);
     
-    // Step 4: Get user's existing entry
-    const userEntry = await this.getUserEntry(walletAddress, raffleId);
-    
-    // Step 5: Calculate costs and limits
+    // Step 4: Calculate costs and limits
     const totalCost = raffle.points_per_ticket * ticketCount;
     const currentTickets = userEntry?.ticket_count || 0;
     const newTotalTickets = currentTickets + ticketCount;
     const remainingTickets = raffle.max_tickets_per_user - currentTickets;
     
-    // Step 6: Validate user eligibility
+    // Step 5: Validate user eligibility
     this.validateUserEligibility(user, totalCost);
     
-    // Step 7: Validate ticket limits
+    // Step 6: Validate ticket limits
     this.validateTicketLimits(ticketCount, newTotalTickets, raffle.max_tickets_per_user, remainingTickets);
     
     return {
@@ -158,61 +156,64 @@ export class RaffleValidationService {
   }
 
   /**
-   * Get user's existing entry for this raffle using wallet_address (with fallback to user_id)
+   * Get user's existing entry for this raffle using wallet_address (optimized)
    */
   private static async getUserEntry(walletAddress: string, raffleId: string): Promise<UserEntry | null> {
-    // First get user for fallback
-    const { data: user } = await supabaseService
-      .from('shellies_raffle_users')
-      .select('id')
-      .eq('wallet_address', walletAddress)
-      .single();
-
-    if (!user) {
-      return null;
-    }
-
-    // Try wallet_address approach first
-    let { data: entries, error } = await supabaseService
-      .from('shellies_raffle_entries')
-      .select('ticket_count, points_spent')
-      .eq('wallet_address', walletAddress)
-      .eq('raffle_id', raffleId);
-
-    // If wallet_address column doesn't exist, fall back to user_id
-    if (error && error.code === '42703') {
-      const { data: fallbackEntries, error: fallbackError } = await supabaseService
+    try {
+      // Try wallet_address approach first (most efficient)
+      let { data: entries, error } = await supabaseService
         .from('shellies_raffle_entries')
         .select('ticket_count, points_spent')
-        .eq('user_id', user.id)
+        .eq('wallet_address', walletAddress)
         .eq('raffle_id', raffleId);
-      
-      entries = fallbackEntries;
-      error = fallbackError;
-    }
 
-    // If no entries found, that's fine - return null
-    if (error && error.code === 'PGRST116') {
+      // If wallet_address column doesn't exist, fall back to user_id approach
+      if (error && error.code === '42703') {
+        // Only fetch user ID when needed for fallback
+        const { data: user } = await supabaseService
+          .from('shellies_raffle_users')
+          .select('id')
+          .eq('wallet_address', walletAddress)
+          .single();
+
+        if (user) {
+          const { data: fallbackEntries, error: fallbackError } = await supabaseService
+            .from('shellies_raffle_entries')
+            .select('ticket_count, points_spent')
+            .eq('user_id', user.id)
+            .eq('raffle_id', raffleId);
+          
+          entries = fallbackEntries;
+          error = fallbackError;
+        }
+      }
+
+      // If no entries found, that's fine - return null
+      if (error && error.code === 'PGRST116') {
+        return null;
+      }
+
+      if (error) {
+        console.error('Failed to fetch user entries:', error);
+        return null; // Return null instead of throwing to avoid breaking flow
+      }
+
+      if (!entries || entries.length === 0) {
+        return null;
+      }
+
+      // Sum all entries for this raffle and wallet
+      const totalTicketCount = entries.reduce((sum, entry) => sum + entry.ticket_count, 0);
+      const totalPointsSpent = entries.reduce((sum, entry) => sum + entry.points_spent, 0);
+
+      return {
+        ticket_count: totalTicketCount,
+        points_spent: totalPointsSpent
+      };
+    } catch (error) {
+      console.error('Error in getUserEntry:', error);
       return null;
     }
-
-    if (error) {
-      console.error('Failed to fetch user entries:', error);
-      throw new ValidationError('Failed to fetch user entries', ERROR_CODES.DATABASE_ERROR);
-    }
-
-    if (!entries || entries.length === 0) {
-      return null;
-    }
-
-    // Sum all entries for this raffle and wallet
-    const totalTicketCount = entries.reduce((sum, entry) => sum + entry.ticket_count, 0);
-    const totalPointsSpent = entries.reduce((sum, entry) => sum + entry.points_spent, 0);
-
-    return {
-      ticket_count: totalTicketCount,
-      points_spent: totalPointsSpent
-    };
   }
 
   /**

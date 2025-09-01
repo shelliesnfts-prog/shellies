@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { X, Calendar, Target, Users, Clock, ImageOff, Plus, Minus, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { Raffle } from '@/lib/supabase';
+import { getTimeRemaining } from '@/lib/dateUtils';
 
 interface JoinRaffleModalProps {
   isOpen: boolean;
@@ -18,6 +19,15 @@ interface UserEntry {
   created_at: string;
 }
 
+interface UserData {
+  id: string;
+  wallet_address: string;
+  points: number;
+  nft_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = false, onSuccess }: JoinRaffleModalProps) {
   const [imageError, setImageError] = useState(false);
   const [ticketCount, setTicketCount] = useState(1);
@@ -25,6 +35,8 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [userEntry, setUserEntry] = useState<UserEntry | null>(null);
   const [loadingEntry, setLoadingEntry] = useState(false);
+  const [userData, setUserData] = useState<UserData | null>(null);
+  const [loadingUser, setLoadingUser] = useState(false);
 
   // Reset modal state when opened
   useEffect(() => {
@@ -32,6 +44,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
       setTicketCount(1);
       setMessage(null);
       setImageError(false);
+      fetchUserData();
       // Only fetch detailed entry info if we need points_spent details
       if (raffle.user_ticket_count && raffle.user_ticket_count > 0) {
         fetchUserEntry();
@@ -40,6 +53,25 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
       }
     }
   }, [isOpen, raffle]);
+
+  const fetchUserData = async () => {
+    setLoadingUser(true);
+    try {
+      const response = await fetch('/api/user');
+      const data = await response.json();
+      
+      if (data && !data.error) {
+        setUserData(data);
+      } else {
+        setUserData(null);
+      }
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      setUserData(null);
+    } finally {
+      setLoadingUser(false);
+    }
+  };
 
   const fetchUserEntry = async () => {
     if (!raffle) return;
@@ -62,8 +94,82 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
     }
   };
 
+  // Client-side validation function
+  const validateRaffleEntry = (): { isValid: boolean; error?: string } => {
+    if (!raffle || !userData) {
+      return { isValid: false, error: 'Loading raffle data...' };
+    }
+
+    // Check if raffle has ended
+    const now = new Date();
+    const endDate = new Date(raffle.end_date);
+    if (endDate <= now) {
+      const timeAgo = Math.ceil((now.getTime() - endDate.getTime()) / (1000 * 60 * 60));
+      return { 
+        isValid: false, 
+        error: `This raffle ended ${timeAgo} hour${timeAgo > 1 ? 's' : ''} ago` 
+      };
+    }
+
+    // Validate ticket count
+    if (!Number.isInteger(ticketCount) || ticketCount <= 0) {
+      return { isValid: false, error: 'Ticket count must be a positive integer' };
+    }
+
+    // Calculate costs and limits
+    const totalCost = raffle.points_per_ticket * ticketCount;
+    const currentTickets = raffle.user_ticket_count || 0;
+    const newTotalTickets = currentTickets + ticketCount;
+    const remainingTickets = raffle.max_tickets_per_user - currentTickets;
+
+    // Check if user has enough points
+    if (userData.points < totalCost) {
+      const shortage = totalCost - userData.points;
+      return { 
+        isValid: false, 
+        error: `Insufficient points. You need ${totalCost} SHELL but have ${userData.points} SHELL (${shortage} short)` 
+      };
+    }
+
+    // Check remaining tickets
+    if (remainingTickets <= 0) {
+      return { 
+        isValid: false, 
+        error: 'You have already reached the maximum number of tickets for this raffle' 
+      };
+    }
+
+    // Check if trying to buy too many tickets
+    if (ticketCount > remainingTickets) {
+      return { 
+        isValid: false, 
+        error: `You can only purchase ${remainingTickets} more ticket${remainingTickets > 1 ? 's' : ''} for this raffle` 
+      };
+    }
+
+    // Check max tickets per user
+    if (newTotalTickets > raffle.max_tickets_per_user) {
+      return { 
+        isValid: false, 
+        error: `Maximum ${raffle.max_tickets_per_user} tickets allowed per user. You currently have ${currentTickets} tickets.` 
+      };
+    }
+
+    return { isValid: true };
+  };
+
   const handleJoinRaffle = async () => {
     if (!raffle || isLoading) return;
+
+    // Client-side validation
+    const validation = validateRaffleEntry();
+    if (!validation.isValid) {
+      setMessage({
+        type: 'error',
+        text: validation.error!
+      });
+      return;
+    }
 
     setIsLoading(true);
     setMessage(null);
@@ -91,6 +197,11 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
         // Update raffle ticket count locally for immediate UI feedback
         if (raffle) {
           raffle.user_ticket_count = (raffle.user_ticket_count || 0) + ticketCount;
+        }
+        
+        // Update user points locally
+        if (userData) {
+          userData.points -= raffle.points_per_ticket * ticketCount;
         }
         
         // Refresh detailed entry info if needed
@@ -126,20 +237,6 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
 
   if (!isOpen || !raffle) return null;
 
-  // Calculate time remaining in the specified format
-  const getTimeRemaining = (endDate: string) => {
-    const now = new Date();
-    const end = new Date(endDate);
-    const diffTime = end.getTime() - now.getTime();
-    
-    if (diffTime <= 0) return 'Ended';
-    
-    const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diffTime % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((diffTime % (1000 * 60 * 60)) / (1000 * 60));
-    
-    return `${days}d ${hours}h ${minutes}m`;
-  };
 
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget && !isLoading) {
@@ -148,9 +245,20 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
   };
 
   const handleTicketChange = (newCount: number) => {
+    if (!raffle) return;
     if (newCount < 1) return;
+    
+    const currentTickets = raffle.user_ticket_count || 0;
+    const remainingTickets = raffle.max_tickets_per_user - currentTickets;
+    
+    if (newCount > remainingTickets) return;
     if (newCount > raffle.max_tickets_per_user) return;
-    if (userEntry && (userEntry.ticket_count + newCount) > raffle.max_tickets_per_user) return;
+    
+    // Clear any existing validation error when user changes tickets
+    if (message?.type === 'error') {
+      setMessage(null);
+    }
+    
     setTicketCount(newCount);
   };
 
@@ -276,22 +384,37 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                     {raffle.max_tickets_per_user}
                   </span>
                 </div>
+
+                {/* Participants */}
+                {raffle.max_participants && (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Users className="w-5 h-5 text-purple-600" />
+                      <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                        Participants
+                      </span>
+                    </div>
+                    <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {raffle.current_participants || 0} / {raffle.max_participants}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* User's Existing Entries - Show from raffle data first, then fetch detailed info */}
-              {(raffle.user_ticket_count && raffle.user_ticket_count > 0) && (
+              {raffle.user_ticket_count > 0 && (
                 <div className={`p-4 rounded-xl border ${
                   isDarkMode 
-                    ? 'bg-blue-900/20 border-blue-800' 
-                    : 'bg-blue-50 border-blue-200'
+                    ? 'bg-purple-900/20 border-purple-800' 
+                    : 'bg-purple-50 border-purple-200'
                 }`}>
                   <div className="flex items-center space-x-2 mb-2">
-                    <CheckCircle className="w-4 h-4 text-blue-600" />
-                    <span className={`text-sm font-medium ${isDarkMode ? 'text-blue-300' : 'text-blue-800'}`}>
+                    <CheckCircle className="w-4 h-4 text-purple-600" />
+                    <span className={`text-sm font-medium ${isDarkMode ? 'text-purple-300' : 'text-purple-800'}`}>
                       Your Entries
                     </span>
                   </div>
-                  <div className={`text-sm ${isDarkMode ? 'text-blue-200' : 'text-blue-700'}`}>
+                  <div className={`text-sm ${isDarkMode ? 'text-purple-200' : 'text-purple-700'}`}>
                     You have <span className="font-semibold">{raffle.user_ticket_count}</span> ticket{raffle.user_ticket_count > 1 ? 's' : ''} in this raffle
                     {userEntry && !loadingEntry && (
                       <>
@@ -336,6 +459,13 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                     Required Points: {raffle.points_per_ticket * ticketCount} $SHELL
                   </div>
                   
+                  {/* User Points Balance */}
+                  {userData && (
+                    <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      Your balance: {userData.points} $SHELL
+                    </div>
+                  )}
+                  
                   {/* Ticket Controls - Only show if max tickets > 1 and raffle not ended */}
                   {raffle.max_tickets_per_user > 1 && getTimeRemaining(raffle.end_date) !== 'Ended' && remainingTickets > 0 && (
                     <div className="space-y-2">
@@ -347,7 +477,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                           type="button"
                           onClick={() => handleTicketChange(ticketCount - 1)}
                           disabled={ticketCount <= 1 || isLoading}
-                          className={`w-10 h-10 rounded-lg border flex items-center justify-center transition-colors duration-200 ${
+                          className={`w-8 h-8 rounded-full border flex items-center justify-center transition-colors duration-200 ${
                             ticketCount <= 1 || isLoading
                               ? isDarkMode 
                                 ? 'bg-gray-700 border-gray-600 text-gray-500 cursor-not-allowed' 
@@ -357,7 +487,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                                 : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
                           }`}
                         >
-                          <Minus className="w-4 h-4" />
+                          <Minus className="w-3 h-3" />
                         </button>
                         
                         <input
@@ -367,7 +497,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                           value={ticketCount}
                           onChange={(e) => handleTicketChange(parseInt(e.target.value) || 1)}
                           disabled={isLoading}
-                          className={`w-16 h-10 text-center border rounded-lg font-medium text-sm ${
+                          className={`w-14 h-8 text-center border rounded-full font-medium text-sm ${
                             isDarkMode
                               ? 'bg-gray-700 border-gray-500 text-white focus:border-purple-400'
                               : 'bg-white border-gray-300 text-gray-900 focus:border-purple-500'
@@ -378,7 +508,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                           type="button"
                           onClick={() => handleTicketChange(ticketCount + 1)}
                           disabled={ticketCount >= remainingTickets || isLoading}
-                          className={`w-10 h-10 rounded-lg border flex items-center justify-center transition-colors duration-200 ${
+                          className={`w-8 h-8 rounded-full border flex items-center justify-center transition-colors duration-200 ${
                             ticketCount >= remainingTickets || isLoading
                               ? isDarkMode 
                                 ? 'bg-gray-700 border-gray-600 text-gray-500 cursor-not-allowed' 
@@ -388,7 +518,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                                 : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
                           }`}
                         >
-                          <Plus className="w-4 h-4" />
+                          <Plus className="w-3 h-3" />
                         </button>
                       </div>
                     </div>

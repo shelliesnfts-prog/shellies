@@ -1,9 +1,21 @@
 import { supabase, supabaseAdmin, User } from './supabase';
 
 export class UserService {
-  // Get or create user by wallet address
+  // Simple cache for user data (5 minute cache)
+  private static userCache = new Map<string, { user: User; timestamp: number }>();
+  private static readonly USER_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+  // Get or create user by wallet address (with caching)
   static async getOrCreateUser(walletAddress: string): Promise<User | null> {
     try {
+      // Check cache first
+      const cached = this.userCache.get(walletAddress.toLowerCase());
+      const now = Date.now();
+      
+      if (cached && (now - cached.timestamp) < this.USER_CACHE_DURATION) {
+        return cached.user;
+      }
+
       // Use admin client to bypass RLS for server-side operations
       const client = supabaseAdmin || supabase;
       
@@ -15,6 +27,11 @@ export class UserService {
         .single();
 
       if (existingUser) {
+        // Cache the result
+        this.userCache.set(walletAddress.toLowerCase(), {
+          user: existingUser,
+          timestamp: now
+        });
         return existingUser;
       }
 
@@ -34,6 +51,14 @@ export class UserService {
         if (createError) {
           console.error('Error creating user:', createError);
           return null;
+        }
+
+        // Cache the new user
+        if (newUser) {
+          this.userCache.set(walletAddress.toLowerCase(), {
+            user: newUser,
+            timestamp: now
+          });
         }
 
         return newUser;
@@ -60,6 +85,9 @@ export class UserService {
         console.error('Error updating user points:', error);
         return false;
       }
+
+      // Clear cache when points are updated
+      this.userCache.delete(walletAddress.toLowerCase());
 
       return true;
     } catch (error) {
@@ -94,6 +122,9 @@ export class UserService {
         console.error('Error claiming daily points:', error);
         return false;
       }
+
+      // Clear cache when points are updated
+      this.userCache.delete(walletAddress.toLowerCase());
 
       return true;
     } catch (error) {
@@ -132,6 +163,15 @@ export class UserService {
     } catch (error) {
       console.error('Unexpected error fetching leaderboard:', error);
       return [];
+    }
+  }
+
+  // Clear user cache (useful after points changes)
+  static clearUserCache(walletAddress?: string): void {
+    if (walletAddress) {
+      this.userCache.delete(walletAddress.toLowerCase());
+    } else {
+      this.userCache.clear();
     }
   }
 }

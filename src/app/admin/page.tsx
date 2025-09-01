@@ -25,6 +25,7 @@ import {
   Copy,
   Edit
 } from 'lucide-react';
+import { formatDate, isRaffleActive, localDateTimeInputToUTC } from '@/lib/dateUtils';
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('users');
@@ -210,6 +211,10 @@ export default function AdminPage() {
 
     try {
       setCreatingRaffle(true);
+      
+      // Convert datetime-local value to UTC for proper storage
+      const utcDateTime = localDateTimeInputToUTC(raffleForm.end_date);
+      
       const response = await fetch('/api/admin/raffles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -222,7 +227,7 @@ export default function AdminPage() {
             points_per_ticket: parseInt(raffleForm.points_per_ticket),
             max_tickets_per_user: parseInt(raffleForm.max_tickets_per_user),
             max_participants: raffleForm.max_participants ? parseInt(raffleForm.max_participants) : null,
-            end_date: raffleForm.end_date
+            end_date: utcDateTime
           }
         })
       });
@@ -294,21 +299,6 @@ export default function AdminPage() {
     setIsDarkMode(!isDarkMode);
   };
 
-  // Helper function to check if raffle is active
-  const isRaffleActive = (endDate: string) => {
-    return new Date() < new Date(endDate);
-  };
-
-  // Helper function to format date
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
 
   return (
     <div className={`min-h-screen flex transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>

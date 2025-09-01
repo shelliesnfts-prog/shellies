@@ -29,13 +29,13 @@ const inkChain = defineChain({
   testnet: false,
 });
 
-// Create Viem client for Ink blockchain with optimized timeouts
+// Create Viem client for Ink blockchain with aggressive timeouts for speed
 const publicClient = createPublicClient({
   chain: inkChain,
   transport: http('https://rpc-gel.inkonchain.com', {
-    timeout: 3000,   // 3 seconds timeout (reduced)
-    retryCount: 2,   // Reduced retries 
-    retryDelay: 500  // Faster retry delay
+    timeout: 1500,   // 1.5 seconds timeout (very aggressive)
+    retryCount: 1,   // Single retry only 
+    retryDelay: 200  // Fast retry delay
   })
 });
 
@@ -71,9 +71,9 @@ const ERC721_ENUMERABLE_INTERFACE_ID = '0x780e9d63';
 export class NFTService {
   private static contractAddress: string = process.env.NEXT_PUBLIC_SHELLIES_CONTRACT_ADDRESS || '';
   
-  // Cache for NFT counts (30 minute cache for better performance)
+  // Cache for NFT counts (2 hour cache for better performance)
   private static nftCache = new Map<string, { count: number; timestamp: number; }>();
-  private static readonly CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
+  private static readonly CACHE_DURATION = 2 * 60 * 60 * 1000; // 2 hours (reduced blockchain calls)
 
   /**
    * Get NFT count for a wallet address

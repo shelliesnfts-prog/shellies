@@ -35,6 +35,58 @@ export async function GET(request: NextRequest) {
 
     console.log(`📋 Fetched ${raffles?.length || 0} raffles`);
 
+    // Get participant counts for all raffles
+    let participantCounts: Record<string, number> = {};
+    if (raffles && raffles.length > 0) {
+      try {
+        const raffleIds = raffles.map(r => r.id);
+        const { data: participantData, error: participantError } = await supabase
+          .rpc('get_raffle_participant_counts', {
+            p_raffle_ids: raffleIds
+          });
+
+        console.log('👥 Participant counts result:', participantData, 'Error:', participantError);
+
+        if (!participantError && participantData) {
+          participantCounts = participantData.reduce((acc: Record<string, number>, item: any) => {
+            acc[item.raffle_id] = item.participant_count;
+            return acc;
+          }, {});
+        } else if (participantError && participantError.code === '42883') {
+          console.log('📞 Participant count RPC not found, using manual fallback...');
+          
+          // Fallback: manual query to count distinct wallet addresses per raffle
+          try {
+            const participantPromises = raffleIds.map(async (raffleId) => {
+              const { data: participantData, error } = await supabase
+                .from('shellies_raffle_entries')
+                .select('wallet_address', { count: 'exact' })
+                .eq('raffle_id', raffleId);
+              
+              if (!error && participantData) {
+                // Count unique wallet addresses
+                const uniqueWallets = new Set(participantData.map(entry => entry.wallet_address));
+                return { raffle_id: raffleId, participant_count: uniqueWallets.size };
+              }
+              return { raffle_id: raffleId, participant_count: 0 };
+            });
+            
+            const fallbackResults = await Promise.all(participantPromises);
+            participantCounts = fallbackResults.reduce((acc: Record<string, number>, item: any) => {
+              acc[item.raffle_id] = item.participant_count;
+              return acc;
+            }, {});
+            
+            console.log('👥 Fallback participant counts:', participantCounts);
+          } catch (fallbackError) {
+            console.error('❌ Error in participant count fallback:', fallbackError);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error fetching participant counts:', error);
+      }
+    }
+
     // If user is authenticated, use a single query with JOIN to get ticket counts
     if (session?.address && raffles && raffles.length > 0) {
       try {
@@ -44,56 +96,76 @@ export async function GET(request: NextRequest) {
         const raffleIds = raffles.map(r => r.id);
         console.log('🎯 Raffle IDs to check:', raffleIds);
 
-        // First try the current schema function (using user_id join)
+        // First try the new schema function (using wallet_address directly)
         let { data: userTicketData, error: ticketError } = await supabase
-          .rpc('get_user_raffle_tickets', {
+          .rpc('get_user_raffle_tickets_new', {
             p_wallet_address: session.address,
             p_raffle_ids: raffleIds
           });
 
-        console.log('🎫 Current RPC result:', userTicketData, 'Error:', ticketError);
+        console.log('🎫 New RPC result:', userTicketData, 'Error:', ticketError);
 
-        // If current RPC doesn't exist, try manual fallback approach
+        // If new RPC doesn't exist, try the old RPC function as fallback
         if (ticketError && ticketError.code === '42883') {
-          console.log('📞 New RPC not found, trying fallback approach...');
+          console.log('📞 New RPC not found, trying old RPC fallback...');
           
-          // Get user ID first
-          const { data: user } = await supabase
-            .from('shellies_raffle_users')
-            .select('id')
-            .eq('wallet_address', session.address)
-            .single();
+          const { data: oldRpcData, error: oldRpcError } = await supabase
+            .rpc('get_user_raffle_tickets', {
+              p_wallet_address: session.address,
+              p_raffle_ids: raffleIds
+            });
 
-          console.log('👤 Found user:', user);
+          console.log('🎫 Old RPC result:', oldRpcData, 'Error:', oldRpcError);
 
-          if (user) {
-            // Try wallet_address column first
-            let { data: userEntries, error: newError } = await supabase
+          if (!oldRpcError) {
+            userTicketData = oldRpcData;
+          } else {
+            console.log('📞 Old RPC also failed, trying manual approach...');
+            
+            // Try wallet_address column first (direct approach)
+            let { data: userEntries, error: walletError } = await supabase
               .from('shellies_raffle_entries')
               .select('raffle_id, ticket_count')
               .eq('wallet_address', session.address)
               .in('raffle_id', raffleIds);
 
-            console.log('🎫 Wallet_address query result:', userEntries, 'Error:', newError);
+            console.log('🎫 Wallet_address query result:', userEntries, 'Error:', walletError);
 
-            // If wallet_address column doesn't exist yet, fall back to user_id approach
-            if (newError && newError.code === '42703') {
+            if (!walletError) {
+              // Convert to the format expected by the rest of the function
+              userTicketData = userEntries?.map(entry => ({
+                raffle_id: entry.raffle_id,
+                total_tickets: entry.ticket_count
+              })) || [];
+            } else if (walletError.code === '42703') {
               console.log('📞 Wallet_address column not found, using user_id fallback...');
-              const { data: fallbackEntries, error: fallbackError } = await supabase
-                .from('shellies_raffle_entries')
-                .select('raffle_id, ticket_count')
-                .eq('user_id', user.id)
-                .in('raffle_id', raffleIds);
               
-              console.log('🎫 User_id fallback result:', fallbackEntries, 'Error:', fallbackError);
-              userEntries = fallbackEntries;
-            }
+              // Get user ID first
+              const { data: user } = await supabase
+                .from('shellies_raffle_users')
+                .select('id')
+                .eq('wallet_address', session.address)
+                .single();
 
-            // Convert to the format expected by the rest of the function
-            userTicketData = userEntries?.map(entry => ({
-              raffle_id: entry.raffle_id,
-              total_tickets: entry.ticket_count
-            })) || [];
+              console.log('👤 Found user:', user);
+
+              if (user) {
+                const { data: fallbackEntries, error: fallbackError } = await supabase
+                  .from('shellies_raffle_entries')
+                  .select('raffle_id, ticket_count')
+                  .eq('user_id', user.id)
+                  .in('raffle_id', raffleIds);
+                
+                console.log('🎫 User_id fallback result:', fallbackEntries, 'Error:', fallbackError);
+                
+                if (!fallbackError) {
+                  userTicketData = fallbackEntries?.map(entry => ({
+                    raffle_id: entry.raffle_id,
+                    total_tickets: entry.ticket_count
+                  })) || [];
+                }
+              }
+            }
           }
         }
 
@@ -107,16 +179,19 @@ export async function GET(request: NextRequest) {
 
         console.log('📊 Final ticket counts map:', entriesMap);
 
-        // Add user_ticket_count to each raffle
+        // Add user_ticket_count and current_participants to each raffle
         const rafflesWithTicketCounts = raffles.map(raffle => ({
           ...raffle,
-          user_ticket_count: entriesMap[raffle.id] || 0
+          user_ticket_count: entriesMap[raffle.id] || 0,
+          current_participants: participantCounts[raffle.id] || 0
         }));
 
-        console.log('🎫 Final raffles with ticket counts:', rafflesWithTicketCounts.map(r => ({
+        console.log('🎫 Final raffles with ticket and participant counts:', rafflesWithTicketCounts.map(r => ({
           title: r.title,
           id: r.id,
-          user_ticket_count: r.user_ticket_count
+          user_ticket_count: r.user_ticket_count,
+          current_participants: r.current_participants,
+          max_participants: r.max_participants
         })));
 
         return NextResponse.json(rafflesWithTicketCounts);
@@ -127,10 +202,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // If not authenticated or no user found, return raffles with 0 ticket counts
+    // If not authenticated or no user found, return raffles with 0 ticket counts but include participant counts
     const rafflesWithZeroTickets = raffles?.map(raffle => ({
       ...raffle,
-      user_ticket_count: 0
+      user_ticket_count: 0,
+      current_participants: participantCounts[raffle.id] || 0
     })) || [];
 
     console.log('🎫 Returning raffles with zero tickets for unauthenticated user');

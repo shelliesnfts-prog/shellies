@@ -36,10 +36,12 @@ export interface Raffle {
   image_url?: string;
   points_per_ticket: number;
   max_tickets_per_user: number;
+  max_participants?: number;
   end_date: string;
   is_active: boolean;
   created_at: string;
   user_ticket_count?: number;
+  current_participants?: number;
 }
 
 export interface RaffleEntry {
