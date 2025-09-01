@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useAccount } from 'wagmi';
-import { useUser } from '@/hooks/useUser';
-import { useClaiming } from '@/hooks/useClaiming';
+import { useDashboard } from '@/hooks/useDashboard';
 import { ClaimButtonWithCountdown } from '@/components/ClaimCountdown';
+import JoinRaffleModal from '@/components/JoinRaffleModal';
 import { 
   Trophy, 
   Coins, 
@@ -35,10 +35,12 @@ interface RaffleCardProps {
   raffle: Raffle;
   timeRemaining: string;
   isDarkMode: boolean;
+  onJoinClick: () => void;
 }
 
-function RaffleCard({ raffle, timeRemaining, isDarkMode }: RaffleCardProps) {
+function RaffleCard({ raffle, timeRemaining, isDarkMode, onJoinClick }: RaffleCardProps) {
   const [imageError, setImageError] = useState(false);
+  
   
   return (
     <div className={`group rounded-2xl shadow-sm border overflow-hidden hover:shadow-lg transition-all duration-300 hover:-translate-y-1 ${
@@ -98,6 +100,7 @@ function RaffleCard({ raffle, timeRemaining, isDarkMode }: RaffleCardProps) {
           <button 
             className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 hover:shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={timeRemaining === 'Ended'}
+            onClick={onJoinClick}
           >
             {timeRemaining === 'Ended' ? 'Ended' : 'Join'}
           </button>
@@ -115,12 +118,13 @@ export default function Portal() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const { data: session } = useSession();
   const { address, isConnected } = useAccount();
-  const { user, loading: userLoading, fetchUser } = useUser();
-  const { claimStatus, claiming, executeClaim, error: claimError } = useClaiming();
+  const { user, claimStatus, loading: userLoading, claiming, executeClaim, error: claimError, fetchUser } = useDashboard();
   const [leaderboard, setLeaderboard] = useState([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
   const [raffles, setRaffles] = useState<Raffle[]>([]);
   const [rafflesLoading, setRafflesLoading] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedRaffle, setSelectedRaffle] = useState<Raffle | null>(null);
 
   // Get wallet address from session or wagmi
   const walletAddress = address || session?.address || '';
@@ -174,6 +178,21 @@ export default function Portal() {
 
   const toggleDarkMode = () => {
     setIsDarkMode(!isDarkMode);
+  };
+
+  const handleJoinRaffle = (raffle: Raffle) => {
+    setSelectedRaffle(raffle);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedRaffle(null);
+  };
+
+  const handleRaffleSuccess = () => {
+    // Refresh user data after successful raffle entry
+    fetchUser();
   };
 
   useEffect(() => {
@@ -308,7 +327,7 @@ export default function Portal() {
                   onClick={() => setActiveTab('raffles')}
                   className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
                     activeTab === 'raffles' 
-                      ? 'bg-gray-100 text-gray-900' 
+                      ? 'bg-purple-100 text-gray-900' 
                       : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                   }`}
                 >
@@ -323,7 +342,7 @@ export default function Portal() {
                   onClick={() => setActiveTab('staking')}
                   className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
                     activeTab === 'staking' 
-                      ? 'bg-gray-100 text-gray-900' 
+                      ? 'bg-purple-100 text-gray-900' 
                       : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                   }`}
                 >
@@ -338,7 +357,7 @@ export default function Portal() {
                   onClick={() => setActiveTab('trade')}
                   className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
                     activeTab === 'trade' 
-                      ? 'bg-gray-100 text-gray-900' 
+                      ? 'bg-purple-100 text-gray-900' 
                       : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                   }`}
                 >
@@ -353,7 +372,7 @@ export default function Portal() {
                   onClick={() => setActiveTab('leaderboard')}
                   className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
                     activeTab === 'leaderboard' 
-                      ? 'bg-gray-100 text-gray-900' 
+                      ? 'bg-purple-100 text-gray-900' 
                       : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                   }`}
                 >
@@ -368,7 +387,7 @@ export default function Portal() {
                   onClick={() => setActiveTab('profile')}
                   className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
                     activeTab === 'profile' 
-                      ? 'bg-gray-100 text-gray-900' 
+                      ? 'bg-purple-100 text-gray-900' 
                       : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                   }`}
                 >
@@ -383,7 +402,7 @@ export default function Portal() {
                   onClick={() => setIsMoreOpen(!isMoreOpen)}
                   className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
                     isMoreOpen 
-                      ? 'bg-gray-100 text-gray-900' 
+                      ? 'bg-purple-100 text-gray-900' 
                       : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                   }`}
                 >
@@ -424,9 +443,10 @@ export default function Portal() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col lg:ml-4">
+      <div className="flex-1 flex flex-col lg:ml-4 min-h-screen">
         {/* Content Area */}
-        <main className="flex-1 p-3 lg:p-6 mt-16 lg:mt-0" style={{ marginLeft: '150px', marginRight: '150px' }}>
+        <main className="flex-1 p-3 sm:p-4 lg:p-6 mt-16 lg:mt-0 mx-auto max-w-7xl w-full
+          px-4 sm:px-6 lg:px-8 xl:px-16 2xl:px-32">
           {activeTab === 'raffles' && (
             <div className="space-y-4">
               {/* Tab Navigation */}
@@ -472,13 +492,14 @@ export default function Portal() {
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                   {raffles.map((raffle) => (
                     <RaffleCard 
                       key={raffle.id} 
                       raffle={raffle} 
                       timeRemaining={getTimeRemaining(raffle.end_date)}
                       isDarkMode={isDarkMode}
+                      onJoinClick={() => handleJoinRaffle(raffle)}
                     />
                   ))}
                 </div>
@@ -489,9 +510,9 @@ export default function Portal() {
           {activeTab === 'profile' && (
             <div className="space-y-6">
               {/* Header Section */}
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Profile Overview</h1>
+                  <h1 className={`text-xl sm:text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Profile Overview</h1>
                   <p className={`text-sm mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Track your NFTs, points, and daily rewards</p>
                 </div>
                 <div className={`px-3 py-1 rounded-full border ${
@@ -504,7 +525,7 @@ export default function Portal() {
               </div>
 
               {/* Stats Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                 {/* NFT Holdings Card */}
                 <div className={`h-fit group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-lg hover:-translate-y-1 ${
                   isDarkMode 
@@ -563,7 +584,7 @@ export default function Portal() {
 
                 {/* Daily Claim Card */}
                 {claimStatus && (
-                  <div className="md:col-span-2 lg:col-span-2">
+                  <div className="sm:col-span-2 lg:col-span-2">
                     <div className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-lg ${
                       isDarkMode 
                         ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700' 
@@ -633,16 +654,16 @@ export default function Portal() {
 
           {activeTab === 'leaderboard' && (
             <div className="space-y-4">
-              <h1 className="text-2xl font-bold text-gray-900">Leaderboard</h1>
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-                <div className="p-4">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Leaderboard</h1>
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="p-4 overflow-x-auto">
                   {leaderboardLoading ? (
                     <div className="text-center py-6">
                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600 mx-auto mb-3"></div>
                       <p className="text-gray-700 text-sm">Loading leaderboard...</p>
                     </div>
                   ) : (
-                    <table className="w-full">
+                    <table className="w-full min-w-[500px]">
                       <thead>
                         <tr className="border-b border-gray-200">
                           <th className="text-left text-gray-600 py-2 font-medium text-sm">Rank</th>
@@ -678,7 +699,7 @@ export default function Portal() {
 
           {(activeTab === 'staking' || activeTab === 'trade') && (
             <div className="space-y-4">
-              <h1 className="text-2xl font-bold text-gray-900 capitalize">{activeTab}</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 capitalize">{activeTab}</h1>
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 text-center">
                 <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
                   {activeTab === 'staking' ? <Coins className="w-6 h-6 text-gray-400" /> : <TrendingUp className="w-6 h-6 text-gray-400" />}
@@ -690,6 +711,15 @@ export default function Portal() {
           )}
         </main>
       </div>
+
+      {/* Join Raffle Modal */}
+      <JoinRaffleModal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        raffle={selectedRaffle}
+        isDarkMode={isDarkMode}
+        onSuccess={handleRaffleSuccess}
+      />
     </div>
   );
 }

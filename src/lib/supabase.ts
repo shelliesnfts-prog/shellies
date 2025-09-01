@@ -39,11 +39,12 @@ export interface Raffle {
   end_date: string;
   is_active: boolean;
   created_at: string;
+  user_ticket_count?: number;
 }
 
 export interface RaffleEntry {
   id: string;
-  user_id: string;
+  wallet_address: string;
   raffle_id: string;
   ticket_count: number;
   points_spent: number;

@@ -28,17 +28,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch all raffle entries with user and raffle details
+    // Fetch all raffle entries with raffle details (wallet_address is now directly in entries table)
     const { data: entries, error: entriesError } = await supabase
       .from('shellies_raffle_entries')
       .select(`
         id,
-        tickets_purchased,
+        wallet_address,
+        ticket_count,
         points_spent,
         created_at,
-        user:user_id (
-          wallet_address
-        ),
         raffle:raffle_id (
           title,
           points_per_ticket

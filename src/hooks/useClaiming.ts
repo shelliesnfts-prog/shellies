@@ -97,16 +97,16 @@ export function useClaiming() {
     }
   }, [session?.address, claiming]);
 
-  // Auto-refresh claim status
+  // Auto-refresh claim status (less frequent to reduce load)
   useEffect(() => {
     fetchClaimStatus();
     
-    // Set up periodic refresh every 30 seconds when user can't claim
+    // Set up periodic refresh every 5 minutes when user can't claim
     const interval = setInterval(() => {
       if (claimStatus && !claimStatus.canClaim) {
         fetchClaimStatus();
       }
-    }, 30000);
+    }, 5 * 60 * 1000); // 5 minutes instead of 30 seconds
 
     return () => clearInterval(interval);
   }, [fetchClaimStatus, claimStatus?.canClaim]);
