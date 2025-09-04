@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
-import { useAccount } from 'wagmi';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { RaffleContractService, type PrizeToken } from '@/lib/raffle-contract';
 import { 
   Users, 
   Gift, 
@@ -46,6 +47,10 @@ export default function AdminPage() {
   const [updatePoints, setUpdatePoints] = useState('');
   const [updateStatus, setUpdateStatus] = useState<'active' | 'blocked'>('active');
   
+  // End Raffle State
+  const [endingRaffle, setEndingRaffle] = useState<string | null>(null);
+  const [endRaffleMessage, setEndRaffleMessage] = useState<{ type: 'success' | 'error'; text: string; txHash?: string } | null>(null);
+  
   // Create Raffle Modal State
   const [raffleForm, setRaffleForm] = useState({
     title: '',
@@ -54,9 +59,16 @@ export default function AdminPage() {
     points_per_ticket: '',
     max_tickets_per_user: '',
     max_participants: '',
-    end_date: ''
+    end_date: '',
+    // Prize fields
+    prize_type: 'NFT', // 'NFT' or 'ERC20'
+    prize_token_address: '',
+    prize_token_id: '', // For NFT
+    prize_amount: '', // For ERC20
   });
   const [creatingRaffle, setCreatingRaffle] = useState(false);
+  const [prizeInfo, setPrizeInfo] = useState<any>(null);
+  const [validatingPrize, setValidatingPrize] = useState(false);
 
   // Get wallet address
   const walletAddress = address || session?.address || '';
@@ -201,11 +213,110 @@ export default function AdminPage() {
     }
   };
 
+  // Validate prize token
+  const validatePrize = async () => {
+    if (!raffleForm.prize_token_address || !walletAddress) {
+      setPrizeInfo(null);
+      return;
+    }
+
+    if (!RaffleContractService.isValidAddress(raffleForm.prize_token_address)) {
+      setPrizeInfo({ error: 'Invalid token address format' });
+      return;
+    }
+
+    try {
+      setValidatingPrize(true);
+
+      if (raffleForm.prize_type === 'NFT') {
+        if (!raffleForm.prize_token_id) {
+          setPrizeInfo({ error: 'Token ID is required for NFTs' });
+          return;
+        }
+
+        const [ownsNFT, tokenURI] = await Promise.all([
+          RaffleContractService.checkNFTOwnership(
+            walletAddress,
+            raffleForm.prize_token_address,
+            raffleForm.prize_token_id
+          ),
+          RaffleContractService.getNFTTokenURI(
+            raffleForm.prize_token_address,
+            raffleForm.prize_token_id
+          )
+        ]);
+
+        if (!ownsNFT) {
+          setPrizeInfo({ error: 'You do not own this NFT' });
+          return;
+        }
+
+        setPrizeInfo({
+          type: 'NFT',
+          tokenId: raffleForm.prize_token_id,
+          tokenURI,
+          owned: true
+        });
+      } else {
+        if (!raffleForm.prize_amount) {
+          setPrizeInfo({ error: 'Amount is required for ERC20 tokens' });
+          return;
+        }
+
+        const [hasBalance, tokenInfo] = await Promise.all([
+          RaffleContractService.checkERC20Balance(
+            walletAddress,
+            raffleForm.prize_token_address,
+            raffleForm.prize_amount
+          ),
+          RaffleContractService.getERC20Info(raffleForm.prize_token_address)
+        ]);
+
+        if (!hasBalance) {
+          setPrizeInfo({ error: 'Insufficient token balance' });
+          return;
+        }
+
+        setPrizeInfo({
+          type: 'ERC20',
+          amount: raffleForm.prize_amount,
+          ...tokenInfo,
+          hasBalance: true
+        });
+      }
+    } catch (error) {
+      console.error('Error validating prize:', error);
+      setPrizeInfo({ error: 'Error validating prize token' });
+    } finally {
+      setValidatingPrize(false);
+    }
+  };
+
   // Create raffle
   const createRaffle = async () => {
     if (!raffleForm.title || !raffleForm.description || !raffleForm.points_per_ticket || 
         !raffleForm.max_tickets_per_user || !raffleForm.end_date) {
       alert('Please fill in all required fields');
+      return;
+    }
+
+    if (!raffleForm.prize_token_address) {
+      alert('Please specify a prize token');
+      return;
+    }
+
+    if (raffleForm.prize_type === 'NFT' && !raffleForm.prize_token_id) {
+      alert('Please specify the NFT token ID');
+      return;
+    }
+
+    if (raffleForm.prize_type === 'ERC20' && !raffleForm.prize_amount) {
+      alert('Please specify the token amount');
+      return;
+    }
+
+    if (!prizeInfo || prizeInfo.error) {
+      alert('Please validate the prize token first');
       return;
     }
 
@@ -227,12 +338,48 @@ export default function AdminPage() {
             points_per_ticket: parseInt(raffleForm.points_per_ticket),
             max_tickets_per_user: parseInt(raffleForm.max_tickets_per_user),
             max_participants: raffleForm.max_participants ? parseInt(raffleForm.max_participants) : null,
-            end_date: utcDateTime
+            end_date: utcDateTime,
+            prize_token_address: raffleForm.prize_token_address,
+            prize_token_type: raffleForm.prize_type,
+            prize_token_id: raffleForm.prize_type === 'NFT' ? raffleForm.prize_token_id : null,
+            prize_amount: raffleForm.prize_type === 'ERC20' ? raffleForm.prize_amount : null,
           }
         })
       });
 
       if (response.ok) {
+        const data = await response.json();
+        
+        // Show appropriate success/error message based on blockchain status
+        if (data.blockchainStatus === 'success') {
+          alert(`Raffle created successfully! 
+
+Database ID: ${data.id}
+✅ Blockchain transactions completed!
+
+Transaction hashes:
+${data.transactionHashes ? data.transactionHashes.join('\n') : 'N/A'}
+
+The raffle is now live and accepting entries!`);
+        } else if (data.blockchainStatus === 'failed') {
+          alert(`Raffle saved to database but blockchain interaction failed!
+
+Database ID: ${data.id}
+❌ Blockchain Error: ${data.blockchainError}
+
+Please check the server logs and retry the blockchain deployment manually.`);
+        } else {
+          alert(`Raffle created successfully! Database ID: ${data.id}`);
+        }
+        
+        // Log details for debugging
+        console.log('Raffle creation result:', {
+          databaseId: data.id,
+          blockchainStatus: data.blockchainStatus,
+          transactionHashes: data.transactionHashes,
+          error: data.blockchainError
+        });
+        
         fetchRaffles();
         setShowCreateRaffle(false);
         // Reset form
@@ -243,11 +390,24 @@ export default function AdminPage() {
           points_per_ticket: '',
           max_tickets_per_user: '',
           max_participants: '',
-          end_date: ''
+          end_date: '',
+          prize_type: 'NFT',
+          prize_token_address: '',
+          prize_token_id: '',
+          prize_amount: '',
         });
+        setPrizeInfo(null);
       } else {
         const errorData = await response.json();
-        alert(`Error creating raffle: ${errorData.error || 'Unknown error'}`);
+        const rollbackMsg = errorData.rollbackStatus === 'success' 
+          ? '\n✅ Database has been cleaned up.' 
+          : errorData.rollbackStatus === 'failed' 
+          ? '\n❌ Warning: Database cleanup failed - manual cleanup may be needed.' 
+          : '';
+        
+        alert(`Error creating raffle: ${errorData.error || 'Unknown error'}
+
+Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
       }
     } catch (error) {
       console.error('Error creating raffle:', error);
@@ -259,9 +419,12 @@ export default function AdminPage() {
 
   // End raffle early
   const endRaffleEarly = async (raffleId: string) => {
-    if (!confirm('Are you sure you want to end this raffle early? This action cannot be undone.')) {
+    if (!confirm('Are you sure you want to end this raffle? This will trigger the smart contract and cannot be undone.')) {
       return;
     }
+
+    setEndingRaffle(raffleId);
+    setEndRaffleMessage(null);
 
     try {
       const response = await fetch('/api/admin/raffles', {
@@ -273,11 +436,29 @@ export default function AdminPage() {
         })
       });
 
-      if (response.ok) {
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setEndRaffleMessage({
+          type: 'success',
+          text: 'Raffle ended successfully! Winner has been selected and prize distributed.',
+          txHash: data.txHash
+        });
         fetchRaffles();
+      } else {
+        setEndRaffleMessage({
+          type: 'error',
+          text: data.error || 'Failed to end raffle. Please try again.'
+        });
       }
     } catch (error) {
-      console.error('Error ending raffle early:', error);
+      console.error('Error ending raffle:', error);
+      setEndRaffleMessage({
+        type: 'error',
+        text: 'Network error. Please check your connection and try again.'
+      });
+    } finally {
+      setEndingRaffle(null);
     }
   };
 
@@ -632,6 +813,37 @@ export default function AdminPage() {
                   <span>Create Raffle</span>
                 </button>
               </div>
+
+              {/* End Raffle Feedback Message */}
+              {endRaffleMessage && (
+                <div className={`p-4 rounded-lg border flex items-start space-x-3 ${
+                  endRaffleMessage.type === 'success'
+                    ? isDarkMode 
+                      ? 'bg-green-900/20 border-green-800 text-green-300' 
+                      : 'bg-green-50 border-green-200 text-green-800'
+                    : isDarkMode
+                      ? 'bg-red-900/20 border-red-800 text-red-300'
+                      : 'bg-red-50 border-red-200 text-red-800'
+                }`}>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{endRaffleMessage.text}</span>
+                      <button
+                        onClick={() => setEndRaffleMessage(null)}
+                        className="ml-4 text-gray-400 hover:text-gray-600"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    {endRaffleMessage.txHash && (
+                      <div className="mt-2 text-xs opacity-75">
+                        Transaction Hash: 
+                        <span className="font-mono ml-1 break-all">{endRaffleMessage.txHash}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
               
               {loading ? (
                 <div className="text-center py-8">
@@ -680,15 +892,18 @@ export default function AdminPage() {
                         <div className="flex space-x-2 mt-4">
                           <button
                             onClick={() => endRaffleEarly(raffle.id)}
-                            className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                              isRaffleActive(raffle.end_date)
-                                ? 'bg-red-600 hover:bg-red-700 text-white'
-                                : 'bg-gray-400 cursor-not-allowed text-white'
-                            }`}
-                            disabled={!isRaffleActive(raffle.end_date)}
-                            title={!isRaffleActive(raffle.end_date) ? 'Raffle has already ended' : 'End raffle early'}
+                            disabled={endingRaffle === raffle.id}
+                            className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+                              endingRaffle === raffle.id
+                                ? 'bg-red-400 cursor-not-allowed'
+                                : 'bg-red-600 hover:bg-red-700'
+                            } text-white`}
+                            title="End raffle and trigger smart contract"
                           >
-                            {isRaffleActive(raffle.end_date) ? 'End Early' : 'Ended'}
+                            {endingRaffle === raffle.id && (
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            )}
+                            {endingRaffle === raffle.id ? 'Ending...' : 'End Raffle'}
                           </button>
                         </div>
                       </div>
@@ -958,6 +1173,131 @@ export default function AdminPage() {
                   }`}
                   min={new Date().toISOString().slice(0, 16)}
                 />
+              </div>
+
+              {/* Prize Configuration Section */}
+              <div className={`border-t pt-4 ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
+                <h4 className={`text-md font-semibold mb-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Prize Configuration</h4>
+                
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Prize Type *</label>
+                  <select
+                    value={raffleForm.prize_type}
+                    onChange={(e) => {
+                      setRaffleForm({...raffleForm, prize_type: e.target.value as 'NFT' | 'ERC20'});
+                      setPrizeInfo(null);
+                    }}
+                    className={`w-full px-3 py-2 rounded-lg border text-sm ${
+                      isDarkMode 
+                        ? 'bg-gray-700 border-gray-600 text-white' 
+                        : 'bg-white border-gray-300 text-gray-900'
+                    }`}
+                  >
+                    <option value="NFT">NFT (ERC721)</option>
+                    <option value="ERC20">Token (ERC20)</option>
+                  </select>
+                </div>
+
+                <div className="mt-3">
+                  <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Token Contract Address *</label>
+                  <input
+                    type="text"
+                    value={raffleForm.prize_token_address}
+                    onChange={(e) => {
+                      setRaffleForm({...raffleForm, prize_token_address: e.target.value});
+                      setPrizeInfo(null);
+                    }}
+                    className={`w-full px-3 py-2 rounded-lg border text-sm ${
+                      isDarkMode 
+                        ? 'bg-gray-700 border-gray-600 text-white' 
+                        : 'bg-white border-gray-300 text-gray-900'
+                    }`}
+                    placeholder="0x..."
+                  />
+                </div>
+
+                {raffleForm.prize_type === 'NFT' && (
+                  <div className="mt-3">
+                    <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Token ID *</label>
+                    <input
+                      type="number"
+                      value={raffleForm.prize_token_id}
+                      onChange={(e) => {
+                        setRaffleForm({...raffleForm, prize_token_id: e.target.value});
+                        setPrizeInfo(null);
+                      }}
+                      className={`w-full px-3 py-2 rounded-lg border text-sm ${
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white' 
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
+                      placeholder="1"
+                      min="0"
+                    />
+                  </div>
+                )}
+
+                {raffleForm.prize_type === 'ERC20' && (
+                  <div className="mt-3">
+                    <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Amount *</label>
+                    <input
+                      type="text"
+                      value={raffleForm.prize_amount}
+                      onChange={(e) => {
+                        setRaffleForm({...raffleForm, prize_amount: e.target.value});
+                        setPrizeInfo(null);
+                      }}
+                      className={`w-full px-3 py-2 rounded-lg border text-sm ${
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white' 
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
+                      placeholder="100"
+                    />
+                  </div>
+                )}
+
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={validatePrize}
+                    disabled={!raffleForm.prize_token_address || validatingPrize}
+                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    {validatingPrize ? 'Validating...' : 'Validate Prize'}
+                  </button>
+                </div>
+
+                {prizeInfo && (
+                  <div className={`mt-3 p-3 rounded-lg border ${
+                    prizeInfo.error 
+                      ? isDarkMode ? 'bg-red-900/20 border-red-700 text-red-300' : 'bg-red-50 border-red-200 text-red-700'
+                      : isDarkMode ? 'bg-green-900/20 border-green-700 text-green-300' : 'bg-green-50 border-green-200 text-green-700'
+                  }`}>
+                    {prizeInfo.error ? (
+                      <p className="text-sm">{prizeInfo.error}</p>
+                    ) : (
+                      <div className="text-sm space-y-1">
+                        <p><strong>Type:</strong> {prizeInfo.type}</p>
+                        {prizeInfo.type === 'NFT' ? (
+                          <>
+                            <p><strong>Token ID:</strong> {prizeInfo.tokenId}</p>
+                            <p><strong>Owned:</strong> ✓ Yes</p>
+                            {prizeInfo.tokenURI && (
+                              <p><strong>Token URI:</strong> {prizeInfo.tokenURI.substring(0, 50)}...</p>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <p><strong>Amount:</strong> {prizeInfo.amount} {prizeInfo.symbol}</p>
+                            <p><strong>Balance:</strong> ✓ Sufficient</p>
+                            {prizeInfo.name && <p><strong>Token:</strong> {prizeInfo.name}</p>}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             <div className={`p-6 border-t flex space-x-3 ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>

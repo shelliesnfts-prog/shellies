@@ -10,32 +10,46 @@ import "@openzeppelin/contracts/security/Pausable.sol";
 
 /**
  * @title ShelliesRaffleContract
- * @dev Ultra-optimized raffle contract with server automation
+ * @dev Professional raffle contract with server automation
  * @author Shellies Team
  */
-contract ShelliesRaffleContract is ERC721Holder, AccessControl, ReentrancyGuard, Pausable {
+contract ShelliesRaffleContract is 
+    ERC721Holder, 
+    AccessControl, 
+    ReentrancyGuard, 
+    Pausable
+{
     
     // ============ ROLES ============
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant SERVER_ROLE = keccak256("SERVER_ROLE");
     
+    // ============ RAFFLE STATES ============
+    enum RaffleState {
+        CREATED,        // Prize deposited, ready for entries
+        ACTIVE,         // Accepting entries  
+        COMPLETED,      // Winner selected and prize distributed
+        CANCELLED       // Emergency cancelled by admin
+    }
+    
     // ============ EVENTS ============
-    event RaffleCreated(bytes32 indexed raffleId, address indexed prizeToken, uint256 prizeTokenId, bool isNFT, uint64 endTimestamp);
-    event RaffleEnded(bytes32 indexed raffleId, address indexed winner, uint256 totalParticipants, uint256 totalTickets);
-    event EmergencyWithdraw(bytes32 indexed raffleId, address indexed admin, address prizeToken, uint256 prizeTokenId);
+    event RaffleCreated(uint256 indexed raffleId, address indexed prizeToken, uint256 prizeTokenId, bool isNFT);
+    event RaffleStateChanged(uint256 indexed raffleId, RaffleState oldState, RaffleState newState);
+    event RaffleEnded(uint256 indexed raffleId, address indexed winner, uint256 totalParticipants, uint256 totalTickets);
+    event EmergencyWithdraw(uint256 indexed raffleId, address indexed admin, address prizeToken, uint256 prizeTokenId);
     
     // ============ STORAGE ============
     struct Raffle {
         address prizeToken;      // NFT/Token contract (20 bytes)
         uint96 prizeTokenId;     // NFT ID or token amount (12 bytes) 
         uint64 endTimestamp;     // End time (8 bytes)
-        address winner;          // Winner address (20 bytes)
+        RaffleState state;       // Current state (1 byte)
         bool isNFT;             // NFT vs ERC20 (1 byte)
-        bool completed;          // Finished flag (1 byte)
+        address winner;          // Winner address (20 bytes)
     }
     
-    mapping(bytes32 => Raffle) public raffles;
-    mapping(bytes32 => bool) public raffleExists;
+    // Main raffle storage - using uint256 for sequential database IDs
+    mapping(uint256 => Raffle) public raffles;
     
     // ============ MODIFIERS ============
     modifier onlyAdmin() {
@@ -48,17 +62,13 @@ contract ShelliesRaffleContract is ERC721Holder, AccessControl, ReentrancyGuard,
         _;
     }
     
-    modifier raffleActive(bytes32 raffleId) {
-        require(raffleExists[raffleId], "Raffle not found");
-        require(!raffles[raffleId].completed, "Raffle completed");
-        require(block.timestamp < raffles[raffleId].endTimestamp, "Raffle expired");
+    modifier raffleInState(uint256 raffleId, RaffleState expectedState) {
+        require(raffles[raffleId].state == expectedState, "Invalid raffle state");
         _;
     }
     
-    modifier raffleEnded(bytes32 raffleId) {
-        require(raffleExists[raffleId], "Raffle not found");
-        require(block.timestamp >= raffles[raffleId].endTimestamp, "Raffle still active");
-        require(!raffles[raffleId].completed, "Already completed");
+    modifier raffleExists(uint256 raffleId) {
+        require(raffles[raffleId].prizeToken != address(0), "Raffle not found");
         _;
     }
     
@@ -72,55 +82,54 @@ contract ShelliesRaffleContract is ERC721Holder, AccessControl, ReentrancyGuard,
     // ============ ADMIN FUNCTIONS ============
     
     /**
-     * @notice Create raffle and deposit NFT prize in one transaction
-     * @param raffleId Unique raffle ID from database
+     * @notice Deposit NFT prize and create raffle
+     * @param raffleId Unique raffle ID from database (sequential)
      * @param prizeToken NFT contract address
      * @param tokenId NFT token ID
      * @param endTimestamp When raffle ends
      */
     function createRaffleWithNFT(
-        bytes32 raffleId,
+        uint256 raffleId,
         address prizeToken,
         uint256 tokenId,
         uint64 endTimestamp
     ) external onlyAdmin whenNotPaused nonReentrant {
-        require(!raffleExists[raffleId], "Raffle exists");
+        require(raffles[raffleId].prizeToken == address(0), "Raffle already exists");
         require(prizeToken != address(0), "Invalid token");
-        require(endTimestamp > block.timestamp, "Invalid end time");
         require(tokenId <= type(uint96).max, "Token ID too large");
+        require(endTimestamp > block.timestamp, "Invalid end time");
         
         // Transfer NFT to contract
         IERC721(prizeToken).safeTransferFrom(msg.sender, address(this), tokenId);
         
-        // Store raffle data (gas optimized)
+        // Create raffle with CREATED state
         raffles[raffleId] = Raffle({
             prizeToken: prizeToken,
             prizeTokenId: uint96(tokenId),
             endTimestamp: endTimestamp,
-            winner: address(0),
+            state: RaffleState.CREATED,
             isNFT: true,
-            completed: false
+            winner: address(0)
         });
         
-        raffleExists[raffleId] = true;
-        
-        emit RaffleCreated(raffleId, prizeToken, tokenId, true, endTimestamp);
+        emit RaffleCreated(raffleId, prizeToken, tokenId, true);
+        emit RaffleStateChanged(raffleId, RaffleState.CREATED, RaffleState.CREATED);
     }
     
     /**
-     * @notice Create raffle and deposit ERC20 prize in one transaction
-     * @param raffleId Unique raffle ID from database
+     * @notice Deposit ERC20 prize and create raffle
+     * @param raffleId Unique raffle ID from database (sequential)
      * @param prizeToken ERC20 contract address
      * @param amount Token amount to deposit
      * @param endTimestamp When raffle ends
      */
     function createRaffleWithToken(
-        bytes32 raffleId,
+        uint256 raffleId,
         address prizeToken,
         uint256 amount,
         uint64 endTimestamp
     ) external onlyAdmin whenNotPaused nonReentrant {
-        require(!raffleExists[raffleId], "Raffle exists");
+        require(raffles[raffleId].prizeToken == address(0), "Raffle already exists");
         require(prizeToken != address(0), "Invalid token");
         require(amount > 0, "Invalid amount");
         require(amount <= type(uint96).max, "Amount too large");
@@ -129,66 +138,113 @@ contract ShelliesRaffleContract is ERC721Holder, AccessControl, ReentrancyGuard,
         // Transfer tokens to contract
         IERC20(prizeToken).transferFrom(msg.sender, address(this), amount);
         
-        // Store raffle data
+        // Create raffle with CREATED state
         raffles[raffleId] = Raffle({
             prizeToken: prizeToken,
             prizeTokenId: uint96(amount),
             endTimestamp: endTimestamp,
-            winner: address(0),
+            state: RaffleState.CREATED,
             isNFT: false,
-            completed: false
+            winner: address(0)
         });
         
-        raffleExists[raffleId] = true;
-        
-        emit RaffleCreated(raffleId, prizeToken, amount, false, endTimestamp);
+        emit RaffleCreated(raffleId, prizeToken, amount, false);
+        emit RaffleStateChanged(raffleId, RaffleState.CREATED, RaffleState.CREATED);
     }
     
-    // ============ SERVER FUNCTIONS ============
+    /**
+     * @notice Activate raffle to start accepting entries
+     * @param raffleId The raffle to activate
+     */
+    function activateRaffle(uint256 raffleId) 
+        external 
+        onlyAdmin 
+        raffleExists(raffleId)
+        raffleInState(raffleId, RaffleState.CREATED)
+    {
+        raffles[raffleId].state = RaffleState.ACTIVE;
+        emit RaffleStateChanged(raffleId, RaffleState.CREATED, RaffleState.ACTIVE);
+    }
+    
+    // ============ USER FUNCTIONS ============
+    
+    /**
+     * @notice Users call this to join a raffle (signature only)
+     * @dev This function doesn't store data, just requires user signature for security
+     * @param raffleId The raffle to join
+     * @param ticketCount Number of tickets to purchase (for validation)
+     */
+    function joinRaffle(
+        uint256 raffleId,
+        uint256 ticketCount
+    ) external 
+        raffleExists(raffleId)
+        raffleInState(raffleId, RaffleState.ACTIVE)
+        whenNotPaused 
+    {
+        require(ticketCount > 0, "Invalid ticket count");
+        require(block.timestamp < raffles[raffleId].endTimestamp, "Raffle ended");
+        
+        // This function intentionally does nothing except validate the raffle is active
+        // and require user signature. The server will handle actual participation data.
+        // This ensures users must sign a transaction to join, providing security.
+    }
+    
+    // ============ SERVER AUTOMATION ============
     
     /**
      * @notice Server calls this to end raffle and select winner
      * @param raffleId The raffle to end
      * @param participants Array of participant addresses
      * @param ticketCounts Array of ticket counts for each participant
-     * @param entropy Random seed from server
+     * @param randomSeed Random seed from server for additional entropy
      */
     function endRaffle(
-        bytes32 raffleId,
+        uint256 raffleId,
         address[] calldata participants,
         uint256[] calldata ticketCounts,
-        uint256 entropy
-    ) external onlyServer raffleEnded(raffleId) whenNotPaused nonReentrant {
+        uint256 randomSeed
+    ) external 
+        onlyServer 
+        raffleExists(raffleId)
+        raffleInState(raffleId, RaffleState.ACTIVE)
+        whenNotPaused 
+        nonReentrant 
+    {
         require(participants.length == ticketCounts.length, "Array mismatch");
         require(participants.length > 0, "No participants");
-        
-        Raffle storage raffle = raffles[raffleId];
+        require(block.timestamp >= raffles[raffleId].endTimestamp, "Raffle not ended yet");
         
         // Calculate total tickets and select winner
         uint256 totalTickets = 0;
         for (uint256 i = 0; i < ticketCounts.length; i++) {
             totalTickets += ticketCounts[i];
         }
-        
         require(totalTickets > 0, "No tickets sold");
         
-        // Generate random ticket number using server entropy + block data
-        uint256 randomTicket = uint256(
+        // Generate secure random number using multiple entropy sources
+        uint256 randomNumber = uint256(
             keccak256(abi.encodePacked(
-                entropy,
-                block.timestamp,
-                block.difficulty,
-                raffleId,
-                totalTickets
+                randomSeed,                    // Server-provided randomness
+                block.timestamp,               // Current block time
+                block.prevrandao,             // Previous block randomness (more secure than block.difficulty)
+                blockhash(block.number - 1),  // Previous block hash
+                raffleId,                     // Unique raffle identifier
+                totalTickets,                 // Total tickets for additional uniqueness
+                participants.length,          // Number of participants
+                tx.gasprice                   // Transaction gas price for more entropy
             ))
-        ) % totalTickets;
+        );
         
-        // Find winner by ticket ranges
+        // Select winner using weighted random selection
+        uint256 randomTicket = randomNumber % totalTickets;
         address winner = _selectWinnerByTicket(participants, ticketCounts, randomTicket);
         
         // Update raffle state
+        Raffle storage raffle = raffles[raffleId];
         raffle.winner = winner;
-        raffle.completed = true;
+        raffle.state = RaffleState.COMPLETED;
+        emit RaffleStateChanged(raffleId, RaffleState.ACTIVE, RaffleState.COMPLETED);
         
         // Transfer prize to winner
         _transferPrize(raffleId, winner);
@@ -196,43 +252,53 @@ contract ShelliesRaffleContract is ERC721Holder, AccessControl, ReentrancyGuard,
         emit RaffleEnded(raffleId, winner, participants.length, totalTickets);
     }
     
+    
     // ============ VIEW FUNCTIONS ============
     
     /**
-     * @notice Get raffle information
+     * @notice Get comprehensive raffle information
      */
-    function getRaffle(bytes32 raffleId) external view returns (
+    function getRaffleInfo(uint256 raffleId) external view returns (
         address prizeToken,
         uint256 prizeTokenId,
         uint64 endTimestamp,
-        address winner,
+        RaffleState state,
         bool isNFT,
-        bool completed,
-        bool isActive
+        address winner
     ) {
-        require(raffleExists[raffleId], "Raffle not found");
-        
         Raffle memory raffle = raffles[raffleId];
         
         return (
             raffle.prizeToken,
             raffle.prizeTokenId,
             raffle.endTimestamp,
-            raffle.winner,
+            raffle.state,
             raffle.isNFT,
-            raffle.completed,
-            block.timestamp < raffle.endTimestamp && !raffle.completed
+            raffle.winner
         );
     }
     
     /**
-     * @notice Check if raffle is ready to be ended
+     * @notice Get raffle state
      */
-    function canEndRaffle(bytes32 raffleId) external view returns (bool) {
-        if (!raffleExists[raffleId]) return false;
-        
+    function getRaffleState(uint256 raffleId) external view returns (RaffleState) {
+        return raffles[raffleId].state;
+    }
+    
+    /**
+     * @notice Check if raffle can be ended
+     */
+    function canEndRaffle(uint256 raffleId) external view returns (bool) {
         Raffle memory raffle = raffles[raffleId];
-        return block.timestamp >= raffle.endTimestamp && !raffle.completed;
+        return raffle.state == RaffleState.ACTIVE && 
+               block.timestamp >= raffle.endTimestamp;
+    }
+    
+    /**
+     * @notice Check if raffle exists
+     */
+    function isRaffleActive(uint256 raffleId) external view returns (bool) {
+        return raffles[raffleId].prizeToken != address(0);
     }
     
     // ============ EMERGENCY FUNCTIONS ============
@@ -240,17 +306,22 @@ contract ShelliesRaffleContract is ERC721Holder, AccessControl, ReentrancyGuard,
     /**
      * @notice Emergency withdraw prize (cancelled raffles only)
      */
-    function emergencyWithdraw(bytes32 raffleId, address recipient) 
-        external onlyAdmin nonReentrant 
+    function emergencyWithdraw(uint256 raffleId, address recipient) 
+        external 
+        onlyAdmin 
+        raffleExists(raffleId)
+        nonReentrant 
     {
-        require(raffleExists[raffleId], "Raffle not found");
-        require(!raffles[raffleId].completed, "Raffle completed");
         require(recipient != address(0), "Invalid recipient");
         
         Raffle storage raffle = raffles[raffleId];
+        require(raffle.state != RaffleState.COMPLETED, "Raffle completed");
+        require(raffle.state != RaffleState.CANCELLED, "Already cancelled");
         
-        // Mark as completed to prevent double withdrawal
-        raffle.completed = true;
+        // Mark as cancelled to prevent further operations
+        RaffleState oldState = raffle.state;
+        raffle.state = RaffleState.CANCELLED;
+        emit RaffleStateChanged(raffleId, oldState, RaffleState.CANCELLED);
         
         // Transfer prize back
         if (raffle.isNFT) {
@@ -306,7 +377,7 @@ contract ShelliesRaffleContract is ERC721Holder, AccessControl, ReentrancyGuard,
     /**
      * @notice Transfer prize to winner
      */
-    function _transferPrize(bytes32 raffleId, address winner) internal {
+    function _transferPrize(uint256 raffleId, address winner) internal {
         Raffle memory raffle = raffles[raffleId];
         
         if (raffle.isNFT) {
@@ -334,5 +405,12 @@ contract ShelliesRaffleContract is ERC721Holder, AccessControl, ReentrancyGuard,
      */
     function removeServerWallet(address serverWallet) external onlyAdmin {
         revokeRole(SERVER_ROLE, serverWallet);
+    }
+
+    /**
+     * @notice Check interface support (required for AccessControl)
+     */
+    function supportsInterface(bytes4 interfaceId) public view virtual override(AccessControl) returns (bool) {
+        return super.supportsInterface(interfaceId);
     }
 }

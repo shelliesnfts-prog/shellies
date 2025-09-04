@@ -6,6 +6,7 @@ import { useAccount } from 'wagmi';
 import { useDashboard } from '@/hooks/useDashboard';
 import { ClaimButtonWithCountdown } from '@/components/ClaimCountdown';
 import JoinRaffleModal from '@/components/JoinRaffleModal';
+import Image from 'next/image';
 import { 
   Trophy, 
   Coins, 
@@ -42,7 +43,6 @@ interface RaffleCardProps {
 function RaffleCard({ raffle, timeRemaining, isDarkMode, onJoinClick }: RaffleCardProps) {
   const [imageError, setImageError] = useState(false);
   
-  
   return (
     <div className={`group rounded-2xl shadow-sm border overflow-hidden hover:shadow-lg transition-all duration-300 hover:-translate-y-1 ${
       isDarkMode 
@@ -60,11 +60,24 @@ function RaffleCard({ raffle, timeRemaining, isDarkMode, onJoinClick }: RaffleCa
             <div className="w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
               <ImageOff className="w-10 h-10 text-gray-400" />
             </div>
-          ) : (
+          ) : raffle.image_url.startsWith('blob:') ? (
             <>
               <img 
                 src={raffle.image_url} 
                 alt={raffle.title}
+                className="w-full h-48 object-cover transition-transform duration-500 group-hover:scale-105"
+                onError={() => setImageError(true)}
+              />
+              {/* Gradient overlay */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            </>
+          ) : (
+            <>
+              <Image
+                src={raffle.image_url} 
+                alt={raffle.title}
+                width={400}
+                height={192}
                 className="w-full h-48 object-cover transition-transform duration-500 group-hover:scale-105"
                 onError={() => setImageError(true)}
               />

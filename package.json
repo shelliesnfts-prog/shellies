@@ -8,12 +8,14 @@
     "start": "next start"
   },
   "dependencies": {
+    "@openzeppelin/contracts": "^5.4.0",
     "@rainbow-me/rainbowkit": "^2.2.0",
     "@rainbow-me/rainbowkit-siwe-next-auth": "^0.5.0",
     "@studio-freight/lenis": "^1.0.42",
     "@supabase/supabase-js": "^2.56.0",
     "@tanstack/react-query": "^5.62.8",
     "@types/three": "^0.179.0",
+    "abitype": "^1.0.9",
     "ethers": "^6.13.4",
     "framer-motion": "^12.23.12",
     "gsap": "^3.13.0",

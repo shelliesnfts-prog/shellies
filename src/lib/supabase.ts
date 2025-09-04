@@ -30,7 +30,7 @@ export interface User {
 }
 
 export interface Raffle {
-  id: string;
+  id: number;
   title: string;
   description: string;
   image_url?: string;
@@ -38,10 +38,13 @@ export interface Raffle {
   max_tickets_per_user: number;
   max_participants?: number;
   end_date: string;
-  is_active: boolean;
   created_at: string;
   user_ticket_count?: number;
   current_participants?: number;
+  prize_token_address?: string;
+  prize_token_type?: 'NFT' | 'ERC20';
+  prize_token_id?: string;
+  prize_amount?: string;
 }
 
 export interface RaffleEntry {

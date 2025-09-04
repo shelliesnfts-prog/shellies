@@ -19,7 +19,7 @@ const supabaseService = createClient(
 );
 
 interface EnterRaffleRequest {
-  raffleId: string;
+  raffleId: string | number;
   ticketCount: number;
 }
 

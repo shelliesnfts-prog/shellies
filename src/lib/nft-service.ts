@@ -1,4 +1,4 @@
-import { createPublicClient, http, parseAbi } from 'viem';
+import { createPublicClient, http, erc721Abi } from 'viem';
 import { defineChain } from 'viem';
 
 // Ink chain configuration (mainnet - correct endpoints)
@@ -39,30 +39,33 @@ const publicClient = createPublicClient({
   })
 });
 
-// Comprehensive ERC721 ABI that includes various common implementations
-const erc721Abi = parseAbi([
-  // Standard ERC721 functions
-  'function balanceOf(address owner) view returns (uint256)',
-  'function ownerOf(uint256 tokenId) view returns (address)',
-  'function name() view returns (string)',
-  'function symbol() view returns (string)',
-  'function tokenURI(uint256 tokenId) view returns (string)',
-  'function totalSupply() view returns (uint256)',
-  
-  // Enumerable extension
-  'function tokenOfOwnerByIndex(address owner, uint256 index) view returns (uint256)',
-  'function tokenByIndex(uint256 index) view returns (uint256)',
-  
-  // Common OpenZeppelin functions
-  'function supportsInterface(bytes4 interfaceId) view returns (bool)',
-]);
+// Use built-in viem ERC721 ABI (imported above)
+// This includes all standard ERC721 functions plus common extensions
 
 // Proxy contract ABI for detecting implementation
-const proxyAbi = parseAbi([
-  'function implementation() view returns (address)',
-  'function admin() view returns (address)',
-  'function owner() view returns (address)',
-]);
+const proxyAbi = [
+  {
+    "inputs": [],
+    "name": "implementation",
+    "outputs": [{"internalType": "address", "name": "", "type": "address"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "admin", 
+    "outputs": [{"internalType": "address", "name": "", "type": "address"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [{"internalType": "address", "name": "", "type": "address"}], 
+    "stateMutability": "view",
+    "type": "function"
+  }
+] as const;
 
 // ERC165 interface IDs for detection
 const ERC721_INTERFACE_ID = '0x80ac58cd';

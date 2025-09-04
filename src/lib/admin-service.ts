@@ -172,6 +172,10 @@ export class AdminService {
     max_tickets_per_user: number;
     max_participants?: number;
     end_date: string;
+    prize_token_address?: string;
+    prize_token_type?: 'NFT' | 'ERC20';
+    prize_token_id?: string;
+    prize_amount?: string;
   }): Promise<Raffle | null> {
     try {
       const client = supabaseAdmin || supabase;
@@ -216,24 +220,57 @@ export class AdminService {
     }
   }
 
-  // End raffle early by setting end date to current time
-  static async endRaffleEarly(raffleId: string): Promise<boolean> {
+  // End raffle by setting end date to current time and calling smart contract
+  static async endRaffleEarly(raffleId: string): Promise<{ success: boolean; txHash?: string; error?: string }> {
     try {
       const client = supabaseAdmin || supabase;
       
+      // Step 1: Update database to mark raffle as ended
       const { error } = await client
         .from('shellies_raffle_raffles')
         .update({ end_date: new Date().toISOString() })
         .eq('id', raffleId);
 
       if (error) {
-        console.error('Error ending raffle early:', error);
+        console.error('Error updating raffle end date:', error);
+        return { success: false, error: 'Failed to update raffle in database' };
+      }
+
+      // Step 2: Call smart contract to end raffle (picks winner and distributes prize)
+      const { RaffleContractService } = await import('./raffle-contract');
+      const contractResult = await RaffleContractService.serverEndRaffle(raffleId);
+      
+      if (!contractResult.success) {
+        console.error('Smart contract end raffle failed:', contractResult.error);
+        return { success: false, error: contractResult.error };
+      }
+
+      console.log('Raffle ended successfully:', { raffleId, txHash: contractResult.txHash });
+      return { success: true, txHash: contractResult.txHash };
+    } catch (error) {
+      console.error('Unexpected error ending raffle:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  // Delete raffle permanently (for cleanup when blockchain fails)
+  static async deleteRaffle(raffleId: string): Promise<boolean> {
+    try {
+      const client = supabaseAdmin || supabase;
+      
+      const { error } = await client
+        .from('shellies_raffle_raffles')
+        .delete()
+        .eq('id', raffleId);
+
+      if (error) {
+        console.error('Error deleting raffle:', error);
         return false;
       }
 
       return true;
     } catch (error) {
-      console.error('Unexpected error ending raffle early:', error);
+      console.error('Unexpected error deleting raffle:', error);
       return false;
     }
   }

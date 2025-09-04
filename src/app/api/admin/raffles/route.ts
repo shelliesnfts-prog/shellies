@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { AdminService } from '@/lib/admin-service';
+import { RaffleContractService } from '@/lib/raffle-contract';
 
 export async function GET(request: NextRequest) {
   try {
@@ -46,11 +47,95 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Raffle data required' }, { status: 400 });
         }
         
+        // Validate prize data
+        if (!raffleData.prize_token_address || !raffleData.prize_token_type) {
+          return NextResponse.json({ error: 'Prize token information required' }, { status: 400 });
+        }
+
+        if (raffleData.prize_token_type === 'NFT' && !raffleData.prize_token_id) {
+          return NextResponse.json({ error: 'NFT token ID required' }, { status: 400 });
+        }
+
+        if (raffleData.prize_token_type === 'ERC20' && !raffleData.prize_amount) {
+          return NextResponse.json({ error: 'ERC20 amount required' }, { status: 400 });
+        }
+        
+        // Step 1: Create raffle in database
         const newRaffle = await AdminService.createRaffle(raffleData);
         if (!newRaffle) {
-          return NextResponse.json({ error: 'Failed to create raffle' }, { status: 500 });
+          return NextResponse.json({ error: 'Failed to create raffle in database' }, { status: 500 });
         }
-        return NextResponse.json(newRaffle);
+
+        // Step 2: Create raffle on blockchain
+        try {
+          const blockchainResult = await RaffleContractService.serverCreateAndActivateRaffle(
+            newRaffle.id,
+            raffleData.prize_token_address,
+            raffleData.prize_token_type,
+            raffleData.prize_token_id || null,
+            raffleData.prize_amount || null,
+            raffleData.end_date
+          );
+
+          if (!blockchainResult.success) {
+            console.error('Blockchain transaction failed:', blockchainResult.error);
+            
+            // Rollback: Delete the raffle from database since blockchain failed
+            const deleteSuccess = await AdminService.deleteRaffle(newRaffle.id);
+            if (!deleteSuccess) {
+              console.error('Failed to rollback raffle from database after blockchain failure');
+            }
+            
+            // Return error response
+            return NextResponse.json({
+              error: 'Failed to create raffle on blockchain',
+              details: blockchainResult.error,
+              rollbackStatus: deleteSuccess ? 'success' : 'failed'
+            }, { status: 500 });
+          }
+
+          // Success - return raffle with blockchain transaction hashes
+          return NextResponse.json({
+            ...newRaffle,
+            blockchainStatus: 'success',
+            transactionHashes: blockchainResult.txHashes
+          });
+
+        } catch (error) {
+          console.error('Error interacting with blockchain:', error);
+          
+          // Rollback: Delete the raffle from database since blockchain failed
+          const deleteSuccess = await AdminService.deleteRaffle(newRaffle.id);
+          if (!deleteSuccess) {
+            console.error('Failed to rollback raffle from database after blockchain error');
+          }
+          
+          // Return error response
+          return NextResponse.json({
+            error: 'Blockchain interaction failed',
+            details: error instanceof Error ? error.message : 'Unknown blockchain error',
+            rollbackStatus: deleteSuccess ? 'success' : 'failed'
+          }, { status: 500 });
+        }
+
+      case 'create_with_prize':
+        if (!raffleData || !raffleData.prize) {
+          return NextResponse.json({ error: 'Raffle data and prize required' }, { status: 400 });
+        }
+        
+        // Create raffle in database first
+        const newRaffleWithPrize = await AdminService.createRaffle(raffleData);
+        if (!newRaffleWithPrize) {
+          return NextResponse.json({ error: 'Failed to create raffle in database' }, { status: 500 });
+        }
+
+        // Return the raffle data with instructions to complete on frontend
+        // The frontend will need to handle the contract interaction directly
+        return NextResponse.json({ 
+          raffle: newRaffleWithPrize,
+          requiresContractDeposit: true,
+          prize: raffleData.prize
+        });
 
       case 'update':
         if (!raffleId || !raffleData) {
@@ -68,11 +153,16 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Raffle ID required' }, { status: 400 });
         }
         
-        const endSuccess = await AdminService.endRaffleEarly(raffleId);
-        if (!endSuccess) {
-          return NextResponse.json({ error: 'Failed to end raffle early' }, { status: 500 });
+        const endResult = await AdminService.endRaffleEarly(raffleId);
+        if (!endResult.success) {
+          return NextResponse.json({ error: endResult.error || 'Failed to end raffle' }, { status: 500 });
         }
-        break;
+        
+        return NextResponse.json({ 
+          success: true, 
+          message: 'Raffle ended successfully',
+          txHash: endResult.txHash 
+        });
 
       default:
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 });

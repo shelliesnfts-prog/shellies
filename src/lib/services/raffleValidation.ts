@@ -17,7 +17,7 @@ const supabaseService = createClient(
 import { ValidationError, NotFoundError, ERROR_CODES } from '@/lib/errors';
 
 export interface RaffleData {
-  id: string;
+  id: number;
   title: string;
   points_per_ticket: number;
   max_tickets_per_user: number;
@@ -49,7 +49,7 @@ export class RaffleValidationService {
    * Comprehensive validation for raffle entry (optimized)
    */
   static async validateRaffleEntry(
-    raffleId: string, 
+    raffleId: number | string, 
     ticketCount: number, 
     walletAddress: string
   ): Promise<ValidationResult> {
@@ -91,9 +91,10 @@ export class RaffleValidationService {
   /**
    * Validate input parameters
    */
-  private static validateInputParameters(raffleId: string, ticketCount: number, walletAddress: string) {
-    if (!raffleId || !raffleId.trim()) {
-      throw new ValidationError('Raffle ID is required', ERROR_CODES.INVALID_REQUEST);
+  private static validateInputParameters(raffleId: number | string, ticketCount: number, walletAddress: string) {
+    const parsedRaffleId = typeof raffleId === 'string' ? parseInt(raffleId, 10) : raffleId;
+    if (!parsedRaffleId || !Number.isInteger(parsedRaffleId) || parsedRaffleId <= 0) {
+      throw new ValidationError('Valid Raffle ID is required', ERROR_CODES.INVALID_REQUEST);
     }
 
     if (!Number.isInteger(ticketCount) || ticketCount <= 0) {
@@ -109,15 +110,16 @@ export class RaffleValidationService {
   /**
    * Fetch raffle data from database
    */
-  private static async getRaffleData(raffleId: string): Promise<RaffleData> {
+  private static async getRaffleData(raffleId: number | string): Promise<RaffleData> {
+    const parsedRaffleId = typeof raffleId === 'string' ? parseInt(raffleId, 10) : raffleId;
     const { data: raffle, error } = await supabaseService
       .from('shellies_raffle_raffles')
       .select('id, title, points_per_ticket, max_tickets_per_user, end_date')
-      .eq('id', raffleId)
+      .eq('id', parsedRaffleId)
       .single();
 
     if (error || !raffle) {
-      console.error('Raffle lookup failed:', { raffleId, error });
+      console.error('Raffle lookup failed:', { raffleId: parsedRaffleId, error });
       throw new NotFoundError('Raffle not found', ERROR_CODES.RAFFLE_NOT_FOUND);
     }
 
@@ -158,14 +160,15 @@ export class RaffleValidationService {
   /**
    * Get user's existing entry for this raffle using wallet_address (optimized)
    */
-  private static async getUserEntry(walletAddress: string, raffleId: string): Promise<UserEntry | null> {
+  private static async getUserEntry(walletAddress: string, raffleId: number | string): Promise<UserEntry | null> {
+    const parsedRaffleId = typeof raffleId === 'string' ? parseInt(raffleId, 10) : raffleId;
     try {
       // Try wallet_address approach first (most efficient)
       let { data: entries, error } = await supabaseService
         .from('shellies_raffle_entries')
         .select('ticket_count, points_spent')
         .eq('wallet_address', walletAddress)
-        .eq('raffle_id', raffleId);
+        .eq('raffle_id', parsedRaffleId);
 
       // If wallet_address column doesn't exist, fall back to user_id approach
       if (error && error.code === '42703') {
@@ -181,7 +184,7 @@ export class RaffleValidationService {
             .from('shellies_raffle_entries')
             .select('ticket_count, points_spent')
             .eq('user_id', user.id)
-            .eq('raffle_id', raffleId);
+            .eq('raffle_id', parsedRaffleId);
           
           entries = fallbackEntries;
           error = fallbackError;

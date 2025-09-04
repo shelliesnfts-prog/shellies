@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(/D:\\my_projects\\shellies_raffles\\shellies_raffles\\src\\lib/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
