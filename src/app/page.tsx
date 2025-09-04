@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
+import CustomConnectButton from '@/components/CustomConnectButton';
 
 // Simple counter component
 function AnimatedCounter({ end, duration = 1500 }: { end: number; duration?: number }) {
@@ -119,9 +119,7 @@ export default function LandingPage() {
                 Enter Portal ✨
               </button>
             ) : (
-              <div className="transform hover:scale-105 transition-transform">
-                <ConnectButton />
-              </div>
+              <CustomConnectButton size="sm" />
             )}
           </div>
         </div>
@@ -196,9 +194,7 @@ export default function LandingPage() {
                   🎯 Enter Raffle Portal
                 </button>
               ) : (
-                <div className="transform hover:scale-105 transition-all mb-4">
-                  <ConnectButton />
-                </div>
+                <CustomConnectButton size="lg" />
               )}
               <button
                 onClick={() => scrollToSection('about')}
@@ -411,9 +407,7 @@ export default function LandingPage() {
                 🎯 Start Your Raffle Journey
               </button>
             ) : (
-              <div className="inline-block transform hover:scale-105 transition-all">
-                <ConnectButton />
-              </div>
+              <CustomConnectButton size="xl" />
             )}
             
             <p className="text-gray-500 mt-6 text-lg">
@@ -423,120 +417,12 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Modern Footer */}
-      <footer className="py-20 bg-gradient-to-br from-gray-900 via-gray-800 to-purple-900 text-white relative overflow-hidden">
-        {/* Background Pattern */}
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute inset-0" style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M20 20c0-5.5-4.5-10-10-10s-10 4.5-10 10 4.5 10 10 10 10-4.5 10 10-4.5 10-10 10-10-4.5-10-10 4.5-10 10-10 10 4.5 10-10z'/%3E%3C/g%3E%3C/svg%3E")`,
-            backgroundSize: '40px 40px'
-          }}></div>
-        </div>
-        
-        <div className="max-w-7xl mx-auto px-6 relative z-10">
-          <div className="text-center mb-16">
-            <div className="flex items-center justify-center space-x-4 mb-6">
-              <div className="w-16 h-16 icon-gradient flex items-center justify-center">
-                <span className="text-white font-black text-2xl">IS</span>
-              </div>
-              <h4 className="text-4xl font-bold text-white">
-                Ink Shellies
-              </h4>
-            </div>
-            <p className="text-purple-300 text-xl font-semibold mb-4">
-              🏆 The Pioneer PFP Collection on Ink Chain
-            </p>
-            <p className="text-gray-300 text-lg max-w-2xl mx-auto">
-              Empowering the community with exclusive raffles, rewards, and endless possibilities in the Ink ecosystem.
-            </p>
-          </div>
-          
-          <div className="grid md:grid-cols-3 gap-12 mb-16">
-            <div className="text-center">
-              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-700 rounded-lg mx-auto mb-4 flex items-center justify-center">
-                <span className="text-2xl">💼</span>
-              </div>
-              <h5 className="text-white font-bold text-xl mb-6">Collection</h5>
-              <ul className="space-y-3 text-gray-300">
-                <li className="flex items-center justify-center">
-                  <span className="mr-2">💸</span>
-                  3,333 Unique Shellies
-                </li>
-                <li className="flex items-center justify-center">
-                  <span className="mr-2">⛓️</span>
-                  Ink Chain Native
-                </li>
-                <li className="flex items-center justify-center">
-                  <span className="mr-2">🚀</span>
-                  Pioneering Launch
-                </li>
-              </ul>
-            </div>
-            <div className="text-center">
-              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-700 rounded-lg mx-auto mb-4 flex items-center justify-center">
-                <span className="text-2xl">🎰</span>
-              </div>
-              <h5 className="text-white font-bold text-xl mb-6">Platform Features</h5>
-              <ul className="space-y-3 text-gray-300">
-                <li className="flex items-center justify-center">
-                  <span className="mr-2">🎯</span>
-                  Advanced Raffle System
-                </li>
-                <li className="flex items-center justify-center">
-                  <span className="mr-2">💰</span>
-                  Daily Point Rewards
-                </li>
-                <li className="flex items-center justify-center">
-                  <span className="mr-2">🏆</span>
-                  Community Leaderboards
-                </li>
-              </ul>
-            </div>
-            <div className="text-center">
-              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-700 rounded-lg mx-auto mb-4 flex items-center justify-center">
-                <span className="text-2xl">🎉</span>
-              </div>
-              <h5 className="text-white font-bold text-xl mb-6">Community Benefits</h5>
-              <ul className="space-y-3 text-gray-300">
-                <li className="flex items-center justify-center">
-                  <span className="mr-2">🔐</span>
-                  Exclusive Access
-                </li>
-                <li className="flex items-center justify-center">
-                  <span className="mr-2">✨</span>
-                  Special Events
-                </li>
-                <li className="flex items-center justify-center">
-                  <span className="mr-2">🎁</span>
-                  Premium Rewards
-                </li>
-              </ul>
-            </div>
-          </div>
-          
-          {/* Trust Badges */}
-          <div className="flex justify-center items-center space-x-8 mb-12 py-8 border-t border-gray-700">
-            <div className="text-center">
-              <div className="text-3xl mb-2">🔒</div>
-              <span className="text-sm font-medium text-gray-400">Secure & Fair</span>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl mb-2">🌍</div>
-              <span className="text-sm font-medium text-gray-400">Decentralized</span>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl mb-2">🛡️</div>
-              <span className="text-sm font-medium text-gray-400">Verified Smart Contracts</span>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl mb-2">🎆</div>
-              <span className="text-sm font-medium text-gray-400">Innovation First</span>
-            </div>
-          </div>
-          
-          <div className="text-center pt-8 border-t border-gray-700">
+      {/* Simplified Footer */}
+      <footer className="py-12 bg-gradient-to-br from-gray-900 via-gray-800 to-purple-900 text-white">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center">
             <p className="text-gray-400 text-lg">
-              © 2024 Ink Shellies Raffle Platform. Pioneering the future with{' '}
+              © 2025 Ink Shellies Raffle Platform. Pioneering the future with{' '}
               <span className="text-gradient-secondary font-bold">
                 Ink Blockchain Technology
               </span>
