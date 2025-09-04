@@ -44,15 +44,6 @@ export async function POST(request: NextRequest) {
         }
         break;
 
-      case 'update_nft_count':
-        if (typeof nftCount !== 'number') {
-          return NextResponse.json({ error: 'Invalid NFT count' }, { status: 400 });
-        }
-        const updateSuccess = await UserService.updateUserNFTCount(walletAddress, nftCount);
-        if (!updateSuccess) {
-          return NextResponse.json({ error: 'Failed to update NFT count' }, { status: 500 });
-        }
-        break;
 
       default:
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 });

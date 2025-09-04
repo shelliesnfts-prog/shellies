@@ -272,9 +272,9 @@ export class RaffleContractService {
     prizeToken: string;
     prizeTokenId: string;
     isNFT: boolean;
-    deposited: boolean;
+    endTimestamp: string;
+    state: number;
     winner: string;
-    completed: boolean;
   } | null> {
     try {
       if (!this.contractAddress) {
@@ -285,21 +285,21 @@ export class RaffleContractService {
       const result = await publicClient.readContract({
         address: this.contractAddress as `0x${string}`,
         abi: raffleContractAbi,
-        functionName: 'getRafflePrize',
+        functionName: 'getRaffleInfo',
         args: [BigInt(raffleId)],
       });
 
-      const [prizeToken, prizeTokenId, isNFT, deposited, winner, completed] = result as [
-        string, bigint, boolean, boolean, string, boolean
+      const [prizeToken, prizeTokenId, endTimestamp, state, isNFT, winner] = result as [
+        string, bigint, bigint, number, boolean, string
       ];
 
       return {
         prizeToken,
         prizeTokenId: prizeTokenId.toString(),
         isNFT,
-        deposited,
+        endTimestamp: endTimestamp.toString(),
+        state,
         winner,
-        completed,
       };
     } catch (error) {
       console.error('Error getting raffle prize info:', error);
@@ -315,7 +315,8 @@ export class RaffleContractService {
       if (!this.contractAddress) return false;
 
       const prizeInfo = await this.getRafflePrizeInfo(raffleId);
-      return prizeInfo?.deposited || false;
+      // State 1 (ACTIVE) or higher typically indicates prize is deposited
+      return prizeInfo ? prizeInfo.state >= 1 : false;
     } catch (error) {
       console.error('Error checking if raffle prize is deposited:', error);
       return false;
@@ -657,7 +658,7 @@ export class RaffleContractService {
         address: this.contractAddress as `0x${string}`,
         abi: raffle_abi,
         functionName: 'endRaffle',
-        args: [raffleId, participants, ticketCounts, randomSeed],
+        args: [BigInt(raffleId), participants, ticketCounts, randomSeed],
       });
 
       console.log('End raffle transaction submitted:', txHash);

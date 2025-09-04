@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     console.error('Error in contract debug:', error);
     return NextResponse.json({ 
       error: 'Debug failed',
-      message: error.message,
+      message: error instanceof Error ? error.message : 'Unknown error',
       contractAddress: SHELLIES_CONTRACT_ADDRESS
     }, { status: 500 });
   }
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
     console.error('Error in contract debug POST:', error);
     return NextResponse.json({ 
       error: 'Debug failed',
-      message: error.message
+      message: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
 }

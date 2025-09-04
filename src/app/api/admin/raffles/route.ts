@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
             console.error('Blockchain transaction failed:', blockchainResult.error);
             
             // Rollback: Delete the raffle from database since blockchain failed
-            const deleteSuccess = await AdminService.deleteRaffle(newRaffle.id);
+            const deleteSuccess = await AdminService.deleteRaffle(newRaffle.id.toString());
             if (!deleteSuccess) {
               console.error('Failed to rollback raffle from database after blockchain failure');
             }
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
           console.error('Error interacting with blockchain:', error);
           
           // Rollback: Delete the raffle from database since blockchain failed
-          const deleteSuccess = await AdminService.deleteRaffle(newRaffle.id);
+          const deleteSuccess = await AdminService.deleteRaffle(newRaffle.id.toString());
           if (!deleteSuccess) {
             console.error('Failed to rollback raffle from database after blockchain error');
           }

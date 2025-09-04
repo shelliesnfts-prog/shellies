@@ -262,8 +262,8 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
     setTicketCount(newCount);
   };
 
-  const remainingTickets = raffle.user_ticket_count && raffle.user_ticket_count > 0
-    ? raffle.max_tickets_per_user - raffle.user_ticket_count 
+  const remainingTickets = (raffle.user_ticket_count || 0) > 0
+    ? raffle.max_tickets_per_user - (raffle.user_ticket_count || 0)
     : raffle.max_tickets_per_user;
 
   return (
@@ -402,7 +402,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
               </div>
 
               {/* User's Existing Entries - Show from raffle data first, then fetch detailed info */}
-              {raffle.user_ticket_count > 0 && (
+              {(raffle.user_ticket_count || 0) > 0 && (
                 <div className={`p-4 rounded-xl border ${
                   isDarkMode 
                     ? 'bg-purple-900/20 border-purple-800' 
@@ -415,7 +415,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                     </span>
                   </div>
                   <div className={`text-sm ${isDarkMode ? 'text-purple-200' : 'text-purple-700'}`}>
-                    You have <span className="font-semibold">{raffle.user_ticket_count}</span> ticket{raffle.user_ticket_count > 1 ? 's' : ''} in this raffle
+                    You have <span className="font-semibold">{raffle.user_ticket_count || 0}</span> ticket{(raffle.user_ticket_count || 0) > 1 ? 's' : ''} in this raffle
                     {userEntry && !loadingEntry && (
                       <>
                         <br />
@@ -556,12 +556,12 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                 getTimeRemaining(raffle.end_date) === 'Ended' || 
                 isLoading || 
                 remainingTickets <= 0 ||
-                (raffle.user_ticket_count && raffle.user_ticket_count >= raffle.max_tickets_per_user)
+                ((raffle.user_ticket_count || 0) >= raffle.max_tickets_per_user)
               }
               className={`px-6 py-2 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center min-w-[140px] ${
                 getTimeRemaining(raffle.end_date) === 'Ended' || 
                 remainingTickets <= 0 || 
-                (raffle.user_ticket_count && raffle.user_ticket_count >= raffle.max_tickets_per_user)
+                ((raffle.user_ticket_count || 0) >= raffle.max_tickets_per_user)
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   : isLoading
                     ? 'bg-purple-600 text-white cursor-not-allowed'

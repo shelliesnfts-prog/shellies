@@ -129,8 +129,8 @@ export class NFTService {
 
     } catch (error) {
       console.error(`Error fetching NFT count for ${walletAddress}:`, {
-        error: error.message,
-        cause: error.cause?.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        cause: error instanceof Error && error.cause instanceof Error ? error.cause.message : undefined,
         contractAddress: this.contractAddress
       });
 
@@ -178,9 +178,19 @@ export class NFTService {
 
       // Check if it supports ERC721 interface
       try {
+        const supportsInterfaceAbi = [
+          {
+            inputs: [{ name: 'interfaceId', type: 'bytes4' }],
+            name: 'supportsInterface',
+            outputs: [{ name: '', type: 'bool' }],
+            stateMutability: 'view',
+            type: 'function'
+          }
+        ] as const;
+
         const supportsERC721 = await publicClient.readContract({
           address: this.contractAddress as `0x${string}`,
-          abi: erc721Abi,
+          abi: supportsInterfaceAbi,
           functionName: 'supportsInterface',
           args: [ERC721_INTERFACE_ID as `0x${string}`]
         });
@@ -220,10 +230,11 @@ export class NFTService {
         };
       } catch (error) {
         // Check if it's a revert (good) vs function not found (bad)
-        if (error.message.includes('revert') || 
-            error.message.includes('execution reverted') ||
-            error.message.includes('invalid address') ||
-            error.message.toLowerCase().includes('zero address')) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes('revert') || 
+            errorMessage.includes('execution reverted') ||
+            errorMessage.includes('invalid address') ||
+            errorMessage.toLowerCase().includes('zero address')) {
           return { 
             isValid: true, 
             info: { 
@@ -236,11 +247,11 @@ export class NFTService {
         
         return { 
           isValid: false, 
-          error: `balanceOf function test failed: ${error.message}` 
+          error: `balanceOf function test failed: ${error instanceof Error ? error.message : String(error)}` 
         };
       }
     } catch (error) {
-      return { isValid: false, error: `Validation failed: ${error.message}` };
+      return { isValid: false, error: `Validation failed: ${error instanceof Error ? error.message : String(error)}` };
     }
   }
 
@@ -299,7 +310,7 @@ export class NFTService {
       return results;
     } catch (error) {
       console.error('Error fetching contract info:', error);
-      return { validation: { isValid: false, error: error.message } };
+      return { validation: { isValid: false, error: error instanceof Error ? error.message : String(error) } };
     }
   }
 

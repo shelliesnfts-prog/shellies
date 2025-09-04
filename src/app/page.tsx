@@ -8,8 +8,8 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 
 // Simple counter component
-function AnimatedCounter({ end, duration = 1500 }) {
-  const [count, setCount] = useState(0);
+function AnimatedCounter({ end, duration = 1500 }: { end: number; duration?: number }) {
+  const [count, setCount] = useState<number | string>(0);
   const [hasAnimated, setHasAnimated] = useState(false);
   const ref = useRef(null);
 
@@ -18,9 +18,9 @@ function AnimatedCounter({ end, duration = 1500 }) {
       ([entry]) => {
         if (entry.isIntersecting && !hasAnimated) {
           setHasAnimated(true);
-          let startTime = null;
+          let startTime: number | null = null;
           
-          const animate = (currentTime) => {
+          const animate = (currentTime: number) => {
             if (!startTime) startTime = currentTime;
             const progress = Math.min((currentTime - startTime) / duration, 1);
             
@@ -61,7 +61,7 @@ export default function LandingPage() {
   const { data: session } = useSession();
   const router = useRouter();
 
-  const scrollToSection = (sectionId) => {
+  const scrollToSection = (sectionId: string) => {
     setActiveSection(sectionId);
     const element = document.getElementById(sectionId);
     element?.scrollIntoView({ behavior: 'smooth' });
@@ -75,36 +75,36 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Clean Navigation */}
-      <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-sm border-b border-gray-200 z-50">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">IS</span>
+      {/* Modern Navigation */}
+      <nav className="fixed top-0 w-full bg-white/90 backdrop-blur-xl border-b border-white/20 z-50 shadow-sm">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex justify-between items-center py-5">
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 icon-gradient flex items-center justify-center">
+                <span className="text-white font-black text-lg">IS</span>
               </div>
-              <span className="text-xl font-bold text-gray-900">
+              <span className="text-2xl font-bold text-gray-900">
                 Ink Shellies
               </span>
             </div>
             
-            <div className="hidden md:flex items-center space-x-8">
+            <div className="hidden md:flex items-center space-x-6">
               <button
                 onClick={() => scrollToSection('home')}
-                className={`text-sm font-medium px-4 py-2 rounded-lg transition-colors ${
+                className={`text-sm font-semibold px-5 py-2.5 rounded-full transition-all duration-300 ${
                   activeSection === 'home' 
-                    ? 'text-purple-600 bg-purple-50' 
-                    : 'text-gray-600 hover:text-purple-600 hover:bg-gray-50'
+                    ? 'text-white bg-gradient-to-r from-purple-600 to-purple-700 shadow-lg' 
+                    : 'text-gray-600 hover:text-purple-600 hover:bg-purple-50'
                 }`}
               >
                 Home
               </button>
               <button
                 onClick={() => scrollToSection('about')}
-                className={`text-sm font-medium px-4 py-2 rounded-lg transition-colors ${
+                className={`text-sm font-semibold px-5 py-2.5 rounded-full transition-all duration-300 ${
                   activeSection === 'about' 
-                    ? 'text-purple-600 bg-purple-50' 
-                    : 'text-gray-600 hover:text-purple-600 hover:bg-gray-50'
+                    ? 'text-white bg-gradient-to-r from-purple-600 to-purple-700 shadow-lg' 
+                    : 'text-gray-600 hover:text-purple-600 hover:bg-purple-50'
                 }`}
               >
                 About
@@ -114,12 +114,12 @@ export default function LandingPage() {
             {isConnected && session ? (
               <button
                 onClick={handleEnterPortal}
-                className="btn-primary"
+                className="btn-primary px-6 py-3 text-lg font-semibold shadow-lg"
               >
-                Enter Portal
+                Enter Portal ✨
               </button>
             ) : (
-              <div className="scale-95">
+              <div className="transform hover:scale-105 transition-transform">
                 <ConnectButton />
               </div>
             )}
@@ -128,26 +128,41 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero Section */}
-      <section id="home" className="pt-24 pb-20 min-h-screen flex items-center">
-        <div className="max-w-6xl mx-auto px-6">
+      <section id="home" className="pt-28 pb-32 min-h-screen flex items-center hero-gradient relative overflow-hidden">
+        {/* Floating Background Elements */}
+        <div className="absolute inset-0 opacity-30">
+          <div className="absolute top-20 left-10 w-32 h-32 bg-gradient-to-br from-purple-400 to-purple-600 rounded-full blur-3xl floating"></div>
+          <div className="absolute bottom-32 right-10 w-24 h-24 bg-gradient-to-br from-purple-500 to-purple-700 rounded-full blur-2xl floating" style={{animationDelay: '1s'}}></div>
+          <div className="absolute top-1/2 left-1/3 w-16 h-16 bg-gradient-to-br from-purple-300 to-purple-500 rounded-full blur-xl floating" style={{animationDelay: '2s'}}></div>
+        </div>
+        
+        <div className="max-w-7xl mx-auto px-6 relative z-10">
           <div className="text-center">
-            {/* Badge */}
-            <div className="inline-flex items-center px-4 py-2 bg-purple-50 border border-purple-200 rounded-full mb-8">
-              <div className="w-2 h-2 bg-purple-600 rounded-full mr-3"></div>
-              <span className="text-purple-700 text-sm font-medium">
-                First PFP Collection on Ink Chain
+            {/* Trust Badge */}
+            <motion.div 
+              className="inline-flex items-center px-6 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full mb-12 pulse-glow"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5 }}
+            >
+              <div className="w-3 h-3 bg-gradient-to-r from-purple-500 to-purple-600 rounded-full mr-3 animate-pulse"></div>
+              <span className="text-purple-700 text-base font-semibold">
+                🏆 First PFP Collection on Ink Chain
               </span>
-            </div>
+            </motion.div>
 
             {/* Main Heading */}
             <motion.h1 
-              className="text-5xl sm:text-6xl lg:text-7xl font-bold text-gray-900 mb-6 leading-tight"
-              initial={{ opacity: 0, y: 20 }}
+              className="heading-xl font-black text-gray-900 mb-8 leading-none"
+              initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+              transition={{ duration: 0.8, delay: 0.1 }}
             >
-              <span className="text-gradient block">
+              <span className="text-gradient block mb-4">
                 Ink Shellies
+              </span>
+              <span className="text-4xl sm:text-5xl lg:text-6xl text-gray-700 font-semibold">
+                Raffle Platform
               </span>
             </motion.h1>
 
@@ -155,62 +170,95 @@ export default function LandingPage() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="mb-12"
+              transition={{ duration: 0.8, delay: 0.3 }}
+              className="mb-16"
             >
-              <p className="text-xl sm:text-2xl text-gray-600 mb-4 max-w-4xl mx-auto">
-                3,333 Shellies are swimming in the
+              <p className="text-2xl sm:text-3xl text-gray-600 mb-6 max-w-5xl mx-auto leading-relaxed">
+                <span className="font-bold text-gray-800">3,333 Shellies</span> swimming in the
               </p>
-              <p className="text-xl sm:text-2xl text-gray-600 max-w-4xl mx-auto">
-                <span className="text-gradient font-semibold">Ink Chain</span> ocean, bringing waves of creativity and fun!
+              <p className="text-2xl sm:text-3xl text-gray-600 max-w-5xl mx-auto leading-relaxed">
+                <span className="text-gradient font-bold">Ink Chain</span> ocean, unlocking <span className="font-semibold text-gray-800">exclusive raffles</span> & rewards!
               </p>
             </motion.div>
 
             {/* CTA Buttons */}
             <motion.div 
-              className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16"
+              className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-20"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
+              transition={{ duration: 0.8, delay: 0.5 }}
             >
               {isConnected && session ? (
                 <button
                   onClick={handleEnterPortal}
-                  className="btn-primary text-lg px-8 py-4"
+                  className="btn-primary text-xl px-12 py-5 shadow-2xl transform hover:scale-105 transition-all font-bold"
                 >
-                  Enter Portal →
+                  🎯 Enter Raffle Portal
                 </button>
               ) : (
-                <div className="mb-4">
+                <div className="transform hover:scale-105 transition-all mb-4">
                   <ConnectButton />
                 </div>
               )}
               <button
                 onClick={() => scrollToSection('about')}
-                className="btn-secondary text-lg px-8 py-4"
+                className="btn-secondary text-xl px-12 py-5 font-semibold transform hover:scale-105 transition-all"
               >
-                Learn More ↓
+                📖 Discover More
               </button>
             </motion.div>
 
-            {/* Stats */}
+            {/* Enhanced Stats */}
             <motion.div 
-              className="grid grid-cols-1 sm:grid-cols-3 gap-8 max-w-4xl mx-auto"
-              initial={{ opacity: 0, y: 20 }}
+              className="grid grid-cols-1 sm:grid-cols-3 gap-8 max-w-6xl mx-auto"
+              initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.6 }}
+              transition={{ duration: 0.8, delay: 0.7 }}
             >
-              <div className="text-center glass-card p-8 rounded-xl hover-lift">
+              <div className="text-center modern-card p-10 stats-card">
+                <div className="mb-4">
+                  <span className="text-4xl">🐚</span>
+                </div>
                 <AnimatedCounter end={3333} />
-                <div className="text-gray-600 font-medium mt-2">Unique NFTs</div>
+                <div className="text-gray-600 font-semibold mt-3 text-lg">Unique Shellies</div>
+                <div className="text-sm text-purple-600 font-medium mt-1">NFT Collection</div>
               </div>
-              <div className="text-center glass-card p-8 rounded-xl hover-lift">
-                <div className="text-4xl font-bold text-gradient">1st</div>
-                <div className="text-gray-600 font-medium mt-2">On Ink Chain</div>
+              <div className="text-center modern-card p-10 stats-card">
+                <div className="mb-4">
+                  <span className="text-4xl">🥇</span>
+                </div>
+                <div className="text-5xl font-black text-gradient mb-2">1st</div>
+                <div className="text-gray-600 font-semibold mt-3 text-lg">Pioneer Project</div>
+                <div className="text-sm text-purple-600 font-medium mt-1">On Ink Chain</div>
               </div>
-              <div className="text-center glass-card p-8 rounded-xl hover-lift">
+              <div className="text-center modern-card p-10 stats-card">
+                <div className="mb-4">
+                  <span className="text-4xl">🎰</span>
+                </div>
                 <AnimatedCounter end={Infinity} />
-                <div className="text-gray-600 font-medium mt-2">Possibilities</div>
+                <div className="text-gray-600 font-semibold mt-3 text-lg">Raffle Opportunities</div>
+                <div className="text-sm text-purple-600 font-medium mt-1">Endless Rewards</div>
+              </div>
+            </motion.div>
+            
+            {/* Trust Indicators */}
+            <motion.div 
+              className="flex justify-center items-center space-x-8 mt-16 opacity-60"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.6 }}
+              transition={{ duration: 1, delay: 1 }}
+            >
+              <div className="text-center">
+                <div className="text-2xl mb-1">⛓️</div>
+                <span className="text-sm font-medium text-gray-600">Ink Chain Native</span>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl mb-1">🔒</div>
+                <span className="text-sm font-medium text-gray-600">Secure & Fair</span>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl mb-1">🎁</div>
+                <span className="text-sm font-medium text-gray-600">Exclusive Rewards</span>
               </div>
             </motion.div>
           </div>
@@ -218,145 +266,283 @@ export default function LandingPage() {
       </section>
 
       {/* About Section */}
-      <section id="about" className="py-20 bg-gray-50">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center px-4 py-2 bg-white border border-gray-200 rounded-full mb-8">
-              <span className="text-purple-700 text-sm font-medium">About the Collection</span>
-            </div>
+      <section id="about" className="py-32 bg-gradient-to-br from-gray-50 to-white relative overflow-hidden">
+        {/* Background Pattern */}
+        <div className="absolute inset-0 opacity-5">
+          <div className="absolute inset-0" style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%236e36e4' fill-opacity='1'%3E%3Ccircle cx='30' cy='30' r='4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            backgroundSize: '60px 60px'
+          }}></div>
+        </div>
+        
+        <div className="max-w-7xl mx-auto px-6 relative z-10">
+          <div className="text-center mb-20">
+            <motion.div 
+              className="inline-flex items-center px-6 py-3 bg-white/80 backdrop-blur-sm border border-purple-200/50 rounded-full mb-12 shadow-lg"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+            >
+              <span className="text-purple-700 text-base font-bold">🎨 About the Platform</span>
+            </motion.div>
             
-            <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-8">
-              <span className="text-gradient">Ink Shellies</span>
-              <span className="block text-3xl sm:text-4xl lg:text-5xl mt-4 text-gray-700 font-medium">
-                is the first PFP collection
+            <motion.h2 
+              className="heading-lg font-black text-gray-900 mb-12"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+            >
+              <span className="text-gradient block mb-4">Ink Shellies</span>
+              <span className="text-3xl sm:text-4xl lg:text-5xl text-gray-700 font-semibold block">
+                Exclusive Raffle Ecosystem
               </span>
-            </h2>
+            </motion.h2>
             
-            <h3 className="text-2xl sm:text-3xl text-gray-700 mb-8">
-              on <span className="text-gradient font-bold">Ink Chain</span> Mainnet launch day.
-            </h3>
+            <motion.h3 
+              className="text-2xl sm:text-3xl lg:text-4xl text-gray-600 mb-12 max-w-4xl mx-auto leading-relaxed"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+            >
+              First PFP collection on <span className="text-gradient-secondary font-bold">Ink Chain</span> Mainnet, 
+              now powering the <span className="font-bold text-gray-800">ultimate raffle experience</span>.
+            </motion.h3>
             
-            <div className="max-w-4xl mx-auto">
-              <p className="text-xl sm:text-2xl text-purple-600 font-semibold mb-6">
-                3,333 unique Shellies, packed with benefits.
+            <motion.div 
+              className="max-w-5xl mx-auto"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.3 }}
+            >
+              <p className="text-2xl sm:text-3xl text-gradient-secondary font-bold mb-8">
+                3,333 unique Shellies = Unlimited raffle opportunities 🎉
               </p>
-              <p className="text-lg text-gray-600 leading-relaxed">
+              <p className="text-xl text-gray-600 leading-relaxed">
                 A revolutionary raffle platform designed exclusively for Ink Shellies NFT holders, 
-                celebrating the inaugural collection of the Ink blockchain ecosystem.
+                celebrating the inaugural collection while creating the most engaging reward system 
+                in the Ink blockchain ecosystem.
               </p>
-            </div>
+            </motion.div>
           </div>
           
-          {/* Feature Cards */}
-          <div className="grid lg:grid-cols-3 gap-8 mb-16">
-            <div className="bg-white rounded-xl p-8 shadow-lg hover-lift">
-              <div className="w-16 h-16 bg-purple-100 rounded-lg mb-6 flex items-center justify-center">
-                <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                </svg>
+          {/* Enhanced Feature Cards */}
+          <div className="grid lg:grid-cols-3 gap-10 mb-20">
+            <motion.div 
+              className="modern-card p-10 text-center group"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+            >
+              <div className="icon-gradient w-20 h-20 mx-auto mb-8 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <span className="text-4xl">💰</span>
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-4">Earn Points</h3>
-              <p className="text-gray-600 leading-relaxed">
-                Claim daily points based on your Ink Shellies NFT holdings. The more NFTs you hold, 
-                the more points you earn every 24 hours.
+              <h3 className="text-2xl font-bold text-gray-900 mb-6">Daily Point Rewards</h3>
+              <p className="text-gray-600 leading-relaxed text-lg">
+                Claim daily points based on your Ink Shellies NFT holdings. The more Shellies you own, 
+                the more points you accumulate every 24 hours. <span className="font-semibold text-purple-600">Passive earning made simple!</span>
               </p>
-            </div>
+              <div className="mt-6 inline-flex items-center text-purple-600 font-semibold">
+                <span className="mr-2">🔄</span>
+                Auto-accumulating rewards
+              </div>
+            </motion.div>
             
-            <div className="bg-white rounded-xl p-8 shadow-lg hover-lift">
-              <div className="w-16 h-16 bg-purple-100 rounded-lg mb-6 flex items-center justify-center">
-                <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                </svg>
+            <motion.div 
+              className="modern-card p-10 text-center group"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+            >
+              <div className="icon-gradient w-20 h-20 mx-auto mb-8 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <span className="text-4xl">🎰</span>
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-4">Join Raffles</h3>
-              <p className="text-gray-600 leading-relaxed">
-                Use your earned points to participate in exclusive raffles featuring rare NFTs 
-                and amazing prizes from the Ink ecosystem.
+              <h3 className="text-2xl font-bold text-gray-900 mb-6">Exclusive Raffles</h3>
+              <p className="text-gray-600 leading-relaxed text-lg">
+                Use your earned points to participate in exclusive raffles featuring rare NFTs, 
+                amazing prizes, and special drops from the Ink ecosystem. <span className="font-semibold text-purple-600">Your gateway to premium rewards!</span>
               </p>
-            </div>
+              <div className="mt-6 inline-flex items-center text-purple-600 font-semibold">
+                <span className="mr-2">✨</span>
+                Premium prize pool
+              </div>
+            </motion.div>
             
-            <div className="bg-white rounded-xl p-8 shadow-lg hover-lift">
-              <div className="w-16 h-16 bg-purple-100 rounded-lg mb-6 flex items-center justify-center">
-                <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-                </svg>
+            <motion.div 
+              className="modern-card p-10 text-center group"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.3 }}
+            >
+              <div className="icon-gradient w-20 h-20 mx-auto mb-8 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <span className="text-4xl">🏆</span>
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-4">Win Exclusive Prizes</h3>
-              <p className="text-gray-600 leading-relaxed">
-                Compete on the leaderboard and increase your chances of winning exclusive NFT drops 
-                and special prizes from the first PFP collection.
+              <h3 className="text-2xl font-bold text-gray-900 mb-6">Leaderboard Competition</h3>
+              <p className="text-gray-600 leading-relaxed text-lg">
+                Compete on the community leaderboard and increase your chances of winning exclusive NFT drops 
+                and special prizes. <span className="font-semibold text-purple-600">Climb the ranks and claim victory!</span>
               </p>
-            </div>
+              <div className="mt-6 inline-flex items-center text-purple-600 font-semibold">
+                <span className="mr-2">🚀</span>
+                Competitive advantage
+              </div>
+            </motion.div>
           </div>
           
-          {/* CTA */}
-          <div className="text-center">
+          {/* Call to Action */}
+          <motion.div 
+            className="text-center"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.4 }}
+          >
             {isConnected && session ? (
               <button
                 onClick={handleEnterPortal}
-                className="btn-primary text-lg px-10 py-4"
+                className="btn-primary text-2xl px-16 py-6 shadow-2xl transform hover:scale-105 transition-all font-bold"
               >
-                Enter Portal →
+                🎯 Start Your Raffle Journey
               </button>
             ) : (
-              <div className="inline-block">
+              <div className="inline-block transform hover:scale-105 transition-all">
                 <ConnectButton />
               </div>
             )}
-          </div>
+            
+            <p className="text-gray-500 mt-6 text-lg">
+              Join the <span className="font-semibold text-purple-600">3,333 Shellies</span> community today!
+            </p>
+          </motion.div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="py-16 bg-white border-t border-gray-200">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="text-center mb-12">
-            <div className="flex items-center justify-center space-x-3 mb-4">
-              <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold">IS</span>
+      {/* Modern Footer */}
+      <footer className="py-20 bg-gradient-to-br from-gray-900 via-gray-800 to-purple-900 text-white relative overflow-hidden">
+        {/* Background Pattern */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute inset-0" style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M20 20c0-5.5-4.5-10-10-10s-10 4.5-10 10 4.5 10 10 10 10-4.5 10 10-4.5 10-10 10-10-4.5-10-10 4.5-10 10-10 10 4.5 10-10z'/%3E%3C/g%3E%3C/svg%3E")`,
+            backgroundSize: '40px 40px'
+          }}></div>
+        </div>
+        
+        <div className="max-w-7xl mx-auto px-6 relative z-10">
+          <div className="text-center mb-16">
+            <div className="flex items-center justify-center space-x-4 mb-6">
+              <div className="w-16 h-16 icon-gradient flex items-center justify-center">
+                <span className="text-white font-black text-2xl">IS</span>
               </div>
-              <h4 className="text-2xl font-bold text-gray-900">
+              <h4 className="text-4xl font-bold text-white">
                 Ink Shellies
               </h4>
             </div>
-            <p className="text-purple-600 text-lg font-medium">
-              The first PFP collection on Ink Chain
+            <p className="text-purple-300 text-xl font-semibold mb-4">
+              🏆 The Pioneer PFP Collection on Ink Chain
+            </p>
+            <p className="text-gray-300 text-lg max-w-2xl mx-auto">
+              Empowering the community with exclusive raffles, rewards, and endless possibilities in the Ink ecosystem.
             </p>
           </div>
           
-          <div className="grid md:grid-cols-3 gap-8 mb-12">
+          <div className="grid md:grid-cols-3 gap-12 mb-16">
             <div className="text-center">
-              <h5 className="text-gray-900 font-semibold mb-4">Collection</h5>
-              <ul className="space-y-2 text-gray-600">
-                <li>3,333 Unique NFTs</li>
-                <li>Ink Chain Native</li>
-                <li>First PFP Launch</li>
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-700 rounded-lg mx-auto mb-4 flex items-center justify-center">
+                <span className="text-2xl">💼</span>
+              </div>
+              <h5 className="text-white font-bold text-xl mb-6">Collection</h5>
+              <ul className="space-y-3 text-gray-300">
+                <li className="flex items-center justify-center">
+                  <span className="mr-2">💸</span>
+                  3,333 Unique Shellies
+                </li>
+                <li className="flex items-center justify-center">
+                  <span className="mr-2">⛓️</span>
+                  Ink Chain Native
+                </li>
+                <li className="flex items-center justify-center">
+                  <span className="mr-2">🚀</span>
+                  Pioneering Launch
+                </li>
               </ul>
             </div>
             <div className="text-center">
-              <h5 className="text-gray-900 font-semibold mb-4">Platform</h5>
-              <ul className="space-y-2 text-gray-600">
-                <li>Raffle System</li>
-                <li>Points Rewards</li>
-                <li>Leaderboards</li>
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-700 rounded-lg mx-auto mb-4 flex items-center justify-center">
+                <span className="text-2xl">🎰</span>
+              </div>
+              <h5 className="text-white font-bold text-xl mb-6">Platform Features</h5>
+              <ul className="space-y-3 text-gray-300">
+                <li className="flex items-center justify-center">
+                  <span className="mr-2">🎯</span>
+                  Advanced Raffle System
+                </li>
+                <li className="flex items-center justify-center">
+                  <span className="mr-2">💰</span>
+                  Daily Point Rewards
+                </li>
+                <li className="flex items-center justify-center">
+                  <span className="mr-2">🏆</span>
+                  Community Leaderboards
+                </li>
               </ul>
             </div>
             <div className="text-center">
-              <h5 className="text-gray-900 font-semibold mb-4">Community</h5>
-              <ul className="space-y-2 text-gray-600">
-                <li>Exclusive Access</li>
-                <li>Special Events</li>
-                <li>NFT Holder Benefits</li>
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-700 rounded-lg mx-auto mb-4 flex items-center justify-center">
+                <span className="text-2xl">🎉</span>
+              </div>
+              <h5 className="text-white font-bold text-xl mb-6">Community Benefits</h5>
+              <ul className="space-y-3 text-gray-300">
+                <li className="flex items-center justify-center">
+                  <span className="mr-2">🔐</span>
+                  Exclusive Access
+                </li>
+                <li className="flex items-center justify-center">
+                  <span className="mr-2">✨</span>
+                  Special Events
+                </li>
+                <li className="flex items-center justify-center">
+                  <span className="mr-2">🎁</span>
+                  Premium Rewards
+                </li>
               </ul>
             </div>
           </div>
           
-          <div className="text-center pt-8 border-t border-gray-200">
-            <p className="text-gray-500">
-              © 2024 Ink Shellies. Powered by{' '}
-              <span className="text-purple-600 font-semibold">
-                Ink Blockchain
+          {/* Trust Badges */}
+          <div className="flex justify-center items-center space-x-8 mb-12 py-8 border-t border-gray-700">
+            <div className="text-center">
+              <div className="text-3xl mb-2">🔒</div>
+              <span className="text-sm font-medium text-gray-400">Secure & Fair</span>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl mb-2">🌍</div>
+              <span className="text-sm font-medium text-gray-400">Decentralized</span>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl mb-2">🛡️</div>
+              <span className="text-sm font-medium text-gray-400">Verified Smart Contracts</span>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl mb-2">🎆</div>
+              <span className="text-sm font-medium text-gray-400">Innovation First</span>
+            </div>
+          </div>
+          
+          <div className="text-center pt-8 border-t border-gray-700">
+            <p className="text-gray-400 text-lg">
+              © 2024 Ink Shellies Raffle Platform. Pioneering the future with{' '}
+              <span className="text-gradient-secondary font-bold">
+                Ink Blockchain Technology
               </span>
+            </p>
+            <p className="text-gray-500 mt-2">
+              🔥 Built for the community, powered by innovation
             </p>
           </div>
         </div>
