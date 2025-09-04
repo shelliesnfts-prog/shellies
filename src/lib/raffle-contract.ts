@@ -598,6 +598,23 @@ export class RaffleContractService {
         return activateResult;
       }
 
+      // Update database status to ACTIVE after successful blockchain activation
+      try {
+        const { supabaseAdmin, supabase } = await import('./supabase');
+        const client = supabaseAdmin || supabase;
+        
+        const { error } = await client
+          .from('shellies_raffle_raffles')
+          .update({ status: 'ACTIVE' })
+          .eq('id', databaseId);
+
+        if (error) {
+          console.error('Error updating raffle status to ACTIVE:', error);
+        }
+      } catch (error) {
+        console.error('Error updating database status:', error);
+      }
+
       return { 
         success: true, 
         txHashes: [createResult.txHash!, activateResult.txHash!] 
@@ -670,6 +687,23 @@ export class RaffleContractService {
       });
       
       if (receipt.status === 'success') {
+        // Update database status to COMPLETED after successful blockchain end
+        try {
+          const { supabaseAdmin, supabase } = await import('./supabase');
+          const client = supabaseAdmin || supabase;
+          
+          const { error } = await client
+            .from('shellies_raffle_raffles')
+            .update({ status: 'COMPLETED' })
+            .eq('id', databaseId);
+
+          if (error) {
+            console.error('Error updating raffle status to COMPLETED:', error);
+          }
+        } catch (error) {
+          console.error('Error updating database status:', error);
+        }
+
         console.log('Raffle ended successfully:', receipt);
         return { success: true, txHash };
       } else {

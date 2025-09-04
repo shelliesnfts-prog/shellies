@@ -1,9 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useWriteContract, useAccount } from 'wagmi';
 import { X, Calendar, Target, Users, Clock, ImageOff, Plus, Minus, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { Raffle } from '@/lib/supabase';
 import { getTimeRemaining } from '@/lib/dateUtils';
+import { RaffleContractService } from '@/lib/raffle-contract';
+import { raffle_abi } from '@/lib/raffle-abi';
 
 interface JoinRaffleModalProps {
   isOpen: boolean;
@@ -37,6 +40,13 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
   const [loadingEntry, setLoadingEntry] = useState(false);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loadingUser, setLoadingUser] = useState(false);
+  
+  // Wagmi hooks for contract interaction
+  const { address, isConnected } = useAccount();
+  const { writeContractAsync } = useWriteContract();
+  
+  // Contract configuration
+  const contractAddress = process.env.NEXT_PUBLIC_RAFFLE_CONTRACT_ADDRESS;
 
   // Reset modal state when opened
   useEffect(() => {
@@ -100,14 +110,19 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
       return { isValid: false, error: 'Loading raffle data...' };
     }
 
-    // Check if raffle has ended
-    const now = new Date();
-    const endDate = new Date(raffle.end_date);
-    if (endDate <= now) {
-      const timeAgo = Math.ceil((now.getTime() - endDate.getTime()) / (1000 * 60 * 60));
+    // Check if raffle has ended based on status
+    if (raffle.status === 'COMPLETED' || raffle.status === 'CANCELLED') {
       return { 
         isValid: false, 
-        error: `This raffle ended ${timeAgo} hour${timeAgo > 1 ? 's' : ''} ago` 
+        error: `This raffle has ${raffle.status.toLowerCase()}` 
+      };
+    }
+
+    // Check if raffle is active
+    if (raffle.status !== 'ACTIVE') {
+      return { 
+        isValid: false, 
+        error: 'This raffle is not currently accepting entries' 
       };
     }
 
@@ -159,7 +174,13 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
   };
 
   const handleJoinRaffle = async () => {
-    if (!raffle || isLoading) return;
+    if (!raffle || isLoading || !isConnected || !address) {
+      setMessage({
+        type: 'error',
+        text: 'Please connect your wallet first'
+      });
+      return;
+    }
 
     // Client-side validation
     const validation = validateRaffleEntry();
@@ -171,10 +192,43 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
       return;
     }
 
+    if (!contractAddress) {
+      setMessage({
+        type: 'error',
+        text: 'Contract address not configured'
+      });
+      return;
+    }
+
     setIsLoading(true);
     setMessage(null);
 
     try {
+      // Step 1: Sign the joinRaffle contract method first
+      setMessage({
+        type: 'success',
+        text: 'Please sign the transaction in your wallet...'
+      });
+
+      // Get the blockchain raffle ID
+      const raffleId = RaffleContractService.generateRaffleId(raffle.id);
+      
+      // Call the joinRaffle method on the smart contract
+      const txHash = await writeContractAsync({
+        address: contractAddress as `0x${string}`,
+        abi: raffle_abi,
+        functionName: 'joinRaffle',
+        args: [BigInt(raffleId), BigInt(ticketCount)],
+      });
+
+      console.log('Contract transaction signed:', txHash);
+      
+      setMessage({
+        type: 'success',
+        text: 'Transaction signed! Processing your entry...'
+      });
+
+      // Step 2: If contract interaction succeeds, proceed with API call
       const response = await fetch('/api/raffle-entries/enter', {
         method: 'POST',
         headers: {
@@ -182,7 +236,8 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
         },
         body: JSON.stringify({
           raffleId: raffle.id,
-          ticketCount: ticketCount
+          ticketCount: ticketCount,
+          txHash: txHash // Include the transaction hash for verification
         })
       });
 
@@ -225,11 +280,22 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
         });
       }
     } catch (error) {
-      console.error('Error joining raffle:', error);
-      setMessage({
-        type: 'error',
-        text: 'Network error. Please try again.'
-      });
+      console.error('Error in handleJoinRaffle:', error);
+      
+      // Check if it's a contract interaction error
+      if (error && typeof error === 'object' && 'code' in error) {
+        // This is likely a wagmi/contract error
+        setMessage({
+          type: 'error',
+          text: 'Failed to sign transaction. Please try again.'
+        });
+      } else {
+        // This is a general network or API error
+        setMessage({
+          type: 'error',
+          text: error instanceof Error ? error.message : 'Network error. Please try again.'
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -351,11 +417,14 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                     </span>
                   </div>
                   <span className={`text-sm font-semibold ${
-                    getTimeRemaining(raffle.end_date) === 'Ended' 
+                    raffle.status === 'COMPLETED' || raffle.status === 'CANCELLED'
                       ? 'text-red-500' 
                       : 'text-purple-600'
                   }`}>
-                    {getTimeRemaining(raffle.end_date)}
+                    {raffle.status === 'COMPLETED' ? 'Completed' : 
+                     raffle.status === 'CANCELLED' ? 'Cancelled' :
+                     raffle.status === 'ACTIVE' ? getTimeRemaining(raffle.end_date) :
+                     'Not Active'}
                   </span>
                 </div>
 
@@ -466,8 +535,8 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                     </div>
                   )}
                   
-                  {/* Ticket Controls - Only show if max tickets > 1 and raffle not ended */}
-                  {raffle.max_tickets_per_user > 1 && getTimeRemaining(raffle.end_date) !== 'Ended' && remainingTickets > 0 && (
+                  {/* Ticket Controls - Only show if max tickets > 1 and raffle is active */}
+                  {raffle.max_tickets_per_user > 1 && raffle.status === 'ACTIVE' && remainingTickets > 0 && (
                     <div className="space-y-2">
                       <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                         Select number of tickets ({remainingTickets} remaining):
@@ -553,13 +622,13 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
             <button
               onClick={handleJoinRaffle}
               disabled={
-                getTimeRemaining(raffle.end_date) === 'Ended' || 
+                raffle.status !== 'ACTIVE' || 
                 isLoading || 
                 remainingTickets <= 0 ||
                 ((raffle.user_ticket_count || 0) >= raffle.max_tickets_per_user)
               }
               className={`px-6 py-2 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center min-w-[140px] ${
-                getTimeRemaining(raffle.end_date) === 'Ended' || 
+                raffle.status !== 'ACTIVE' || 
                 remainingTickets <= 0 || 
                 ((raffle.user_ticket_count || 0) >= raffle.max_tickets_per_user)
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
@@ -575,11 +644,15 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                 </div>
               ) : (
                 <span>
-                  {getTimeRemaining(raffle.end_date) === 'Ended' 
-                    ? 'Raffle Ended' 
-                    : remainingTickets <= 0
-                      ? 'Max Tickets Reached'
-                      : `Join Raffle (${ticketCount} ticket${ticketCount > 1 ? 's' : ''})`
+                  {raffle.status === 'COMPLETED' 
+                    ? 'Raffle Completed' 
+                    : raffle.status === 'CANCELLED'
+                      ? 'Raffle Cancelled'
+                      : raffle.status !== 'ACTIVE'
+                        ? 'Raffle Not Active'
+                        : remainingTickets <= 0
+                          ? 'Max Tickets Reached'
+                          : `Join Raffle (${ticketCount} ticket${ticketCount > 1 ? 's' : ''})`
                   }
                 </span>
               )}

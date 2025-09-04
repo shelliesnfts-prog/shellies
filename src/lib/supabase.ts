@@ -38,6 +38,7 @@ export interface Raffle {
   max_tickets_per_user: number;
   max_participants?: number;
   end_date: string;
+  status?: 'CREATED' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
   created_at: string;
   user_ticket_count?: number;
   current_participants?: number;

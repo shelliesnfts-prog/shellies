@@ -220,29 +220,32 @@ export class AdminService {
     }
   }
 
-  // End raffle by setting end date to current time and calling smart contract
+  // End raffle by setting status to COMPLETED and calling smart contract
   static async endRaffleEarly(raffleId: string): Promise<{ success: boolean; txHash?: string; error?: string }> {
     try {
       const client = supabaseAdmin || supabase;
       
-      // Step 1: Update database to mark raffle as ended
-      const { error } = await client
-        .from('shellies_raffle_raffles')
-        .update({ end_date: new Date().toISOString() })
-        .eq('id', raffleId);
-
-      if (error) {
-        console.error('Error updating raffle end date:', error);
-        return { success: false, error: 'Failed to update raffle in database' };
-      }
-
-      // Step 2: Call smart contract to end raffle (picks winner and distributes prize)
+      // Step 1: Call smart contract to end raffle (picks winner and distributes prize)
       const { RaffleContractService } = await import('./raffle-contract');
       const contractResult = await RaffleContractService.serverEndRaffle(raffleId);
       
       if (!contractResult.success) {
         console.error('Smart contract end raffle failed:', contractResult.error);
         return { success: false, error: contractResult.error };
+      }
+
+      // Step 2: Update database status to COMPLETED (smart contract should have set this)
+      const { error } = await client
+        .from('shellies_raffle_raffles')
+        .update({ 
+          status: 'COMPLETED',
+          end_date: new Date().toISOString()
+        })
+        .eq('id', raffleId);
+
+      if (error) {
+        console.error('Error updating raffle status:', error);
+        return { success: false, error: 'Failed to update raffle status in database' };
       }
 
       console.log('Raffle ended successfully:', { raffleId, txHash: contractResult.txHash });

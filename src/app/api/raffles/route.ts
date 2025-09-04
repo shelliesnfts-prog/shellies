@@ -19,9 +19,9 @@ export async function GET(request: NextRequest) {
     
     // Filter by status if specified
     if (status === 'active') {
-      raffleQuery = raffleQuery.gt('end_date', new Date().toISOString());
+      raffleQuery = raffleQuery.eq('status', 'ACTIVE');
     } else if (status === 'finished') {
-      raffleQuery = raffleQuery.lt('end_date', new Date().toISOString());
+      raffleQuery = raffleQuery.in('status', ['COMPLETED', 'CANCELLED']);
     }
     
     raffleQuery = raffleQuery.order('created_at', { ascending: false });

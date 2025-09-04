@@ -881,11 +881,15 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
                           <div className="flex justify-between items-center">
                             <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Status:</span>
                             <span className={`px-2 py-1 rounded-full text-xs font-medium border ${
-                              isRaffleActive(raffle.end_date)
+                              raffle.status === 'ACTIVE'
                                 ? 'bg-green-100 text-green-800 border-green-200' 
-                                : 'bg-red-100 text-red-800 border-red-200'
+                                : raffle.status === 'COMPLETED'
+                                  ? 'bg-blue-100 text-blue-800 border-blue-200'
+                                  : raffle.status === 'CANCELLED'
+                                    ? 'bg-red-100 text-red-800 border-red-200'
+                                    : 'bg-gray-100 text-gray-800 border-gray-200'
                             }`}>
-                              {isRaffleActive(raffle.end_date) ? 'Active' : 'Ended'}
+                              {raffle.status || 'CREATED'}
                             </span>
                           </div>
                         </div>

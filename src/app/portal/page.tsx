@@ -43,6 +43,10 @@ interface RaffleCardProps {
 function RaffleCard({ raffle, timeRemaining, isDarkMode, onJoinClick }: RaffleCardProps) {
   const [imageError, setImageError] = useState(false);
   
+  // Determine raffle state based on status
+  const isRaffleEnded = raffle.status === 'COMPLETED' || raffle.status === 'CANCELLED';
+  const isRaffleActive = raffle.status === 'ACTIVE';
+  
   return (
     <div className={`group rounded-2xl shadow-sm border overflow-hidden hover:shadow-lg transition-all duration-300 hover:-translate-y-1 ${
       isDarkMode 
@@ -105,18 +109,24 @@ function RaffleCard({ raffle, timeRemaining, isDarkMode, onJoinClick }: RaffleCa
           <div className={`flex items-center space-x-1.5 ${
             isDarkMode ? 'text-gray-400' : 'text-gray-500'
           }`}>
-            <div className={`w-1.5 h-1.5 rounded-full ${timeRemaining === 'Ended' ? 'bg-red-400' : 'bg-green-400 animate-pulse'}`}></div>
+            <div className={`w-1.5 h-1.5 rounded-full ${isRaffleEnded ? 'bg-red-400' : isRaffleActive ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`}></div>
             <span className="text-xs font-medium">
-              {timeRemaining === 'Ended' ? 'Ended' : `${timeRemaining}`}
+              {raffle.status === 'COMPLETED' ? 'Completed' : 
+               raffle.status === 'CANCELLED' ? 'Cancelled' :
+               raffle.status === 'ACTIVE' ? timeRemaining :
+               'Not Active'}
             </span>
           </div>
           
           <button 
             className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 hover:shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={timeRemaining === 'Ended'}
+            disabled={!isRaffleActive}
             onClick={onJoinClick}
           >
-            {timeRemaining === 'Ended' ? 'Ended' : 'Join'}
+            {raffle.status === 'COMPLETED' ? 'Completed' :
+             raffle.status === 'CANCELLED' ? 'Cancelled' :
+             raffle.status === 'ACTIVE' ? 'Join' :
+             'Not Active'}
           </button>
         </div>
       </div>
