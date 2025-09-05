@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useAccount } from 'wagmi';
+import { useRouter } from 'next/navigation';
 import { useDashboard } from '@/hooks/useDashboard';
 import { ClaimButtonWithCountdown } from '@/components/ClaimCountdown';
 import JoinRaffleModal from '@/components/JoinRaffleModal';
@@ -26,7 +27,8 @@ import {
   Settings,
   HelpCircle,
   Bell,
-  ImageOff
+  ImageOff,
+  Shield
 } from 'lucide-react';
 
 import { Raffle } from '@/lib/supabase';
@@ -140,8 +142,10 @@ export default function Portal() {
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const { data: session } = useSession();
   const { address, isConnected } = useAccount();
+  const router = useRouter();
   const { user, claimStatus, loading: userLoading, claiming, executeClaim, error: claimError, fetchUser } = useDashboard();
   const [leaderboard, setLeaderboard] = useState([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
@@ -219,6 +223,27 @@ export default function Portal() {
     fetchUser();
   };
 
+  // Check admin status
+  const checkAdminStatus = async () => {
+    if (!walletAddress) {
+      setIsAdmin(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/admin/check');
+      const data = await response.json();
+      setIsAdmin(data.isAdmin || false);
+    } catch (error) {
+      console.error('Error checking admin status:', error);
+      setIsAdmin(false);
+    }
+  };
+
+  const handleAdminClick = () => {
+    router.push('/admin');
+  };
+
   useEffect(() => {
     if (activeTab === 'leaderboard') {
       fetchLeaderboard();
@@ -226,6 +251,10 @@ export default function Portal() {
       fetchRaffles();
     }
   }, [activeTab, raffleView]);
+
+  useEffect(() => {
+    checkAdminStatus();
+  }, [walletAddress]);
 
   if (userLoading) {
     return (
@@ -442,6 +471,23 @@ export default function Portal() {
                   </div>
                 )}
               </li>
+              
+              {/* Admin Panel - Only show if user is admin */}
+              {isAdmin && (
+                <li className={`border-t pt-2 mt-2 ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                  <button
+                    onClick={handleAdminClick}
+                    className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
+                      isDarkMode
+                        ? 'text-red-400 hover:bg-red-900/20 hover:text-red-300'
+                        : 'text-red-600 hover:bg-red-50 hover:text-red-700'
+                    }`}
+                  >
+                    <Shield className="w-5 h-5 mr-3" />
+                    <span className="font-medium text-sm">Admin Panel</span>
+                  </button>
+                </li>
+              )}
             </ul>
           </nav>
         </div>

@@ -896,18 +896,35 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
                         <div className="flex space-x-2 mt-4">
                           <button
                             onClick={() => endRaffleEarly(raffle.id)}
-                            disabled={endingRaffle === raffle.id}
+                            disabled={
+                              endingRaffle === raffle.id || 
+                              raffle.status === 'COMPLETED' || 
+                              raffle.status === 'CANCELLED'
+                            }
                             className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
-                              endingRaffle === raffle.id
-                                ? 'bg-red-400 cursor-not-allowed'
+                              endingRaffle === raffle.id || raffle.status === 'COMPLETED' || raffle.status === 'CANCELLED'
+                                ? 'bg-gray-400 cursor-not-allowed'
                                 : 'bg-red-600 hover:bg-red-700'
                             } text-white`}
-                            title="End raffle and trigger smart contract"
+                            title={
+                              raffle.status === 'COMPLETED' 
+                                ? 'Raffle already completed'
+                                : raffle.status === 'CANCELLED'
+                                  ? 'Raffle was cancelled'
+                                  : 'End raffle and trigger smart contract'
+                            }
                           >
                             {endingRaffle === raffle.id && (
                               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                             )}
-                            {endingRaffle === raffle.id ? 'Ending...' : 'End Raffle'}
+                            {endingRaffle === raffle.id 
+                              ? 'Ending...' 
+                              : raffle.status === 'COMPLETED'
+                                ? 'Completed'
+                                : raffle.status === 'CANCELLED'
+                                  ? 'Cancelled'
+                                  : 'End Raffle'
+                            }
                           </button>
                         </div>
                       </div>
