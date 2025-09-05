@@ -102,3 +102,64 @@ function getUserFriendlyMessage(code: string): string {
 
   return messages[code] || 'An error occurred';
 }
+
+// Parse contract/transaction errors and return user-friendly messages
+export function parseContractError(error: any): string {
+  // Handle common error patterns
+  if (!error || typeof error !== 'object') {
+    return 'Transaction failed. Please try again.';
+  }
+
+  const errorString = error.message || error.toString() || '';
+  const errorStringLower = errorString.toLowerCase();
+
+  // User rejected transaction
+  if (errorStringLower.includes('user rejected') || 
+      errorStringLower.includes('user denied') ||
+      errorStringLower.includes('user cancelled')) {
+    return 'Transaction was cancelled by user';
+  }
+
+  // Insufficient gas/funds
+  if (errorStringLower.includes('insufficient funds') || 
+      errorStringLower.includes('insufficient balance') ||
+      errorStringLower.includes('insufficient gas') ||
+      errorStringLower.includes('out of gas')) {
+    return 'Insufficient gas or funds to complete transaction';
+  }
+
+  // Network issues
+  if (errorStringLower.includes('network') || 
+      errorStringLower.includes('connection') ||
+      errorStringLower.includes('timeout')) {
+    return 'Network error. Please check your connection and try again.';
+  }
+
+  // Contract execution failed
+  if (errorStringLower.includes('execution reverted') || 
+      errorStringLower.includes('transaction failed') ||
+      errorStringLower.includes('call exception')) {
+    return 'Transaction failed. Please check raffle requirements and try again.';
+  }
+
+  // Nonce issues
+  if (errorStringLower.includes('nonce') || 
+      errorStringLower.includes('replacement transaction')) {
+    return 'Transaction conflict. Please wait a moment and try again.';
+  }
+
+  // Gas price issues
+  if (errorStringLower.includes('gas price') || 
+      errorStringLower.includes('underpriced')) {
+    return 'Gas price too low. Please adjust gas settings and try again.';
+  }
+
+  // Chain/network mismatch
+  if (errorStringLower.includes('chain') || 
+      errorStringLower.includes('wrong network')) {
+    return 'Wrong network selected. Please switch to the correct network.';
+  }
+
+  // Default fallback for unknown errors
+  return 'Transaction failed. Please try again.';
+}

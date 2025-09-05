@@ -13,6 +13,8 @@ const queryClient = new QueryClient();
 
 const getSiweMessageOptions: GetSiweMessageOptions = () => ({
   statement: 'Sign in to Shellies Raffles to access your portal and manage your points.',
+  domain: typeof window !== 'undefined' ? window.location.host : 'localhost:3000',
+  uri: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
 });
 
 export function Web3Providers({ 

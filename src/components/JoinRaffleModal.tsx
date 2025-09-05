@@ -7,6 +7,7 @@ import { Raffle } from '@/lib/supabase';
 import { getTimeRemaining } from '@/lib/dateUtils';
 import { RaffleContractService } from '@/lib/raffle-contract';
 import { raffle_abi } from '@/lib/raffle-abi';
+import { parseContractError } from '@/lib/errors';
 
 interface JoinRaffleModalProps {
   isOpen: boolean;
@@ -282,20 +283,12 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
     } catch (error) {
       console.error('Error in handleJoinRaffle:', error);
       
-      // Check if it's a contract interaction error
-      if (error && typeof error === 'object' && 'code' in error) {
-        // This is likely a wagmi/contract error
-        setMessage({
-          type: 'error',
-          text: 'Failed to sign transaction. Please try again.'
-        });
-      } else {
-        // This is a general network or API error
-        setMessage({
-          type: 'error',
-          text: error instanceof Error ? error.message : 'Network error. Please try again.'
-        });
-      }
+      // Use the parseContractError function for user-friendly error messages
+      const userFriendlyMessage = parseContractError(error);
+      setMessage({
+        type: 'error',
+        text: userFriendlyMessage
+      });
     } finally {
       setIsLoading(false);
     }

@@ -24,7 +24,7 @@ export const authOptions: NextAuthOptions = {
             return null;
           }
 
-          const siwe = new SiweMessage(JSON.parse(credentials.message));
+          const siwe = new SiweMessage(credentials.message);
           const fields = await siwe.verify({
             signature: credentials.signature,
           });
