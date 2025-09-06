@@ -356,7 +356,9 @@ export class RaffleContractService {
   // ============ SERVER-SIDE CONTRACT INTERACTIONS ============
 
   /**
-   * SERVER ONLY: Create raffle with NFT on blockchain
+   * @deprecated Phase 3: This method has been removed in favor of admin wallet deployment
+   * Use adminCreateRaffleWithNFT instead
+   * Server wallet methods are no longer supported for security reasons
    */
   static async serverCreateRaffleWithNFT(
     raffleId: number,
@@ -364,76 +366,19 @@ export class RaffleContractService {
     tokenId: string,
     endTimestamp: number
   ): Promise<{ success: boolean; txHash?: string; error?: string }> {
-    try {
-      if (!this.contractAddress) {
-        return { success: false, error: 'Raffle contract address not configured' };
-      }
-
-      const walletClient = createServerWalletClient();
-      
-      // First approve NFT for the contract
-      const approveHash = await walletClient.writeContract({
-        address: prizeTokenAddress as `0x${string}`,
-        abi: erc721Abi,
-        functionName: 'approve',
-        args: [this.contractAddress as `0x${string}`, BigInt(tokenId)],
-      });
-
-      console.log('NFT approve transaction:', approveHash);
-      
-      // Wait for approval to be mined with better error handling
-      try {
-        await publicClient.waitForTransactionReceipt({ 
-          hash: approveHash,
-          timeout: 30000, // 30 seconds timeout
-          pollingInterval: 2000 // Check every 2 seconds
-        });
-      } catch (receiptError) {
-        console.warn('Error waiting for approve receipt, continuing anyway:', receiptError);
-        // Continue with a delay instead of failing
-        await new Promise(resolve => setTimeout(resolve, 5000));
-      }
-
-      // Create raffle on contract
-      const raffleHash = await walletClient.writeContract({
-        address: this.contractAddress as `0x${string}`,
-        abi: raffleContractAbi,
-        functionName: 'createRaffleWithNFT',
-        args: [
-          BigInt(raffleId),
-          prizeTokenAddress as `0x${string}`,
-          BigInt(tokenId),
-          BigInt(endTimestamp)
-        ],
-      });
-
-      console.log('Create raffle transaction:', raffleHash);
-      
-      // Wait for transaction to be mined with better error handling
-      try {
-        await publicClient.waitForTransactionReceipt({ 
-          hash: raffleHash,
-          timeout: 30000, // 30 seconds timeout
-          pollingInterval: 2000 // Check every 2 seconds
-        });
-      } catch (receiptError) {
-        console.warn('Error waiting for create raffle receipt, continuing anyway:', receiptError);
-        // Continue with a delay instead of failing
-        await new Promise(resolve => setTimeout(resolve, 5000));
-      }
-
-      return { success: true, txHash: raffleHash };
-    } catch (error) {
-      console.error('Error creating NFT raffle on blockchain:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown blockchain error' 
-      };
-    }
+    // Phase 3: Method deprecated - return error instead of executing
+    console.warn('🚨 Attempted to use deprecated serverCreateRaffleWithNFT method');
+    
+    return {
+      success: false,
+      error: 'Server wallet NFT raffle creation has been deprecated. Please use adminCreateRaffleWithNFT for better security and control.'
+    };
   }
 
   /**
-   * SERVER ONLY: Create raffle with ERC20 on blockchain
+   * @deprecated Phase 3: This method has been removed in favor of admin wallet deployment
+   * Use adminCreateRaffleWithToken instead
+   * Server wallet methods are no longer supported for security reasons
    */
   static async serverCreateRaffleWithToken(
     raffleId: number,
@@ -441,192 +386,31 @@ export class RaffleContractService {
     amount: string,
     endTimestamp: number
   ): Promise<{ success: boolean; txHash?: string; error?: string }> {
-    try {
-      if (!this.contractAddress) {
-        return { success: false, error: 'Raffle contract address not configured' };
-      }
-
-      const walletClient = createServerWalletClient();
-      
-      // First approve ERC20 tokens for the contract
-      const approveHash = await walletClient.writeContract({
-        address: prizeTokenAddress as `0x${string}`,
-        abi: erc20Abi,
-        functionName: 'approve',
-        args: [this.contractAddress as `0x${string}`, BigInt(amount)],
-      });
-
-      console.log('ERC20 approve transaction:', approveHash);
-      
-      // Wait for approval to be mined with better error handling
-      try {
-        await publicClient.waitForTransactionReceipt({ 
-          hash: approveHash,
-          timeout: 30000, // 30 seconds timeout
-          pollingInterval: 2000 // Check every 2 seconds
-        });
-      } catch (receiptError) {
-        console.warn('Error waiting for ERC20 approve receipt, continuing anyway:', receiptError);
-        // Continue with a delay instead of failing
-        await new Promise(resolve => setTimeout(resolve, 5000));
-      }
-
-      // Create raffle on contract
-      const raffleHash = await walletClient.writeContract({
-        address: this.contractAddress as `0x${string}`,
-        abi: raffleContractAbi,
-        functionName: 'createRaffleWithToken',
-        args: [
-          BigInt(raffleId),
-          prizeTokenAddress as `0x${string}`,
-          BigInt(amount),
-          BigInt(endTimestamp)
-        ],
-      });
-
-      console.log('Create raffle transaction:', raffleHash);
-      
-      // Wait for transaction to be mined with better error handling
-      try {
-        await publicClient.waitForTransactionReceipt({ 
-          hash: raffleHash,
-          timeout: 30000, // 30 seconds timeout
-          pollingInterval: 2000 // Check every 2 seconds
-        });
-      } catch (receiptError) {
-        console.warn('Error waiting for ERC20 create raffle receipt, continuing anyway:', receiptError);
-        // Continue with a delay instead of failing
-        await new Promise(resolve => setTimeout(resolve, 5000));
-      }
-
-      return { success: true, txHash: raffleHash };
-    } catch (error) {
-      console.error('Error creating ERC20 raffle on blockchain:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown blockchain error' 
-      };
-    }
+    // Phase 3: Method deprecated - return error instead of executing
+    console.warn('🚨 Attempted to use deprecated serverCreateRaffleWithToken method');
+    
+    return {
+      success: false,
+      error: 'Server wallet ERC20 raffle creation has been deprecated. Please use adminCreateRaffleWithToken for better security and control.'
+    };
   }
 
   /**
-   * SERVER ONLY: Activate raffle on blockchain
+   * @deprecated Phase 3: This method has been removed in favor of admin wallet deployment
+   * Use adminActivateRaffle instead
+   * Server wallet methods are no longer supported for security reasons
    */
   static async serverActivateRaffle(raffleId: number): Promise<{ success: boolean; txHash?: string; error?: string }> {
-    try {
-      if (!this.contractAddress) {
-        return { success: false, error: 'Raffle contract address not configured' };
-      }
-
-      const walletClient = createServerWalletClient();
-      
-      const txHash = await walletClient.writeContract({
-        address: this.contractAddress as `0x${string}`,
-        abi: raffleContractAbi,
-        functionName: 'activateRaffle',
-        args: [BigInt(raffleId)],
-      });
-
-      console.log('Activate raffle transaction:', txHash);
-      
-      // Wait for transaction to be mined with better error handling
-      try {
-        await publicClient.waitForTransactionReceipt({ 
-          hash: txHash,
-          timeout: 30000, // 30 seconds timeout
-          pollingInterval: 2000 // Check every 2 seconds
-        });
-      } catch (receiptError) {
-        console.warn('Error waiting for activate raffle receipt, continuing anyway:', receiptError);
-        // Continue with a delay instead of failing
-        await new Promise(resolve => setTimeout(resolve, 5000));
-      }
-
-      return { success: true, txHash };
-    } catch (error) {
-      console.error('Error activating raffle on blockchain:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown blockchain error' 
-      };
-    }
+    // Phase 3: Method deprecated - return error instead of executing
+    console.warn('🚨 Attempted to use deprecated serverActivateRaffle method');
+    
+    return {
+      success: false,
+      error: 'Server wallet raffle activation has been deprecated. Please use adminActivateRaffle for better security and control.'
+    };
   }
 
-  /**
-   * SERVER ONLY: Create and activate raffle in one go
-   */
-  static async serverCreateAndActivateRaffle(
-    databaseId: string | number,
-    prizeTokenAddress: string,
-    prizeTokenType: 'NFT' | 'ERC20',
-    prizeTokenId: string | null,
-    prizeAmount: string | null,
-    endDate: string
-  ): Promise<{ success: boolean; txHashes?: string[]; error?: string }> {
-    try {
-      const raffleId = this.generateRaffleId(databaseId);
-      const endTimestamp = this.dateToTimestamp(endDate);
-      
-      let createResult;
-      
-      if (prizeTokenType === 'NFT' && prizeTokenId) {
-        createResult = await this.serverCreateRaffleWithNFT(
-          raffleId,
-          prizeTokenAddress,
-          prizeTokenId,
-          endTimestamp
-        );
-      } else if (prizeTokenType === 'ERC20' && prizeAmount) {
-        createResult = await this.serverCreateRaffleWithToken(
-          raffleId,
-          prizeTokenAddress,
-          prizeAmount,
-          endTimestamp
-        );
-      } else {
-        return { success: false, error: 'Invalid prize configuration' };
-      }
-
-      if (!createResult.success) {
-        return createResult;
-      }
-
-      // Activate the raffle
-      const activateResult = await this.serverActivateRaffle(raffleId);
-      
-      if (!activateResult.success) {
-        return activateResult;
-      }
-
-      // Update database status to ACTIVE after successful blockchain activation
-      try {
-        const { supabaseAdmin, supabase } = await import('./supabase');
-        const client = supabaseAdmin || supabase;
-        
-        const { error } = await client
-          .from('shellies_raffle_raffles')
-          .update({ status: 'ACTIVE' })
-          .eq('id', databaseId);
-
-        if (error) {
-          console.error('Error updating raffle status to ACTIVE:', error);
-        }
-      } catch (error) {
-        console.error('Error updating database status:', error);
-      }
-
-      return { 
-        success: true, 
-        txHashes: [createResult.txHash!, activateResult.txHash!] 
-      };
-    } catch (error) {
-      console.error('Error creating and activating raffle:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
-      };
-    }
-  }
+  // Phase 3: Removed duplicate serverCreateAndActivateRaffle method
 
   /**
    * SERVER ONLY: End a raffle (picks winner and distributes prize)
@@ -715,6 +499,202 @@ export class RaffleContractService {
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Unknown error' 
+      };
+    }
+  }
+
+  // ============ ADMIN WALLET CLIENT-SIDE METHODS ============
+  // These methods are for admin wallet direct interactions (Phase 1 migration)
+
+  /**
+   * ADMIN WALLET: Create raffle with NFT on blockchain (client-side)
+   * Admin wallet directly interacts with the contract
+   */
+  static async adminCreateRaffleWithNFT(
+    raffleId: number,
+    prizeTokenAddress: string,
+    tokenId: string,
+    endTimestamp: number,
+    writeContract: any // wagmi writeContract function
+  ): Promise<{ success: boolean; txHash?: string; error?: string }> {
+    try {
+      if (!this.contractAddress) {
+        return { success: false, error: 'Raffle contract address not configured' };
+      }
+
+      console.log('Admin creating NFT raffle with parameters:', {
+        raffleId,
+        prizeTokenAddress,
+        tokenId,
+        endTimestamp
+      });
+
+      // Call the contract method directly (admin wallet will be prompted to sign)
+      const txHash = await writeContract({
+        address: this.contractAddress as `0x${string}`,
+        abi: raffleContractAbi,
+        functionName: 'createRaffleWithNFT',
+        args: [
+          BigInt(raffleId),
+          prizeTokenAddress as `0x${string}`,
+          BigInt(tokenId),
+          BigInt(endTimestamp)
+        ],
+      });
+
+      console.log('Admin NFT raffle creation transaction:', txHash);
+      return { success: true, txHash };
+    } catch (error) {
+      console.error('Error in admin NFT raffle creation:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown blockchain error' 
+      };
+    }
+  }
+
+  /**
+   * ADMIN WALLET: Create raffle with ERC20 on blockchain (client-side)
+   * Admin wallet directly interacts with the contract
+   */
+  static async adminCreateRaffleWithToken(
+    raffleId: number,
+    prizeTokenAddress: string,
+    amount: string,
+    endTimestamp: number,
+    writeContract: any // wagmi writeContract function
+  ): Promise<{ success: boolean; txHash?: string; error?: string }> {
+    try {
+      if (!this.contractAddress) {
+        return { success: false, error: 'Raffle contract address not configured' };
+      }
+
+      console.log('Admin creating ERC20 raffle with parameters:', {
+        raffleId,
+        prizeTokenAddress,
+        amount,
+        endTimestamp
+      });
+
+      // Call the contract method directly (admin wallet will be prompted to sign)
+      const txHash = await writeContract({
+        address: this.contractAddress as `0x${string}`,
+        abi: raffleContractAbi,
+        functionName: 'createRaffleWithToken',
+        args: [
+          BigInt(raffleId),
+          prizeTokenAddress as `0x${string}`,
+          BigInt(amount),
+          BigInt(endTimestamp)
+        ],
+      });
+
+      console.log('Admin ERC20 raffle creation transaction:', txHash);
+      return { success: true, txHash };
+    } catch (error) {
+      console.error('Error in admin ERC20 raffle creation:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown blockchain error' 
+      };
+    }
+  }
+
+  /**
+   * ADMIN WALLET: Activate raffle on blockchain (client-side)
+   * Admin wallet directly activates the raffle
+   */
+  static async adminActivateRaffle(
+    raffleId: number,
+    writeContract: any // wagmi writeContract function
+  ): Promise<{ success: boolean; txHash?: string; error?: string }> {
+    try {
+      if (!this.contractAddress) {
+        return { success: false, error: 'Raffle contract address not configured' };
+      }
+
+      console.log('Admin activating raffle:', raffleId);
+
+      const txHash = await writeContract({
+        address: this.contractAddress as `0x${string}`,
+        abi: raffleContractAbi,
+        functionName: 'activateRaffle',
+        args: [BigInt(raffleId)],
+      });
+
+      console.log('Admin raffle activation transaction:', txHash);
+      return { success: true, txHash };
+    } catch (error) {
+      console.error('Error in admin raffle activation:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown blockchain error' 
+      };
+    }
+  }
+
+  /**
+   * ADMIN WALLET: Approve NFT for raffle contract (client-side)
+   */
+  static async adminApproveNFT(
+    tokenAddress: string,
+    tokenId: string,
+    writeContract: any // wagmi writeContract function
+  ): Promise<{ success: boolean; txHash?: string; error?: string }> {
+    try {
+      if (!this.contractAddress) {
+        return { success: false, error: 'Raffle contract address not configured' };
+      }
+
+      console.log('Admin approving NFT:', { tokenAddress, tokenId });
+
+      const txHash = await writeContract({
+        address: tokenAddress as `0x${string}`,
+        abi: erc721Abi,
+        functionName: 'approve',
+        args: [this.contractAddress as `0x${string}`, BigInt(tokenId)],
+      });
+
+      console.log('Admin NFT approval transaction:', txHash);
+      return { success: true, txHash };
+    } catch (error) {
+      console.error('Error in admin NFT approval:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown blockchain error' 
+      };
+    }
+  }
+
+  /**
+   * ADMIN WALLET: Approve ERC20 for raffle contract (client-side)
+   */
+  static async adminApproveERC20(
+    tokenAddress: string,
+    amount: string,
+    writeContract: any // wagmi writeContract function
+  ): Promise<{ success: boolean; txHash?: string; error?: string }> {
+    try {
+      if (!this.contractAddress) {
+        return { success: false, error: 'Raffle contract address not configured' };
+      }
+
+      console.log('Admin approving ERC20:', { tokenAddress, amount });
+
+      const txHash = await writeContract({
+        address: tokenAddress as `0x${string}`,
+        abi: erc20Abi,
+        functionName: 'approve',
+        args: [this.contractAddress as `0x${string}`, BigInt(amount)],
+      });
+
+      console.log('Admin ERC20 approval transaction:', txHash);
+      return { success: true, txHash };
+    } catch (error) {
+      console.error('Error in admin ERC20 approval:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown blockchain error' 
       };
     }
   }

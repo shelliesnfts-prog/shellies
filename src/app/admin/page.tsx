@@ -27,6 +27,7 @@ import {
   Edit
 } from 'lucide-react';
 import { formatDate, isRaffleActive, localDateTimeInputToUTC } from '@/lib/dateUtils';
+import RaffleDeploymentModal from '@/components/RaffleDeploymentModal';
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('users');
@@ -69,6 +70,11 @@ export default function AdminPage() {
   const [creatingRaffle, setCreatingRaffle] = useState(false);
   const [prizeInfo, setPrizeInfo] = useState<any>(null);
   const [validatingPrize, setValidatingPrize] = useState(false);
+
+  // Phase 2: Admin Wallet Flow State - Default to true (new flow is default)
+  const [useAdminWallet, setUseAdminWallet] = useState(true);
+  const [showDeploymentModal, setShowDeploymentModal] = useState(false);
+  const [pendingRaffle, setPendingRaffle] = useState<any>(null);
 
   // Get wallet address
   const walletAddress = address || session?.address || '';
@@ -415,6 +421,118 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
     } finally {
       setCreatingRaffle(false);
     }
+  };
+
+  // Create raffle with admin wallet (Phase 1 - New Flow)
+  const createRaffleWithAdminWallet = async () => {
+    if (!raffleForm.title || !raffleForm.description || !raffleForm.points_per_ticket || 
+        !raffleForm.max_tickets_per_user || !raffleForm.end_date) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    if (!raffleForm.prize_token_address) {
+      alert('Please specify a prize token');
+      return;
+    }
+
+    if (raffleForm.prize_type === 'NFT' && !raffleForm.prize_token_id) {
+      alert('Please specify the NFT token ID');
+      return;
+    }
+
+    if (raffleForm.prize_type === 'ERC20' && !raffleForm.prize_amount) {
+      alert('Please specify the token amount');
+      return;
+    }
+
+    if (!prizeInfo || prizeInfo.error) {
+      alert('Please validate the prize token first');
+      return;
+    }
+
+    try {
+      setCreatingRaffle(true);
+      
+      // Convert datetime-local value to UTC for proper storage
+      const utcDateTime = localDateTimeInputToUTC(raffleForm.end_date);
+      
+      const response = await fetch('/api/admin/raffles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create_admin_wallet',
+          raffleData: {
+            title: raffleForm.title,
+            description: raffleForm.description,
+            image_url: raffleForm.image_url || null,
+            points_per_ticket: parseInt(raffleForm.points_per_ticket),
+            max_tickets_per_user: parseInt(raffleForm.max_tickets_per_user),
+            max_participants: raffleForm.max_participants ? parseInt(raffleForm.max_participants) : null,
+            end_date: utcDateTime,
+            prize_token_address: raffleForm.prize_token_address,
+            prize_token_type: raffleForm.prize_type,
+            prize_token_id: raffleForm.prize_type === 'NFT' ? raffleForm.prize_token_id : null,
+            prize_amount: raffleForm.prize_type === 'ERC20' ? raffleForm.prize_amount : null,
+          }
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.success && data.flow === 'admin_wallet') {
+          // Store the raffle for blockchain deployment
+          setPendingRaffle(data.raffle);
+          
+          // Close create modal and show deployment modal
+          setShowCreateRaffle(false);
+          setShowDeploymentModal(true);
+          
+          // Reset form
+          setRaffleForm({
+            title: '',
+            description: '',
+            image_url: '',
+            points_per_ticket: '',
+            max_tickets_per_user: '',
+            max_participants: '',
+            end_date: '',
+            prize_type: 'NFT',
+            prize_token_address: '',
+            prize_token_id: '',
+            prize_amount: '',
+          });
+          setPrizeInfo(null);
+          
+          console.log('Raffle created in database, ready for blockchain deployment:', data.raffle);
+        } else {
+          alert(`Error: ${data.error || 'Unknown error occurred'}`);
+        }
+      } else {
+        const errorData = await response.json();
+        alert(`Error creating raffle: ${errorData.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error creating raffle with admin wallet:', error);
+      alert('Error creating raffle');
+    } finally {
+      setCreatingRaffle(false);
+    }
+  };
+
+  // Handle successful deployment
+  const handleDeploymentSuccess = () => {
+    setPendingRaffle(null);
+    setShowDeploymentModal(false);
+    fetchRaffles(); // Refresh raffle list
+    alert('🎉 Raffle successfully deployed to blockchain and is now live!');
+  };
+
+  // Handle deployment modal close
+  const handleDeploymentClose = () => {
+    setShowDeploymentModal(false);
+    setPendingRaffle(null);
   };
 
   // End raffle early
@@ -1200,6 +1318,64 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
               <div className={`border-t pt-4 ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
                 <h4 className={`text-md font-semibold mb-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Prize Configuration</h4>
                 
+                {/* Phase 2: Deployment Method Selection - Admin Wallet is now default */}
+                <div className="mb-4">
+                  <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Deployment Method *
+                  </label>
+                  <div className="space-y-2">
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="deploymentMethod"
+                        checked={useAdminWallet}
+                        onChange={() => setUseAdminWallet(true)}
+                        className="mr-3 text-purple-600"
+                      />
+                      <div className="flex-1">
+                        <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Admin Wallet (Default)
+                          <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">Recommended</span>
+                        </span>
+                        <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          Deploy directly from your wallet - more secure, you keep control of prizes.
+                          Process: Create → Approve Token → Deploy → Activate
+                        </p>
+                      </div>
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="deploymentMethod"
+                        checked={!useAdminWallet}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            const confirmed = confirm(
+                              'Server Wallet deployment is deprecated and will be removed in future versions.\n\n' +
+                              'This method requires the server to own your prizes and has security limitations.\n\n' +
+                              'Are you sure you want to use the legacy server wallet method?\n\n' +
+                              'We recommend using Admin Wallet deployment for better security and control.'
+                            );
+                            if (confirmed) {
+                              setUseAdminWallet(false);
+                            }
+                          }
+                        }}
+                        className="mr-3 text-purple-600"
+                      />
+                      <div className="flex-1">
+                        <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Server Wallet (Legacy)
+                          <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">Removed</span>
+                        </span>
+                        <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          Server wallet deployment has been permanently removed for security reasons
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
                 <div>
                   <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Prize Type *</label>
                   <select
@@ -1334,16 +1510,32 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
                 Cancel
               </button>
               <button
-                onClick={createRaffle}
+                onClick={useAdminWallet ? createRaffleWithAdminWallet : createRaffle}
                 disabled={creatingRaffle}
                 className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors"
               >
-                {creatingRaffle ? 'Creating...' : 'Create Raffle'}
+                {creatingRaffle 
+                  ? useAdminWallet 
+                    ? 'Creating...' 
+                    : 'Creating...' 
+                  : useAdminWallet 
+                    ? 'Create & Deploy' 
+                    : 'Create Raffle'
+                }
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Phase 1: Deployment Modal */}
+      <RaffleDeploymentModal
+        isOpen={showDeploymentModal}
+        onClose={handleDeploymentClose}
+        raffle={pendingRaffle}
+        isDarkMode={isDarkMode}
+        onSuccess={handleDeploymentSuccess}
+      />
     </div>
   );
 }

@@ -10,7 +10,8 @@ import "@openzeppelin/contracts/security/Pausable.sol";
 
 /**
  * @title ShelliesRaffleContract
- * @dev Professional raffle contract with server automation
+ * @dev Professional raffle contract with admin wallet control and optional server automation
+ * @dev Updated for Phase 4: Admin wallet approach with enhanced security
  * @author Shellies Team
  */
 contract ShelliesRaffleContract is 
@@ -22,7 +23,7 @@ contract ShelliesRaffleContract is
     
     // ============ ROLES ============
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 public constant SERVER_ROLE = keccak256("SERVER_ROLE");
+    // SERVER_ROLE removed - only admin-controlled raffles now
     
     // ============ RAFFLE STATES ============
     enum RaffleState {
@@ -57,10 +58,7 @@ contract ShelliesRaffleContract is
         _;
     }
     
-    modifier onlyServer() {
-        require(hasRole(SERVER_ROLE, msg.sender), "Server only");
-        _;
-    }
+    // onlyServer modifier removed - no server wallet needed
     
     modifier raffleInState(uint256 raffleId, RaffleState expectedState) {
         require(raffles[raffleId].state == expectedState, "Invalid raffle state");
@@ -73,16 +71,22 @@ contract ShelliesRaffleContract is
     }
     
     // ============ CONSTRUCTOR ============
-    constructor(address serverWallet) {
+    /**
+     * @dev Constructor - deployer becomes the first admin
+     * @dev Only admins can create, manage, and end raffles
+     */
+    constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(ADMIN_ROLE, msg.sender);
-        _grantRole(SERVER_ROLE, serverWallet);
+        // Contract deployer is the first admin and can add/remove other admins
     }
     
     // ============ ADMIN FUNCTIONS ============
     
     /**
-     * @notice Deposit NFT prize and create raffle
+     * @notice Admin deposits NFT prize and creates raffle (Admin Wallet Approach)
+     * @dev Admin must own and approve the NFT before calling this function
+     * @dev This replaces the old server wallet approach for better security
      * @param raffleId Unique raffle ID from database (sequential)
      * @param prizeToken NFT contract address
      * @param tokenId NFT token ID
@@ -117,7 +121,9 @@ contract ShelliesRaffleContract is
     }
     
     /**
-     * @notice Deposit ERC20 prize and create raffle
+     * @notice Admin deposits ERC20 prize and creates raffle (Admin Wallet Approach)
+     * @dev Admin must own and approve the tokens before calling this function
+     * @dev This replaces the old server wallet approach for better security
      * @param raffleId Unique raffle ID from database (sequential)
      * @param prizeToken ERC20 contract address
      * @param amount Token amount to deposit
@@ -153,7 +159,9 @@ contract ShelliesRaffleContract is
     }
     
     /**
-     * @notice Activate raffle to start accepting entries
+     * @notice Admin activates raffle to start accepting entries (Admin Wallet Approach)
+     * @dev Only the admin who created the raffle (or other admins) can activate it
+     * @dev This provides better control over when raffles go live
      * @param raffleId The raffle to activate
      */
     function activateRaffle(uint256 raffleId) 
@@ -163,6 +171,81 @@ contract ShelliesRaffleContract is
         raffleInState(raffleId, RaffleState.CREATED)
     {
         raffles[raffleId].state = RaffleState.ACTIVE;
+        emit RaffleStateChanged(raffleId, RaffleState.CREATED, RaffleState.ACTIVE);
+    }
+    
+    /**
+     * @notice Convenience function to create and activate NFT raffle in one transaction
+     * @dev Admin must own and approve the NFT before calling this function
+     * @param raffleId Unique raffle ID from database (sequential)
+     * @param prizeToken NFT contract address
+     * @param tokenId NFT token ID
+     * @param endTimestamp When raffle ends
+     */
+    function createAndActivateNFTRaffle(
+        uint256 raffleId,
+        address prizeToken,
+        uint256 tokenId,
+        uint64 endTimestamp
+    ) external onlyAdmin whenNotPaused nonReentrant {
+        // Create the raffle
+        require(raffles[raffleId].prizeToken == address(0), "Raffle already exists");
+        require(prizeToken != address(0), "Invalid token");
+        require(tokenId <= type(uint96).max, "Token ID too large");
+        require(endTimestamp > block.timestamp, "Invalid end time");
+        
+        // Transfer NFT to contract
+        IERC721(prizeToken).safeTransferFrom(msg.sender, address(this), tokenId);
+        
+        // Create and immediately activate raffle
+        raffles[raffleId] = Raffle({
+            prizeToken: prizeToken,
+            prizeTokenId: uint96(tokenId),
+            endTimestamp: endTimestamp,
+            state: RaffleState.ACTIVE, // Directly to ACTIVE state
+            isNFT: true,
+            winner: address(0)
+        });
+        
+        emit RaffleCreated(raffleId, prizeToken, tokenId, true);
+        emit RaffleStateChanged(raffleId, RaffleState.CREATED, RaffleState.ACTIVE);
+    }
+    
+    /**
+     * @notice Convenience function to create and activate ERC20 raffle in one transaction
+     * @dev Admin must own and approve the tokens before calling this function
+     * @param raffleId Unique raffle ID from database (sequential)
+     * @param prizeToken ERC20 contract address
+     * @param amount Token amount to deposit
+     * @param endTimestamp When raffle ends
+     */
+    function createAndActivateTokenRaffle(
+        uint256 raffleId,
+        address prizeToken,
+        uint256 amount,
+        uint64 endTimestamp
+    ) external onlyAdmin whenNotPaused nonReentrant {
+        // Create the raffle
+        require(raffles[raffleId].prizeToken == address(0), "Raffle already exists");
+        require(prizeToken != address(0), "Invalid token");
+        require(amount > 0, "Invalid amount");
+        require(amount <= type(uint96).max, "Amount too large");
+        require(endTimestamp > block.timestamp, "Invalid end time");
+        
+        // Transfer tokens to contract
+        IERC20(prizeToken).transferFrom(msg.sender, address(this), amount);
+        
+        // Create and immediately activate raffle
+        raffles[raffleId] = Raffle({
+            prizeToken: prizeToken,
+            prizeTokenId: uint96(amount),
+            endTimestamp: endTimestamp,
+            state: RaffleState.ACTIVE, // Directly to ACTIVE state
+            isNFT: false,
+            winner: address(0)
+        });
+        
+        emit RaffleCreated(raffleId, prizeToken, amount, false);
         emit RaffleStateChanged(raffleId, RaffleState.CREATED, RaffleState.ACTIVE);
     }
     
@@ -190,14 +273,15 @@ contract ShelliesRaffleContract is
         // This ensures users must sign a transaction to join, providing security.
     }
     
-    // ============ SERVER AUTOMATION ============
+    // ============ ADMIN RAFFLE ENDING ============
     
     /**
-     * @notice Server calls this to end raffle and select winner
+     * @notice Admin ends raffle and selects winner
+     * @dev Only admins can end raffles - no server dependency
      * @param raffleId The raffle to end
      * @param participants Array of participant addresses
      * @param ticketCounts Array of ticket counts for each participant
-     * @param randomSeed Random seed from server for additional entropy
+     * @param randomSeed Random seed for additional entropy
      */
     function endRaffle(
         uint256 raffleId,
@@ -205,7 +289,7 @@ contract ShelliesRaffleContract is
         uint256[] calldata ticketCounts,
         uint256 randomSeed
     ) external 
-        onlyServer 
+        onlyAdmin 
         raffleExists(raffleId)
         raffleInState(raffleId, RaffleState.ACTIVE)
         whenNotPaused 
@@ -225,9 +309,9 @@ contract ShelliesRaffleContract is
         // Generate secure random number using multiple entropy sources
         uint256 randomNumber = uint256(
             keccak256(abi.encodePacked(
-                randomSeed,                    // Server-provided randomness
+                randomSeed,                    // Admin-provided randomness
                 block.timestamp,               // Current block time
-                block.prevrandao,             // Previous block randomness (more secure than block.difficulty)
+                block.prevrandao,             // Previous block randomness
                 blockhash(block.number - 1),  // Previous block hash
                 raffleId,                     // Unique raffle identifier
                 totalTickets,                 // Total tickets for additional uniqueness
@@ -299,6 +383,53 @@ contract ShelliesRaffleContract is
      */
     function isRaffleActive(uint256 raffleId) external view returns (bool) {
         return raffles[raffleId].prizeToken != address(0);
+    }
+    
+    /**
+     * @notice Check contract configuration and admin status
+     * @dev Returns information about admin roles and configuration
+     * @return hasAdmins True if there are admins who can manage raffles
+     * @return adminCount Number of addresses with ADMIN_ROLE
+     * @return isCallerAdmin True if msg.sender has ADMIN_ROLE
+     */
+    function getContractConfiguration() external view returns (
+        bool hasAdmins,
+        uint256 adminCount,
+        bool isCallerAdmin
+    ) {
+        // Check if there are any admins
+        hasAdmins = getRoleMemberCount(ADMIN_ROLE) > 0;
+        
+        // Return admin count
+        adminCount = getRoleMemberCount(ADMIN_ROLE);
+        
+        // Check if caller is admin
+        isCallerAdmin = hasRole(ADMIN_ROLE, msg.sender);
+    }
+    
+    /**
+     * @notice Get all admin addresses
+     * @dev Returns array of all addresses with ADMIN_ROLE
+     * @return admins Array of admin addresses
+     */
+    function getAllAdmins() external view returns (address[] memory admins) {
+        uint256 adminCount = getRoleMemberCount(ADMIN_ROLE);
+        admins = new address[](adminCount);
+        
+        for (uint256 i = 0; i < adminCount; i++) {
+            admins[i] = getRoleMember(ADMIN_ROLE, i);
+        }
+        
+        return admins;
+    }
+    
+    /**
+     * @notice Check if an address is an admin
+     * @param account Address to check
+     * @return True if address has ADMIN_ROLE
+     */
+    function isAdmin(address account) external view returns (bool) {
+        return hasRole(ADMIN_ROLE, account);
     }
     
     // ============ EMERGENCY FUNCTIONS ============
@@ -394,17 +525,42 @@ contract ShelliesRaffleContract is
     // ============ ADMIN ROLE MANAGEMENT ============
     
     /**
-     * @notice Add server wallet (admin only)
+     * @notice Add new admin (existing admin only)
+     * @dev Allows multiple admins to manage raffles
+     * @dev Only existing admins can add new admins
+     * @param newAdmin Address to grant ADMIN_ROLE
      */
-    function addServerWallet(address serverWallet) external onlyAdmin {
-        grantRole(SERVER_ROLE, serverWallet);
+    function addAdmin(address newAdmin) external onlyAdmin {
+        require(newAdmin != address(0), "Invalid admin address");
+        require(!hasRole(ADMIN_ROLE, newAdmin), "Already an admin");
+        
+        grantRole(ADMIN_ROLE, newAdmin);
     }
     
     /**
-     * @notice Remove server wallet (admin only)
+     * @notice Remove admin (existing admin only)
+     * @dev Removes ADMIN_ROLE from specified address
+     * @dev At least one admin must remain (cannot remove all admins)
+     * @param admin Address to remove ADMIN_ROLE from
      */
-    function removeServerWallet(address serverWallet) external onlyAdmin {
-        revokeRole(SERVER_ROLE, serverWallet);
+    function removeAdmin(address admin) external onlyAdmin {
+        require(admin != address(0), "Invalid admin address");
+        require(hasRole(ADMIN_ROLE, admin), "Not an admin");
+        require(getRoleMemberCount(ADMIN_ROLE) > 1, "Cannot remove last admin");
+        
+        revokeRole(ADMIN_ROLE, admin);
+    }
+    
+    /**
+     * @notice Renounce admin role (self only)
+     * @dev Allows admin to remove their own admin privileges
+     * @dev At least one admin must remain
+     */
+    function renounceAdminRole() external {
+        require(hasRole(ADMIN_ROLE, msg.sender), "Not an admin");
+        require(getRoleMemberCount(ADMIN_ROLE) > 1, "Cannot remove last admin");
+        
+        revokeRole(ADMIN_ROLE, msg.sender);
     }
 
     /**

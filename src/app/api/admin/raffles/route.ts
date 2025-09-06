@@ -43,80 +43,17 @@ export async function POST(request: NextRequest) {
 
     switch (action) {
       case 'create':
-        if (!raffleData) {
-          return NextResponse.json({ error: 'Raffle data required' }, { status: 400 });
-        }
+        // Phase 3: Legacy server wallet method - DEPRECATED 
+        // This method has been removed to enforce the new admin wallet approach
+        console.warn('⚠️ Legacy server wallet creation attempt detected. Redirecting to new admin wallet flow.');
         
-        // Validate prize data
-        if (!raffleData.prize_token_address || !raffleData.prize_token_type) {
-          return NextResponse.json({ error: 'Prize token information required' }, { status: 400 });
-        }
-
-        if (raffleData.prize_token_type === 'NFT' && !raffleData.prize_token_id) {
-          return NextResponse.json({ error: 'NFT token ID required' }, { status: 400 });
-        }
-
-        if (raffleData.prize_token_type === 'ERC20' && !raffleData.prize_amount) {
-          return NextResponse.json({ error: 'ERC20 amount required' }, { status: 400 });
-        }
-        
-        // Step 1: Create raffle in database
-        const newRaffle = await AdminService.createRaffle(raffleData);
-        if (!newRaffle) {
-          return NextResponse.json({ error: 'Failed to create raffle in database' }, { status: 500 });
-        }
-
-        // Step 2: Create raffle on blockchain
-        try {
-          const blockchainResult = await RaffleContractService.serverCreateAndActivateRaffle(
-            newRaffle.id,
-            raffleData.prize_token_address,
-            raffleData.prize_token_type,
-            raffleData.prize_token_id || null,
-            raffleData.prize_amount || null,
-            raffleData.end_date
-          );
-
-          if (!blockchainResult.success) {
-            console.error('Blockchain transaction failed:', blockchainResult.error);
-            
-            // Rollback: Delete the raffle from database since blockchain failed
-            const deleteSuccess = await AdminService.deleteRaffle(newRaffle.id.toString());
-            if (!deleteSuccess) {
-              console.error('Failed to rollback raffle from database after blockchain failure');
-            }
-            
-            // Return error response
-            return NextResponse.json({
-              error: 'Failed to create raffle on blockchain',
-              details: blockchainResult.error,
-              rollbackStatus: deleteSuccess ? 'success' : 'failed'
-            }, { status: 500 });
-          }
-
-          // Success - return raffle with blockchain transaction hashes
-          return NextResponse.json({
-            ...newRaffle,
-            blockchainStatus: 'success',
-            transactionHashes: blockchainResult.txHashes
-          });
-
-        } catch (error) {
-          console.error('Error interacting with blockchain:', error);
-          
-          // Rollback: Delete the raffle from database since blockchain failed
-          const deleteSuccess = await AdminService.deleteRaffle(newRaffle.id.toString());
-          if (!deleteSuccess) {
-            console.error('Failed to rollback raffle from database after blockchain error');
-          }
-          
-          // Return error response
-          return NextResponse.json({
-            error: 'Blockchain interaction failed',
-            details: error instanceof Error ? error.message : 'Unknown blockchain error',
-            rollbackStatus: deleteSuccess ? 'success' : 'failed'
-          }, { status: 500 });
-        }
+        return NextResponse.json({
+          error: 'Server wallet raffle creation is deprecated and has been removed.',
+          deprecated: true,
+          migrate_to: 'create_admin_wallet',
+          message: 'Please use the Admin Wallet deployment method for better security and control.',
+          help: 'Switch to "Admin Wallet" in the deployment method selection.'
+        }, { status: 410 }); // 410 Gone - method no longer available
 
       case 'create_with_prize':
         if (!raffleData || !raffleData.prize) {
@@ -136,6 +73,110 @@ export async function POST(request: NextRequest) {
           requiresContractDeposit: true,
           prize: raffleData.prize
         });
+
+      // ============ NEW ADMIN WALLET FLOW (PHASE 1) ============
+      
+      case 'create_admin_wallet':
+        // Create raffle in database only, return raffle for client-side blockchain deployment
+        if (!raffleData) {
+          return NextResponse.json({ error: 'Raffle data required' }, { status: 400 });
+        }
+        
+        // Validate prize data
+        if (!raffleData.prize_token_address || !raffleData.prize_token_type) {
+          return NextResponse.json({ error: 'Prize token information required' }, { status: 400 });
+        }
+
+        if (raffleData.prize_token_type === 'NFT' && !raffleData.prize_token_id) {
+          return NextResponse.json({ error: 'NFT token ID required' }, { status: 400 });
+        }
+
+        if (raffleData.prize_token_type === 'ERC20' && !raffleData.prize_amount) {
+          return NextResponse.json({ error: 'ERC20 amount required' }, { status: 400 });
+        }
+        
+        // Create raffle in database with status 'CREATED' (not yet on blockchain)
+        const adminRaffle = await AdminService.createRaffle({
+          ...raffleData,
+          status: 'CREATED' // Will be updated to ACTIVE after successful blockchain deployment
+        });
+        
+        if (!adminRaffle) {
+          return NextResponse.json({ error: 'Failed to create raffle in database' }, { status: 500 });
+        }
+
+        // Return raffle data for client-side blockchain deployment
+        return NextResponse.json({
+          success: true,
+          raffle: adminRaffle,
+          flow: 'admin_wallet',
+          message: 'Raffle created in database. Ready for blockchain deployment.'
+        });
+
+      case 'mark_blockchain_deployed':
+        // Mark raffle as successfully deployed on blockchain
+        if (!raffleId) {
+          return NextResponse.json({ error: 'Raffle ID required' }, { status: 400 });
+        }
+
+        const { txHash, txHashes } = await request.json();
+        
+        // Update raffle status to ACTIVE and store transaction hashes
+        const deployedUpdate = await AdminService.updateRaffle(raffleId, { 
+          status: 'ACTIVE',
+          blockchain_tx_hash: txHash || (txHashes && txHashes[0]) || null,
+          blockchain_deployed_at: new Date().toISOString()
+        });
+        
+        if (!deployedUpdate) {
+          return NextResponse.json({ error: 'Failed to mark raffle as deployed' }, { status: 500 });
+        }
+
+        return NextResponse.json({ 
+          success: true, 
+          message: 'Raffle marked as deployed on blockchain',
+          status: 'ACTIVE'
+        });
+
+      case 'mark_blockchain_failed':
+        // Handle failed blockchain deployment
+        if (!raffleId) {
+          return NextResponse.json({ error: 'Raffle ID required' }, { status: 400 });
+        }
+
+        const { error: blockchainError, shouldDelete } = await request.json();
+        
+        if (shouldDelete) {
+          // Delete raffle from database if blockchain deployment failed
+          const deleteSuccess = await AdminService.deleteRaffle(raffleId);
+          if (!deleteSuccess) {
+            console.error('Failed to delete raffle after blockchain failure');
+            return NextResponse.json({ error: 'Failed to cleanup after blockchain failure' }, { status: 500 });
+          }
+          
+          return NextResponse.json({ 
+            success: true, 
+            message: 'Raffle removed due to blockchain deployment failure',
+            deleted: true
+          });
+        } else {
+          // Mark as failed but keep in database for retry
+          const failedUpdate = await AdminService.updateRaffle(raffleId, { 
+            status: 'BLOCKCHAIN_FAILED',
+            blockchain_error: blockchainError || 'Unknown blockchain error',
+            blockchain_failed_at: new Date().toISOString()
+          });
+          
+          if (!failedUpdate) {
+            return NextResponse.json({ error: 'Failed to mark raffle as blockchain failed' }, { status: 500 });
+          }
+
+          return NextResponse.json({ 
+            success: true, 
+            message: 'Raffle marked as blockchain deployment failed',
+            status: 'BLOCKCHAIN_FAILED'
+          });
+        }
 
       case 'update':
         if (!raffleId || !raffleData) {
