@@ -38,7 +38,7 @@ export interface Raffle {
   max_tickets_per_user: number;
   max_participants?: number;
   end_date: string;
-  status?: 'CREATED' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+  status?: 'CREATED' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED' | 'BLOCKCHAIN_FAILED';
   created_at: string;
   user_ticket_count?: number;
   current_participants?: number;
@@ -46,6 +46,11 @@ export interface Raffle {
   prize_token_type?: 'NFT' | 'ERC20';
   prize_token_id?: string;
   prize_amount?: string;
+  // New blockchain tracking fields
+  blockchain_tx_hash?: string;
+  blockchain_deployed_at?: string;
+  blockchain_error?: string;
+  blockchain_failed_at?: string;
 }
 
 export interface RaffleEntry {

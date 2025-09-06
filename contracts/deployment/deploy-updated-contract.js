@@ -23,9 +23,9 @@ async function main() {
 
   // Deploy the contract
   console.log("📦 Deploying RaffleContract...");
-  const RaffleContract = await hre.ethers.getContractFactory("RaffleContract");
+  const RaffleContract = await hre.ethers.getContractFactory("ShelliesRaffleContract");
   
-  // Constructor args - no server wallet needed for creation
+  // Constructor args - no server wallet needed, deployer becomes first admin
   const contract = await RaffleContract.deploy();
   await contract.deployed();
 
