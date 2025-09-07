@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.1.0/contracts/token/ERC721/IERC721.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.1.0/contracts/token/ERC20/IERC20.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.1.0/contracts/token/ERC721/utils/ERC721Holder.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.1.0/contracts/access/extensions/AccessControlEnumerable.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.1.0/contracts/utils/ReentrancyGuard.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.1.0/contracts/utils/Pausable.sol";
 
 /**
  * @title ShelliesRaffleContract
@@ -16,7 +16,7 @@ import "@openzeppelin/contracts/security/Pausable.sol";
  */
 contract ShelliesRaffleContract is 
     ERC721Holder, 
-    AccessControl, 
+    AccessControlEnumerable, 
     ReentrancyGuard, 
     Pausable
 {
@@ -564,9 +564,9 @@ contract ShelliesRaffleContract is
     }
 
     /**
-     * @notice Check interface support (required for AccessControl)
+     * @notice Check interface support (required for AccessControlEnumerable)
      */
-    function supportsInterface(bytes4 interfaceId) public view virtual override(AccessControl) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 }

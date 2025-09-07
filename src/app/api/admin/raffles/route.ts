@@ -39,7 +39,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
     }
 
-    const { action, raffleId, raffleData, isActive } = await request.json();
+    const requestBody = await request.json();
+    const { action, raffleId, raffleData, isActive, txHash, txHashes, error: blockchainError, shouldDelete } = requestBody;
 
     switch (action) {
       case 'create':
@@ -118,8 +119,6 @@ export async function POST(request: NextRequest) {
         if (!raffleId) {
           return NextResponse.json({ error: 'Raffle ID required' }, { status: 400 });
         }
-
-        const { txHash, txHashes } = await request.json();
         
         // Update raffle status to ACTIVE and store transaction hashes
         const deployedUpdate = await AdminService.updateRaffle(raffleId, { 
@@ -143,8 +142,6 @@ export async function POST(request: NextRequest) {
         if (!raffleId) {
           return NextResponse.json({ error: 'Raffle ID required' }, { status: 400 });
         }
-
-        const { error: blockchainError, shouldDelete } = await request.json();
         
         if (shouldDelete) {
           // Delete raffle from database if blockchain deployment failed
@@ -190,19 +187,34 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'end_early':
-        if (!raffleId) {
-          return NextResponse.json({ error: 'Raffle ID required' }, { status: 400 });
+        // Legacy server-side end raffle - deprecated
+        return NextResponse.json({ 
+          error: 'Server-side raffle ending has been deprecated. Please use admin wallet to end raffles directly.',
+          deprecated: true,
+          migrate_to: 'mark_raffle_ended'
+        }, { status: 410 });
+
+      case 'mark_raffle_ended':
+        // Mark raffle as ended after successful admin wallet transaction
+        if (!raffleId || !txHash) {
+          return NextResponse.json({ error: 'Raffle ID and transaction hash required' }, { status: 400 });
         }
         
-        const endResult = await AdminService.endRaffleEarly(raffleId);
-        if (!endResult.success) {
-          return NextResponse.json({ error: endResult.error || 'Failed to end raffle' }, { status: 500 });
-        }
+        // Update raffle status to COMPLETED with transaction hash
+        const endedUpdate = await AdminService.updateRaffle(raffleId, { 
+          status: 'COMPLETED',
+          blockchain_tx_hash: txHash,
+          end_date: new Date().toISOString()
+        });
         
+        if (!endedUpdate) {
+          return NextResponse.json({ error: 'Failed to mark raffle as ended' }, { status: 500 });
+        }
+
         return NextResponse.json({ 
           success: true, 
-          message: 'Raffle ended successfully',
-          txHash: endResult.txHash 
+          message: 'Raffle marked as ended successfully',
+          status: 'COMPLETED'
         });
 
       default:

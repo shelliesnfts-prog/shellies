@@ -44,14 +44,14 @@ export function useAdminRaffleDeployment() {
       },
       {
         id: 'create',
-        name: 'Create Raffle',
-        description: 'Deploy raffle to blockchain with prize',
+        name: 'Create & Activate Raffle',
+        description: 'Deploy and activate raffle on blockchain in one step',
         status: 'pending'
       },
       {
         id: 'activate',
-        name: 'Activate Raffle',
-        description: 'Activate raffle to start accepting entries',
+        name: 'Activation Complete',
+        description: 'Raffle is now active and accepting entries',
         status: 'pending'
       },
       {
@@ -142,21 +142,8 @@ export function useAdminRaffleDeployment() {
 
       updateStepStatus('create', 'completed', createResult.txHash);
 
-      // Step 3: Activate raffle
-      setCurrentStep('activate');
-      updateStepStatus('activate', 'in_progress');
-
-      const activateResult = await RaffleContractService.adminActivateRaffle(
-        deploymentData.raffleId,
-        writeContractAsync
-      );
-
-      if (!activateResult.success) {
-        updateStepStatus('activate', 'failed', undefined, activateResult.error);
-        throw new Error(activateResult.error || 'Failed to activate raffle');
-      }
-
-      updateStepStatus('activate', 'completed', activateResult.txHash);
+      // Step 3: Skip activation since createAndActivateNFTRaffle does both
+      updateStepStatus('activate', 'completed');
 
       // Step 4: Update database
       setCurrentStep('update_db');
@@ -168,7 +155,7 @@ export function useAdminRaffleDeployment() {
         body: JSON.stringify({
           action: 'mark_blockchain_deployed',
           raffleId: deploymentData.raffleId,
-          txHashes: [approveResult.txHash, createResult.txHash, activateResult.txHash]
+          txHashes: [approveResult.txHash, createResult.txHash]
         })
       });
 
@@ -185,7 +172,7 @@ export function useAdminRaffleDeployment() {
       
       return {
         success: true,
-        txHashes: [approveResult.txHash, createResult.txHash, activateResult.txHash]
+        txHashes: [approveResult.txHash, createResult.txHash]
       };
 
     } catch (error) {

@@ -1,12 +1,6 @@
 export const raffle_abi = [
 			{
-				"inputs": [
-					{
-						"internalType": "address",
-						"name": "serverWallet",
-						"type": "address"
-					}
-				],
+				"inputs": [],
 				"stateMutability": "nonpayable",
 				"type": "constructor"
 			},
@@ -29,6 +23,21 @@ export const raffle_abi = [
 					}
 				],
 				"name": "AccessControlUnauthorizedAccount",
+				"type": "error"
+			},
+			{
+				"inputs": [],
+				"name": "EnforcedPause",
+				"type": "error"
+			},
+			{
+				"inputs": [],
+				"name": "ExpectedPause",
+				"type": "error"
+			},
+			{
+				"inputs": [],
+				"name": "ReentrancyGuardReentrantCall",
 				"type": "error"
 			},
 			{
@@ -277,19 +286,6 @@ export const raffle_abi = [
 				"type": "function"
 			},
 			{
-				"inputs": [],
-				"name": "SERVER_ROLE",
-				"outputs": [
-					{
-						"internalType": "bytes32",
-						"name": "",
-						"type": "bytes32"
-					}
-				],
-				"stateMutability": "view",
-				"type": "function"
-			},
-			{
 				"inputs": [
 					{
 						"internalType": "uint256",
@@ -306,11 +302,11 @@ export const raffle_abi = [
 				"inputs": [
 					{
 						"internalType": "address",
-						"name": "serverWallet",
+						"name": "newAdmin",
 						"type": "address"
 					}
 				],
-				"name": "addServerWallet",
+				"name": "addAdmin",
 				"outputs": [],
 				"stateMutability": "nonpayable",
 				"type": "function"
@@ -332,6 +328,62 @@ export const raffle_abi = [
 					}
 				],
 				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "raffleId",
+						"type": "uint256"
+					},
+					{
+						"internalType": "address",
+						"name": "prizeToken",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "tokenId",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint64",
+						"name": "endTimestamp",
+						"type": "uint64"
+					}
+				],
+				"name": "createAndActivateNFTRaffle",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "raffleId",
+						"type": "uint256"
+					},
+					{
+						"internalType": "address",
+						"name": "prizeToken",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "amount",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint64",
+						"name": "endTimestamp",
+						"type": "uint64"
+					}
+				],
+				"name": "createAndActivateTokenRaffle",
+				"outputs": [],
+				"stateMutability": "nonpayable",
 				"type": "function"
 			},
 			{
@@ -437,6 +489,42 @@ export const raffle_abi = [
 				"type": "function"
 			},
 			{
+				"inputs": [],
+				"name": "getAllAdmins",
+				"outputs": [
+					{
+						"internalType": "address[]",
+						"name": "admins",
+						"type": "address[]"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "getContractConfiguration",
+				"outputs": [
+					{
+						"internalType": "bool",
+						"name": "hasAdmins",
+						"type": "bool"
+					},
+					{
+						"internalType": "uint256",
+						"name": "adminCount",
+						"type": "uint256"
+					},
+					{
+						"internalType": "bool",
+						"name": "isCallerAdmin",
+						"type": "bool"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
 				"inputs": [
 					{
 						"internalType": "uint256",
@@ -526,6 +614,68 @@ export const raffle_abi = [
 						"type": "bytes32"
 					},
 					{
+						"internalType": "uint256",
+						"name": "index",
+						"type": "uint256"
+					}
+				],
+				"name": "getRoleMember",
+				"outputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "bytes32",
+						"name": "role",
+						"type": "bytes32"
+					}
+				],
+				"name": "getRoleMemberCount",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "bytes32",
+						"name": "role",
+						"type": "bytes32"
+					}
+				],
+				"name": "getRoleMembers",
+				"outputs": [
+					{
+						"internalType": "address[]",
+						"name": "",
+						"type": "address[]"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "bytes32",
+						"name": "role",
+						"type": "bytes32"
+					},
+					{
 						"internalType": "address",
 						"name": "account",
 						"type": "address"
@@ -550,6 +700,25 @@ export const raffle_abi = [
 					}
 				],
 				"name": "hasRole",
+				"outputs": [
+					{
+						"internalType": "bool",
+						"name": "",
+						"type": "bool"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "account",
+						"type": "address"
+					}
+				],
+				"name": "isAdmin",
 				"outputs": [
 					{
 						"internalType": "bool",
@@ -699,11 +868,18 @@ export const raffle_abi = [
 				"inputs": [
 					{
 						"internalType": "address",
-						"name": "serverWallet",
+						"name": "admin",
 						"type": "address"
 					}
 				],
-				"name": "removeServerWallet",
+				"name": "removeAdmin",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "renounceAdminRole",
 				"outputs": [],
 				"stateMutability": "nonpayable",
 				"type": "function"

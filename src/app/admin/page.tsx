@@ -36,6 +36,7 @@ export default function AdminPage() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const { data: session } = useSession();
   const { address } = useAccount();
+  const { writeContractAsync } = useWriteContract();
   const [users, setUsers] = useState([]);
   const [raffles, setRaffles] = useState([]);
   const [entries, setEntries] = useState([]);
@@ -71,7 +72,7 @@ export default function AdminPage() {
   const [prizeInfo, setPrizeInfo] = useState<any>(null);
   const [validatingPrize, setValidatingPrize] = useState(false);
 
-  // Phase 2: Admin Wallet Flow State - Default to true (new flow is default)
+  // Admin Wallet Flow State
   const [useAdminWallet, setUseAdminWallet] = useState(true);
   const [showDeploymentModal, setShowDeploymentModal] = useState(false);
   const [pendingRaffle, setPendingRaffle] = useState<any>(null);
@@ -306,6 +307,14 @@ export default function AdminPage() {
       return;
     }
 
+    // Validate end date is in the future
+    const endDate = new Date(raffleForm.end_date);
+    const now = new Date();
+    if (endDate <= now) {
+      alert('End date must be in the future to avoid wasting gas on a transaction that will fail');
+      return;
+    }
+
     if (!raffleForm.prize_token_address) {
       alert('Please specify a prize token');
       return;
@@ -378,13 +387,6 @@ Please check the server logs and retry the blockchain deployment manually.`);
           alert(`Raffle created successfully! Database ID: ${data.id}`);
         }
         
-        // Log details for debugging
-        console.log('Raffle creation result:', {
-          databaseId: data.id,
-          blockchainStatus: data.blockchainStatus,
-          transactionHashes: data.transactionHashes,
-          error: data.blockchainError
-        });
         
         fetchRaffles();
         setShowCreateRaffle(false);
@@ -423,11 +425,19 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
     }
   };
 
-  // Create raffle with admin wallet (Phase 1 - New Flow)
+  // Create raffle with admin wallet
   const createRaffleWithAdminWallet = async () => {
     if (!raffleForm.title || !raffleForm.description || !raffleForm.points_per_ticket || 
         !raffleForm.max_tickets_per_user || !raffleForm.end_date) {
       alert('Please fill in all required fields');
+      return;
+    }
+
+    // Validate end date is in the future
+    const endDate = new Date(raffleForm.end_date);
+    const now = new Date();
+    if (endDate <= now) {
+      alert('End date must be in the future to avoid wasting gas on a transaction that will fail');
       return;
     }
 
@@ -505,7 +515,6 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
           });
           setPrizeInfo(null);
           
-          console.log('Raffle created in database, ready for blockchain deployment:', data.raffle);
         } else {
           alert(`Error: ${data.error || 'Unknown error occurred'}`);
         }
@@ -526,7 +535,6 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
     setPendingRaffle(null);
     setShowDeploymentModal(false);
     fetchRaffles(); // Refresh raffle list
-    alert('🎉 Raffle successfully deployed to blockchain and is now live!');
   };
 
   // Handle deployment modal close
@@ -1318,7 +1326,7 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
               <div className={`border-t pt-4 ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
                 <h4 className={`text-md font-semibold mb-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Prize Configuration</h4>
                 
-                {/* Phase 2: Deployment Method Selection - Admin Wallet is now default */}
+                {/* Deployment Method Selection */}
                 <div className="mb-4">
                   <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                     Deployment Method *
@@ -1528,7 +1536,7 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
         </div>
       )}
 
-      {/* Phase 1: Deployment Modal */}
+      {/* Deployment Modal */}
       <RaffleDeploymentModal
         isOpen={showDeploymentModal}
         onClose={handleDeploymentClose}

@@ -48,7 +48,7 @@ export default function RaffleDeploymentModal({
       setDeploymentData(data);
       initializeSteps(data);
     }
-  }, [isOpen, raffle, initializeSteps]);
+  }, [isOpen, raffle]);
 
   // Handle deployment completion
   useEffect(() => {
@@ -60,7 +60,7 @@ export default function RaffleDeploymentModal({
         onClose();
       }, 2000);
     }
-  }, [deploymentComplete, onSuccess, onClose]);
+  }, [deploymentComplete]);
 
   const handleStartDeployment = async () => {
     if (!deploymentData) return;

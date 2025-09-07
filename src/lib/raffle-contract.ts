@@ -517,6 +517,7 @@ export class RaffleContractService {
     endTimestamp: number,
     writeContract: any // wagmi writeContract function
   ): Promise<{ success: boolean; txHash?: string; error?: string }> {
+    console.log("====> create raffle with NFT");
     try {
       if (!this.contractAddress) {
         return { success: false, error: 'Raffle contract address not configured' };
@@ -526,14 +527,18 @@ export class RaffleContractService {
         raffleId,
         prizeTokenAddress,
         tokenId,
-        endTimestamp
+        endTimestamp,
+        contractAddress: this.contractAddress
       });
 
+
       // Call the contract method directly (admin wallet will be prompted to sign)
+      // Use createAndActivateNFTRaffle since it combines create + activate in one transaction
+      console.log('🚀 Proceeding with actual transaction...');
       const txHash = await writeContract({
         address: this.contractAddress as `0x${string}`,
         abi: raffleContractAbi,
-        functionName: 'createRaffleWithNFT',
+        functionName: 'createAndActivateNFTRaffle',
         args: [
           BigInt(raffleId),
           prizeTokenAddress as `0x${string}`,
@@ -577,10 +582,11 @@ export class RaffleContractService {
       });
 
       // Call the contract method directly (admin wallet will be prompted to sign)
+      // Use createAndActivateTokenRaffle since it combines create + activate in one transaction
       const txHash = await writeContract({
         address: this.contractAddress as `0x${string}`,
         abi: raffleContractAbi,
-        functionName: 'createRaffleWithToken',
+        functionName: 'createAndActivateTokenRaffle',
         args: [
           BigInt(raffleId),
           prizeTokenAddress as `0x${string}`,
