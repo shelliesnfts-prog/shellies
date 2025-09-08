@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useWriteContract, useAccount } from 'wagmi';
 import { X, Calendar, Target, Users, Clock, ImageOff, Plus, Minus, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { Raffle } from '@/lib/supabase';
-import { getTimeRemaining } from '@/lib/dateUtils';
+import { getTimeRemaining, isRaffleActive } from '@/lib/dateUtils';
 import { RaffleContractService } from '@/lib/raffle-contract';
 import { raffle_abi } from '@/lib/raffle-abi';
 import { parseContractError } from '@/lib/errors';
@@ -124,6 +124,22 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
       return { 
         isValid: false, 
         error: 'This raffle is not currently accepting entries' 
+      };
+    }
+
+    // Check if raffle has ended based on end_date
+    if (!isRaffleActive(raffle.end_date)) {
+      return {
+        isValid: false,
+        error: 'This raffle has ended'
+      };
+    }
+
+    // Check if max participants reached
+    if (raffle.max_participants && (raffle.current_participants || 0) >= raffle.max_participants) {
+      return {
+        isValid: false,
+        error: 'This raffle has reached the maximum number of participants'
       };
     }
 
@@ -616,14 +632,18 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
               onClick={handleJoinRaffle}
               disabled={
                 raffle.status !== 'ACTIVE' || 
+                !isRaffleActive(raffle.end_date) ||
                 isLoading || 
                 remainingTickets <= 0 ||
-                ((raffle.user_ticket_count || 0) >= raffle.max_tickets_per_user)
+                ((raffle.user_ticket_count || 0) >= raffle.max_tickets_per_user) ||
+                (raffle.max_participants && (raffle.current_participants || 0) >= raffle.max_participants)
               }
               className={`px-6 py-2 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center min-w-[140px] ${
                 raffle.status !== 'ACTIVE' || 
+                !isRaffleActive(raffle.end_date) ||
                 remainingTickets <= 0 || 
-                ((raffle.user_ticket_count || 0) >= raffle.max_tickets_per_user)
+                ((raffle.user_ticket_count || 0) >= raffle.max_tickets_per_user) ||
+                (raffle.max_participants && (raffle.current_participants || 0) >= raffle.max_participants)
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   : isLoading
                     ? 'bg-purple-600 text-white cursor-not-allowed'
@@ -643,9 +663,13 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                       ? 'Raffle Cancelled'
                       : raffle.status !== 'ACTIVE'
                         ? 'Raffle Not Active'
-                        : remainingTickets <= 0
-                          ? 'Max Tickets Reached'
-                          : `Join Raffle (${ticketCount} ticket${ticketCount > 1 ? 's' : ''})`
+                        : !isRaffleActive(raffle.end_date)
+                          ? 'Raffle Ended'
+                          : remainingTickets <= 0
+                            ? 'Max Tickets Reached'
+                            : (raffle.max_participants && (raffle.current_participants || 0) >= raffle.max_participants)
+                              ? 'Max Participants Reached'
+                              : `Join Raffle (${ticketCount} ticket${ticketCount > 1 ? 's' : ''})`
                   }
                 </span>
               )}
