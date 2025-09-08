@@ -21,6 +21,7 @@ const supabaseService = createClient(
 interface EnterRaffleRequest {
   raffleId: string | number;
   ticketCount: number;
+  txHash?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest) {
     
     // Step 2: Parse request body
     const body: EnterRaffleRequest = await request.json();
-    const { raffleId, ticketCount } = body;
+    const { raffleId, ticketCount, txHash } = body;
 
     // Step 3: Comprehensive application-level validation
     const validationResult = await RaffleValidationService.validateRaffleEntry(
@@ -76,6 +77,27 @@ export async function POST(request: NextRequest) {
     if (dbError) {
       console.error('Database error during atomic operation:', dbError);
       throw new ValidationError('Failed to complete raffle entry', 'DATABASE_ERROR', 500);
+    }
+
+    // Step 4.5: Store transaction hash if provided and entry was successful
+    if (txHash && result) {
+      try {
+        await supabaseService
+          .from('shellies_raffle_entries')
+          .update({ join_tx_hash: txHash })
+          .eq('wallet_address', walletAddress)
+          .eq('raffle_id', validationResult.raffle.id)
+          .order('created_at', { ascending: false })
+          .limit(1);
+      } catch (error: any) {
+        // Handle the case where join_tx_hash column doesn't exist yet
+        if (error?.code === '42703' || (error?.message && error.message.includes('join_tx_hash'))) {
+          console.warn('join_tx_hash column does not exist yet. Run migration 021 to add it.');
+        } else {
+          console.warn('Failed to store transaction hash:', error);
+        }
+        // Don't fail the entire operation if tx hash storage fails
+      }
     }
 
     // Step 5: Return success response

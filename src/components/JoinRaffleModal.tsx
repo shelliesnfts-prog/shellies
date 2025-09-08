@@ -32,6 +32,14 @@ interface UserData {
   updated_at: string;
 }
 
+interface Participant {
+  wallet_address: string;
+  ticket_count: number;
+  points_spent: number;
+  created_at: string;
+  join_tx_hash?: string;
+}
+
 export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = false, onSuccess }: JoinRaffleModalProps) {
   const [imageError, setImageError] = useState(false);
   const [ticketCount, setTicketCount] = useState(1);
@@ -41,6 +49,8 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
   const [loadingEntry, setLoadingEntry] = useState(false);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loadingUser, setLoadingUser] = useState(false);
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [loadingParticipants, setLoadingParticipants] = useState(false);
   
   // Wagmi hooks for contract interaction
   const { address, isConnected } = useAccount();
@@ -49,6 +59,11 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
   // Contract configuration
   const contractAddress = process.env.NEXT_PUBLIC_RAFFLE_CONTRACT_ADDRESS;
 
+  // Helper function to truncate wallet address
+  const truncateAddress = (address: string) => {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
   // Reset modal state when opened
   useEffect(() => {
     if (isOpen && raffle) {
@@ -56,6 +71,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
       setMessage(null);
       setImageError(false);
       fetchUserData();
+      fetchParticipants();
       // Only fetch detailed entry info if we need points_spent details
       if (raffle.user_ticket_count && raffle.user_ticket_count > 0) {
         fetchUserEntry();
@@ -102,6 +118,33 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
       setUserEntry(null);
     } finally {
       setLoadingEntry(false);
+    }
+  };
+
+  const fetchParticipants = async () => {
+    if (!raffle) return;
+    
+    setLoadingParticipants(true);
+    try {
+      const response = await fetch(`/api/raffles/${raffle.id}/participants`);
+      const data = await response.json();
+      
+      if (data.success && data.data) {
+        // Sort participants with connected user first, then by join date
+        const sortedParticipants = [...data.data].sort((a, b) => {
+          if (a.wallet_address === address) return -1;
+          if (b.wallet_address === address) return 1;
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        });
+        setParticipants(sortedParticipants);
+      } else {
+        setParticipants([]);
+      }
+    } catch (error) {
+      console.error('Error fetching participants:', error);
+      setParticipants([]);
+    } finally {
+      setLoadingParticipants(false);
     }
   };
 
@@ -281,6 +324,9 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
           await fetchUserEntry();
         }
         
+        // Refresh participants list
+        await fetchParticipants();
+        
         // Call success callback if provided (this will refresh the main raffle list)
         if (onSuccess) {
           onSuccess();
@@ -396,6 +442,88 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                   />
                 )}
               </div>
+              
+              {/* Participants List */}
+              {participants.length > 0 && (
+                <div className="mt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                      Participants ({participants.length})
+                    </h3>
+                    {loadingParticipants && (
+                      <div className="animate-spin w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full"></div>
+                    )}
+                  </div>
+                  <div className={`max-h-48 overflow-y-auto rounded-lg border ${
+                    isDarkMode ? 'border-gray-600 bg-gray-700/30' : 'border-gray-200 bg-gray-50'
+                  } p-3 space-y-2`}>
+                    {participants.map((participant, index) => (
+                      <div
+                        key={`${participant.wallet_address}-${index}`}
+                        className={`flex items-center justify-between p-2 rounded-lg transition-colors ${
+                          participant.wallet_address === address
+                            ? isDarkMode 
+                              ? 'bg-purple-900/40 border border-purple-700' 
+                              : 'bg-purple-100 border border-purple-200'
+                            : isDarkMode
+                              ? 'bg-gray-700/50 hover:bg-gray-600/50'
+                              : 'bg-white hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center space-x-2">
+                            <span className={`text-sm font-medium ${
+                              participant.wallet_address === address
+                                ? isDarkMode ? 'text-purple-300' : 'text-purple-700'
+                                : isDarkMode ? 'text-gray-200' : 'text-gray-900'
+                            }`}>
+                              {truncateAddress(participant.wallet_address)}
+                            </span>
+                            {participant.wallet_address === address && (
+                              <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                                isDarkMode 
+                                  ? 'bg-purple-800 text-purple-200' 
+                                  : 'bg-purple-200 text-purple-800'
+                              }`}>
+                                You
+                              </span>
+                            )}
+                          </div>
+                          <div className={`text-xs ${
+                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                          }`}>
+                            {participant.ticket_count} ticket{participant.ticket_count > 1 ? 's' : ''} • {participant.points_spent} points
+                          </div>
+                        </div>
+                        <div className="flex-shrink-0 ml-2">
+                          {participant.join_tx_hash ? (
+                            <a
+                              href={`https://explorer.inkonchain.com/tx/${participant.join_tx_hash}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`text-xs px-2 py-1 rounded-full transition-colors border ${
+                                isDarkMode
+                                  ? 'border-gray-500 text-gray-300 hover:bg-gray-600 hover:text-white'
+                                  : 'border-gray-300 text-gray-600 hover:bg-gray-100 hover:text-gray-800'
+                              }`}
+                            >
+                              View Txn
+                            </a>
+                          ) : (
+                            <span className={`text-xs px-2 py-1 rounded-full ${
+                              isDarkMode
+                                ? 'bg-gray-600 text-gray-400'
+                                : 'bg-gray-200 text-gray-500'
+                            }`}>
+                              No Txn
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Details Container */}

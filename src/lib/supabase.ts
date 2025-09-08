@@ -60,6 +60,7 @@ export interface RaffleEntry {
   ticket_count: number;
   points_spent: number;
   created_at: string;
+  join_tx_hash?: string;
 }
 
 export interface Admin {
