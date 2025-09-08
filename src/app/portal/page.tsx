@@ -156,7 +156,9 @@ function RaffleCard({ raffle, isDarkMode, onJoinClick }: RaffleCardProps) {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    copyToClipboard(raffle.winner);
+                    if (raffle.winner) {
+                      copyToClipboard(raffle.winner);
+                    }
                   }}
                   className="ml-1 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
                   title="Copy winner address"

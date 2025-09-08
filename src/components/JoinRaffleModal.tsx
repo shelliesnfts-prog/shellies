@@ -758,14 +758,14 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
             </button>
             <button
               onClick={handleJoinRaffle}
-              disabled={
+              disabled={Boolean(
                 raffle.status !== 'ACTIVE' || 
                 !isRaffleActive(raffle.end_date) ||
                 isLoading || 
                 remainingTickets <= 0 ||
                 ((raffle.user_ticket_count || 0) >= raffle.max_tickets_per_user) ||
                 (raffle.max_participants && (raffle.current_participants || 0) >= raffle.max_participants)
-              }
+              )}
               className={`px-6 py-2 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center min-w-[140px] ${
                 raffle.status !== 'ACTIVE' || 
                 !isRaffleActive(raffle.end_date) ||
