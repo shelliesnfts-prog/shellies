@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { supabase } from '@/lib/supabase';
 import { authOptions } from '@/lib/auth';
+import { RaffleContractService } from '@/lib/raffle-contract';
 
 export async function GET(request: NextRequest) {
   try {
@@ -34,6 +35,37 @@ export async function GET(request: NextRequest) {
     }
 
     console.log(`📋 Fetched ${raffles?.length || 0} raffles`);
+
+    // Get winner information for finished raffles
+    let winnerInfo: Record<string, string> = {};
+    if (raffles && raffles.length > 0) {
+      const finishedRaffles = raffles.filter(r => r.status === 'COMPLETED');
+      if (finishedRaffles.length > 0) {
+        console.log(`🏆 Fetching winners for ${finishedRaffles.length} finished raffles`);
+        
+        const winnerPromises = finishedRaffles.map(async (raffle) => {
+          try {
+            const raffleInfo = await RaffleContractService.getRafflePrizeInfo(raffle.id.toString());
+            if (raffleInfo && raffleInfo.winner && raffleInfo.winner !== '0x0000000000000000000000000000000000000000') {
+              return { raffleId: raffle.id, winner: raffleInfo.winner };
+            }
+          } catch (error) {
+            console.error(`❌ Error fetching winner for raffle ${raffle.id}:`, error);
+          }
+          return { raffleId: raffle.id, winner: null };
+        });
+        
+        const winnerResults = await Promise.all(winnerPromises);
+        winnerInfo = winnerResults.reduce((acc: Record<string, string>, item) => {
+          if (item.winner) {
+            acc[item.raffleId] = item.winner;
+          }
+          return acc;
+        }, {});
+        
+        console.log('🏆 Winner info fetched:', winnerInfo);
+      }
+    }
 
     // Get participant counts for all raffles
     let participantCounts: Record<string, number> = {};
@@ -179,11 +211,12 @@ export async function GET(request: NextRequest) {
 
         console.log('📊 Final ticket counts map:', entriesMap);
 
-        // Add user_ticket_count and current_participants to each raffle
+        // Add user_ticket_count, current_participants, and winner to each raffle
         const rafflesWithTicketCounts = raffles.map(raffle => ({
           ...raffle,
           user_ticket_count: entriesMap[raffle.id] || 0,
-          current_participants: participantCounts[raffle.id] || 0
+          current_participants: participantCounts[raffle.id] || 0,
+          winner: winnerInfo[raffle.id] || null
         }));
 
         console.log('🎫 Final raffles with ticket and participant counts:', rafflesWithTicketCounts.map(r => ({
@@ -202,11 +235,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // If not authenticated or no user found, return raffles with 0 ticket counts but include participant counts
+    // If not authenticated or no user found, return raffles with 0 ticket counts but include participant counts and winner
     const rafflesWithZeroTickets = raffles?.map(raffle => ({
       ...raffle,
       user_ticket_count: 0,
-      current_participants: participantCounts[raffle.id] || 0
+      current_participants: participantCounts[raffle.id] || 0,
+      winner: winnerInfo[raffle.id] || null
     })) || [];
 
     console.log('🎫 Returning raffles with zero tickets for unauthenticated user');

@@ -28,7 +28,8 @@ import {
   HelpCircle,
   Bell,
   ImageOff,
-  Shield
+  Shield,
+  Copy
 } from 'lucide-react';
 
 import { Raffle } from '@/lib/supabase';
@@ -59,6 +60,14 @@ interface RaffleCardProps {
 function RaffleCard({ raffle, isDarkMode, onJoinClick }: RaffleCardProps) {
   const [imageError, setImageError] = useState(false);
   const timeRemaining = useLiveCountdown(raffle.end_date);
+  
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (err) {
+      console.error('Failed to copy: ', err);
+    }
+  };
   
   // Determine raffle state based on status
   const isRaffleEnded = raffle.status === 'COMPLETED' || raffle.status === 'CANCELLED';
@@ -121,18 +130,49 @@ function RaffleCard({ raffle, isDarkMode, onJoinClick }: RaffleCardProps) {
           }`}>{raffle.description}</p>
         </div>
         
-        {/* Bottom Row: End Time + Join Button */}
+        {/* Bottom Row: Status/Winner + Join Button */}
         <div className="flex items-center justify-between pt-1">
-          <div className={`flex items-center space-x-1.5 ${
+          <div className={`flex-1 mr-2 ${
             isDarkMode ? 'text-gray-400' : 'text-gray-500'
           }`}>
-            <div className={`w-1.5 h-1.5 rounded-full ${isRaffleEnded ? 'bg-red-400' : isRaffleActive ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`}></div>
-            <span className="text-xs font-medium">
-              {raffle.status === 'COMPLETED' ? 'Completed' : 
-               raffle.status === 'CANCELLED' ? 'Cancelled' :
-               raffle.status === 'ACTIVE' ? timeRemaining :
-               'Not Active'}
-            </span>
+            {/* Status indicator */}
+            <div className="flex items-center space-x-1.5 mb-1">
+              <div className={`w-1.5 h-1.5 rounded-full ${isRaffleEnded ? 'bg-red-400' : isRaffleActive ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`}></div>
+              <span className="text-xs font-medium">
+                {raffle.status === 'COMPLETED' ? 'Completed' : 
+                 raffle.status === 'CANCELLED' ? 'Cancelled' :
+                 raffle.status === 'ACTIVE' ? timeRemaining :
+                 'Not Active'}
+              </span>
+            </div>
+            
+            {/* Winner information for completed raffles */}
+            {raffle.status === 'COMPLETED' && raffle.winner && (
+              <div className="flex items-center space-x-1">
+                <Trophy className="w-3 h-3 text-yellow-500" />
+                <span className="text-xs font-medium text-yellow-600">
+                  Winner: {raffle.winner.slice(0, 6)}...{raffle.winner.slice(-4)}
+                </span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    copyToClipboard(raffle.winner);
+                  }}
+                  className="ml-1 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                  title="Copy winner address"
+                >
+                  <Copy className="w-3 h-3 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" />
+                </button>
+              </div>
+            )}
+            {raffle.status === 'COMPLETED' && !raffle.winner && (
+              <div className="flex items-center space-x-1">
+                <div className={`w-3 h-3 rounded-full ${isDarkMode ? 'bg-gray-500' : 'bg-gray-400'}`} />
+                <span className="text-xs font-medium">
+                  No participants
+                </span>
+              </div>
+            )}
           </div>
           
           <button 
