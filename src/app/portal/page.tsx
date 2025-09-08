@@ -341,7 +341,7 @@ export default function Portal() {
                 <div className="relative z-10 h-full flex flex-col justify-between">
                   {/* Top Row */}
                   <div className="flex items-start justify-between">
-                    <h3 className="text-white text-xs font-bold">$SHELL</h3>
+                    <h3 className="text-white text-xs font-bold">$Point{(user?.points ?? 0) !== 1 ? 's' : ''}</h3>
                     <button 
                       onClick={handleLogout}
                       className="p-2 hover:bg-white/10 rounded-lg transition-colors duration-200"
@@ -353,7 +353,7 @@ export default function Portal() {
                   {/* Bottom Row */}
                   <div className="flex items-center ">
                      <p className="text-white text-sm font-bold mr-2">{user?.points || 0}</p>
-                      <p className="text-white font-medium text-xs">SHELL</p>
+                      <p className="text-white font-medium text-xs">Point{(user?.points ?? 0) !== 1 ? 's' : ''}</p>
                   </div>
                 </div>
               </div>
@@ -636,7 +636,7 @@ export default function Portal() {
                       <p className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                         {claimStatus?.currentPoints ?? user?.points ?? 0}
                       </p>
-                      <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>SHELL tokens</p>
+                      <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>Point{(claimStatus?.currentPoints ?? user?.points ?? 0) !== 1 ? 's' : ''} tokens</p>
                     </div>
                   </div>
                 </div>
@@ -764,7 +764,7 @@ export default function Portal() {
                   {activeTab === 'staking' ? <Coins className="w-6 h-6 text-gray-400" /> : <TrendingUp className="w-6 h-6 text-gray-400" />}
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Coming Soon</h3>
-                <p className="text-gray-600 text-sm">{activeTab === 'staking' ? 'Stake your SHELL tokens to earn rewards' : 'Trade your tokens on the marketplace'}</p>
+                <p className="text-gray-600 text-sm">{activeTab === 'staking' ? 'Stake your Points tokens to earn rewards' : 'Trade your tokens on the marketplace'}</p>
               </div>
             </div>
           )}

@@ -143,7 +143,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
       const shortage = totalCost - userData.points;
       return { 
         isValid: false, 
-        error: `Insufficient points. You need ${totalCost} SHELL but have ${userData.points} SHELL (${shortage} short)` 
+        error: `Insufficient points. You need ${totalCost} Point${totalCost !== 1 ? 's' : ''} but have ${userData.points} Point${userData.points !== 1 ? 's' : ''} (${shortage} short)` 
       };
     }
 
@@ -430,7 +430,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                     </span>
                   </div>
                   <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {raffle.points_per_ticket} SHELL
+                    {raffle.points_per_ticket} Point{raffle.points_per_ticket !== 1 ? 's' : ''}
                   </span>
                 </div>
 
@@ -482,7 +482,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                       <>
                         <br />
                         <span className="text-xs opacity-75">
-                          Points spent: {userEntry.points_spent} SHELL
+                          Points spent: {userEntry.points_spent} Point{userEntry.points_spent !== 1 ? 's' : ''}
                         </span>
                       </>
                     )}
@@ -518,13 +518,13 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
               }`}>
                 <div className="space-y-4">
                   <div className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                    Required Points: {raffle.points_per_ticket * ticketCount} $SHELL
+                    Required Points: {raffle.points_per_ticket * ticketCount} $Point{(raffle.points_per_ticket * ticketCount) !== 1 ? 's' : ''}
                   </div>
                   
                   {/* User Points Balance */}
                   {userData && (
                     <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                      Your balance: {userData.points} $SHELL
+                      Your balance: {userData.points} $Point{userData.points !== 1 ? 's' : ''}
                     </div>
                   )}
                   
