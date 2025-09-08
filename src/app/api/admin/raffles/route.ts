@@ -187,12 +187,26 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'end_early':
-        // Legacy server-side end raffle - deprecated
+        // Server-side end raffle using serverEndRaffle method
+        if (!raffleId) {
+          return NextResponse.json({ error: 'Raffle ID required' }, { status: 400 });
+        }
+
+        const endResult = await RaffleContractService.serverEndRaffle(raffleId);
+        
+        if (!endResult.success) {
+          return NextResponse.json({ 
+            error: endResult.error || 'Failed to end raffle',
+            success: false 
+          }, { status: 500 });
+        }
+
         return NextResponse.json({ 
-          error: 'Server-side raffle ending has been deprecated. Please use admin wallet to end raffles directly.',
-          deprecated: true,
-          migrate_to: 'mark_raffle_ended'
-        }, { status: 410 });
+          success: true,
+          message: 'Raffle ended successfully',
+          txHash: endResult.txHash,
+          status: 'COMPLETED'
+        });
 
       case 'mark_raffle_ended':
         // Mark raffle as ended after successful admin wallet transaction
@@ -216,6 +230,89 @@ export async function POST(request: NextRequest) {
           message: 'Raffle marked as ended successfully',
           status: 'COMPLETED'
         });
+
+      case 'prepare_admin_end':
+        // Prepare data for admin wallet ending (fetch participants)
+        if (!raffleId) {
+          return NextResponse.json({ error: 'Raffle ID required' }, { status: 400 });
+        }
+
+        try {
+          // Use the admin client to ensure we can read all data (bypass RLS)
+          const { supabaseAdmin, supabase } = await import('@/lib/supabase');
+          const client = supabaseAdmin || supabase;
+          
+          console.log('🔍 DEBUG API: Using Supabase client:', {
+            hasSupabaseAdmin: !!supabaseAdmin,
+            usingClient: supabaseAdmin ? 'supabaseAdmin' : 'supabase',
+            clientType: typeof client
+          });
+          
+          const { data: entries, error: entriesError } = await client
+            .from('shellies_raffle_entries')
+            .select('wallet_address, ticket_count')
+            .eq('raffle_id', raffleId);
+
+          console.log('🔍 DEBUG API: prepare_admin_end query result:', {
+            raffleId,
+            entriesError,
+            entries,
+            entriesLength: entries?.length || 0
+          });
+
+          if (entriesError) {
+            console.error('❌ Database error fetching participants:', entriesError);
+            return NextResponse.json({ 
+              error: 'Failed to fetch participants',
+              success: false 
+            }, { status: 500 });
+          }
+
+          // Handle case where no participants joined - create empty arrays
+          const entryData = entries || [];
+
+          console.log('🔍 DEBUG API: Processing entry data:', {
+            entryData,
+            entryDataLength: entryData.length
+          });
+
+          // Aggregate ticket counts by wallet address
+          const participantMap = new Map<string, number>();
+          entryData.forEach((entry: any) => {
+            console.log('🔍 DEBUG API: Processing entry:', entry);
+            const current = participantMap.get(entry.wallet_address) || 0;
+            participantMap.set(entry.wallet_address, current + entry.ticket_count);
+          });
+
+          const participants = Array.from(participantMap.keys());
+          const ticketCounts = Array.from(participantMap.values());
+          const totalTickets = ticketCounts.reduce((sum, count) => sum + count, 0);
+
+          console.log('🔍 DEBUG API: Final prepare_admin_end result:', {
+            participants,
+            ticketCounts,
+            totalParticipants: participants.length,
+            totalTickets,
+            participantMapSize: participantMap.size,
+            participantMapEntries: Array.from(participantMap.entries()),
+            blockchainRaffleId: RaffleContractService.generateRaffleId(raffleId)
+          });
+
+          return NextResponse.json({ 
+            success: true,
+            participants,
+            ticketCounts,
+            totalParticipants: participants.length,
+            totalTickets,
+            raffleId: RaffleContractService.generateRaffleId(raffleId)
+          });
+        } catch (error) {
+          console.error('Error preparing admin end:', error);
+          return NextResponse.json({ 
+            error: 'Failed to prepare raffle ending data',
+            success: false 
+          }, { status: 500 });
+        }
 
       default:
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 });

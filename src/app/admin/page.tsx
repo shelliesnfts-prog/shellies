@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { formatDate, isRaffleActive, localDateTimeInputToUTC } from '@/lib/dateUtils';
 import RaffleDeploymentModal from '@/components/RaffleDeploymentModal';
+import RaffleEndingModal from '@/components/RaffleEndingModal';
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('users');
@@ -49,8 +50,8 @@ export default function AdminPage() {
   const [updatePoints, setUpdatePoints] = useState('');
   const [updateStatus, setUpdateStatus] = useState<'active' | 'blocked'>('active');
   
-  // End Raffle State
-  const [endingRaffle, setEndingRaffle] = useState<string | null>(null);
+  // End Raffle State (Legacy)
+  const [legacyEndingRaffleId, setLegacyEndingRaffleId] = useState<string | null>(null);
   const [endRaffleMessage, setEndRaffleMessage] = useState<{ type: 'success' | 'error'; text: string; txHash?: string } | null>(null);
   
   // Create Raffle Modal State
@@ -76,6 +77,10 @@ export default function AdminPage() {
   const [useAdminWallet, setUseAdminWallet] = useState(true);
   const [showDeploymentModal, setShowDeploymentModal] = useState(false);
   const [pendingRaffle, setPendingRaffle] = useState<any>(null);
+
+  // Admin Raffle Ending State
+  const [showEndingModal, setShowEndingModal] = useState(false);
+  const [endingRaffle, setEndingRaffle] = useState<any>(null);
 
   // Get wallet address
   const walletAddress = address || session?.address || '';
@@ -543,13 +548,15 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
     setPendingRaffle(null);
   };
 
-  // End raffle early
-  const endRaffleEarly = async (raffleId: string) => {
-    if (!confirm('Are you sure you want to end this raffle? This will trigger the smart contract and cannot be undone.')) {
+  // End raffle early (legacy server method - deprecated)
+  const endRaffleEarlyLegacy = async (raffleId: string) => {
+    console.warn('🚨 Using deprecated server wallet ending method');
+    
+    if (!confirm('⚠️ You are using the deprecated server wallet ending method.\n\nFor better security, consider using the new Admin Wallet ending method.\n\nDo you want to continue with the server wallet method?')) {
       return;
     }
 
-    setEndingRaffle(raffleId);
+    setLegacyEndingRaffleId(raffleId);
     setEndRaffleMessage(null);
 
     try {
@@ -584,8 +591,31 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
         text: 'Network error. Please check your connection and try again.'
       });
     } finally {
-      setEndingRaffle(null);
+      setLegacyEndingRaffleId(null);
     }
+  };
+
+  // Admin wallet end raffle (new method)
+  const endRaffleWithAdminWallet = (raffle: any) => {
+    setEndingRaffle(raffle);
+    setShowEndingModal(true);
+  };
+
+  // Handle successful ending
+  const handleEndingSuccess = () => {
+    setEndingRaffle(null);
+    setShowEndingModal(false);
+    fetchRaffles(); // Refresh raffle list
+    setEndRaffleMessage({
+      type: 'success',
+      text: 'Raffle ended successfully! Winner has been selected and prize distributed.',
+    });
+  };
+
+  // Handle ending modal close
+  const handleEndingClose = () => {
+    setShowEndingModal(false);
+    setEndingRaffle(null);
   };
 
   useEffect(() => {
@@ -1021,14 +1051,13 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
                         </div>
                         <div className="flex space-x-2 mt-4">
                           <button
-                            onClick={() => endRaffleEarly(raffle.id)}
+                            onClick={() => endRaffleWithAdminWallet(raffle)}
                             disabled={
-                              endingRaffle === raffle.id || 
                               raffle.status === 'COMPLETED' || 
                               raffle.status === 'CANCELLED'
                             }
                             className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
-                              endingRaffle === raffle.id || raffle.status === 'COMPLETED' || raffle.status === 'CANCELLED'
+                              raffle.status === 'COMPLETED' || raffle.status === 'CANCELLED'
                                 ? 'bg-gray-400 cursor-not-allowed'
                                 : 'bg-red-600 hover:bg-red-700'
                             } text-white`}
@@ -1037,21 +1066,39 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
                                 ? 'Raffle already completed'
                                 : raffle.status === 'CANCELLED'
                                   ? 'Raffle was cancelled'
-                                  : 'End raffle and trigger smart contract'
+                                  : 'End raffle using admin wallet (secure method)'
                             }
                           >
-                            {endingRaffle === raffle.id && (
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            )}
-                            {endingRaffle === raffle.id 
-                              ? 'Ending...' 
-                              : raffle.status === 'COMPLETED'
-                                ? 'Completed'
-                                : raffle.status === 'CANCELLED'
-                                  ? 'Cancelled'
-                                  : 'End Raffle'
+                            {raffle.status === 'COMPLETED'
+                              ? 'Completed'
+                              : raffle.status === 'CANCELLED'
+                                ? 'Cancelled'
+                                : 'End Raffle'
                             }
                           </button>
+                          {raffle.status !== 'COMPLETED' && raffle.status !== 'CANCELLED' && (
+                            <button
+                              onClick={() => endRaffleEarlyLegacy(raffle.id)}
+                              disabled={legacyEndingRaffleId === raffle.id}
+                              className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors border ${
+                                legacyEndingRaffleId === raffle.id 
+                                  ? 'bg-gray-400 cursor-not-allowed border-gray-400'
+                                  : isDarkMode
+                                    ? 'bg-gray-700 hover:bg-gray-600 text-gray-300 border-gray-600'
+                                    : 'bg-white hover:bg-gray-50 text-gray-600 border-gray-300'
+                              }`}
+                              title="Use legacy server wallet method (deprecated)"
+                            >
+                              {legacyEndingRaffleId === raffle.id ? (
+                                <div className="flex items-center gap-1">
+                                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  <span>Ending...</span>
+                                </div>
+                              ) : (
+                                'Legacy'
+                              )}
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1543,6 +1590,15 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
         raffle={pendingRaffle}
         isDarkMode={isDarkMode}
         onSuccess={handleDeploymentSuccess}
+      />
+
+      {/* Ending Modal */}
+      <RaffleEndingModal
+        isOpen={showEndingModal}
+        onClose={handleEndingClose}
+        raffle={endingRaffle}
+        isDarkMode={isDarkMode}
+        onSuccess={handleEndingSuccess}
       />
     </div>
   );

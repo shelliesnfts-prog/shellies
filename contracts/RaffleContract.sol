@@ -43,7 +43,6 @@ contract ShelliesRaffleContract is
     struct Raffle {
         address prizeToken;      // NFT/Token contract (20 bytes)
         uint96 prizeTokenId;     // NFT ID or token amount (12 bytes) 
-        uint64 endTimestamp;     // End time (8 bytes)
         RaffleState state;       // Current state (1 byte)
         bool isNFT;             // NFT vs ERC20 (1 byte)
         address winner;          // Winner address (20 bytes)
@@ -95,13 +94,11 @@ contract ShelliesRaffleContract is
     function createRaffleWithNFT(
         uint256 raffleId,
         address prizeToken,
-        uint256 tokenId,
-        uint64 endTimestamp
+        uint256 tokenId
     ) external onlyAdmin whenNotPaused nonReentrant {
         require(raffles[raffleId].prizeToken == address(0), "Raffle already exists");
         require(prizeToken != address(0), "Invalid token");
         require(tokenId <= type(uint96).max, "Token ID too large");
-        require(endTimestamp > block.timestamp, "Invalid end time");
         
         // Transfer NFT to contract
         IERC721(prizeToken).safeTransferFrom(msg.sender, address(this), tokenId);
@@ -110,7 +107,6 @@ contract ShelliesRaffleContract is
         raffles[raffleId] = Raffle({
             prizeToken: prizeToken,
             prizeTokenId: uint96(tokenId),
-            endTimestamp: endTimestamp,
             state: RaffleState.CREATED,
             isNFT: true,
             winner: address(0)
@@ -132,14 +128,12 @@ contract ShelliesRaffleContract is
     function createRaffleWithToken(
         uint256 raffleId,
         address prizeToken,
-        uint256 amount,
-        uint64 endTimestamp
+        uint256 amount
     ) external onlyAdmin whenNotPaused nonReentrant {
         require(raffles[raffleId].prizeToken == address(0), "Raffle already exists");
         require(prizeToken != address(0), "Invalid token");
         require(amount > 0, "Invalid amount");
         require(amount <= type(uint96).max, "Amount too large");
-        require(endTimestamp > block.timestamp, "Invalid end time");
         
         // Transfer tokens to contract
         IERC20(prizeToken).transferFrom(msg.sender, address(this), amount);
@@ -148,7 +142,6 @@ contract ShelliesRaffleContract is
         raffles[raffleId] = Raffle({
             prizeToken: prizeToken,
             prizeTokenId: uint96(amount),
-            endTimestamp: endTimestamp,
             state: RaffleState.CREATED,
             isNFT: false,
             winner: address(0)
@@ -185,14 +178,12 @@ contract ShelliesRaffleContract is
     function createAndActivateNFTRaffle(
         uint256 raffleId,
         address prizeToken,
-        uint256 tokenId,
-        uint64 endTimestamp
+        uint256 tokenId
     ) external onlyAdmin whenNotPaused nonReentrant {
         // Create the raffle
         require(raffles[raffleId].prizeToken == address(0), "Raffle already exists");
         require(prizeToken != address(0), "Invalid token");
         require(tokenId <= type(uint96).max, "Token ID too large");
-        require(endTimestamp > block.timestamp, "Invalid end time");
         
         // Transfer NFT to contract
         IERC721(prizeToken).safeTransferFrom(msg.sender, address(this), tokenId);
@@ -201,7 +192,6 @@ contract ShelliesRaffleContract is
         raffles[raffleId] = Raffle({
             prizeToken: prizeToken,
             prizeTokenId: uint96(tokenId),
-            endTimestamp: endTimestamp,
             state: RaffleState.ACTIVE, // Directly to ACTIVE state
             isNFT: true,
             winner: address(0)
@@ -222,15 +212,13 @@ contract ShelliesRaffleContract is
     function createAndActivateTokenRaffle(
         uint256 raffleId,
         address prizeToken,
-        uint256 amount,
-        uint64 endTimestamp
+        uint256 amount
     ) external onlyAdmin whenNotPaused nonReentrant {
         // Create the raffle
         require(raffles[raffleId].prizeToken == address(0), "Raffle already exists");
         require(prizeToken != address(0), "Invalid token");
         require(amount > 0, "Invalid amount");
         require(amount <= type(uint96).max, "Amount too large");
-        require(endTimestamp > block.timestamp, "Invalid end time");
         
         // Transfer tokens to contract
         IERC20(prizeToken).transferFrom(msg.sender, address(this), amount);
@@ -239,7 +227,6 @@ contract ShelliesRaffleContract is
         raffles[raffleId] = Raffle({
             prizeToken: prizeToken,
             prizeTokenId: uint96(amount),
-            endTimestamp: endTimestamp,
             state: RaffleState.ACTIVE, // Directly to ACTIVE state
             isNFT: false,
             winner: address(0)
@@ -266,7 +253,6 @@ contract ShelliesRaffleContract is
         whenNotPaused 
     {
         require(ticketCount > 0, "Invalid ticket count");
-        require(block.timestamp < raffles[raffleId].endTimestamp, "Raffle ended");
         
         // This function intentionally does nothing except validate the raffle is active
         // and require user signature. The server will handle actual participation data.
@@ -278,6 +264,7 @@ contract ShelliesRaffleContract is
     /**
      * @notice Admin ends raffle and selects winner
      * @dev Only admins can end raffles - no server dependency
+     * @dev If no participants, raffle is marked completed without winner (use refund methods)
      * @param raffleId The raffle to end
      * @param participants Array of participant addresses
      * @param ticketCounts Array of ticket counts for each participant
@@ -296,8 +283,16 @@ contract ShelliesRaffleContract is
         nonReentrant 
     {
         require(participants.length == ticketCounts.length, "Array mismatch");
-        require(participants.length > 0, "No participants");
-        require(block.timestamp >= raffles[raffleId].endTimestamp, "Raffle not ended yet");
+        
+        // Handle case where no participants joined
+        if (participants.length == 0) {
+            // Mark raffle as completed without winner
+            Raffle storage raffle = raffles[raffleId];
+            raffle.state = RaffleState.COMPLETED;
+            emit RaffleStateChanged(raffleId, RaffleState.ACTIVE, RaffleState.COMPLETED);
+            emit RaffleEnded(raffleId, address(0), 0, 0);
+            return;
+        }
         
         // Calculate total tickets and select winner
         uint256 totalTickets = 0;
@@ -345,7 +340,6 @@ contract ShelliesRaffleContract is
     function getRaffleInfo(uint256 raffleId) external view returns (
         address prizeToken,
         uint256 prizeTokenId,
-        uint64 endTimestamp,
         RaffleState state,
         bool isNFT,
         address winner
@@ -355,7 +349,6 @@ contract ShelliesRaffleContract is
         return (
             raffle.prizeToken,
             raffle.prizeTokenId,
-            raffle.endTimestamp,
             raffle.state,
             raffle.isNFT,
             raffle.winner
@@ -374,8 +367,7 @@ contract ShelliesRaffleContract is
      */
     function canEndRaffle(uint256 raffleId) external view returns (bool) {
         Raffle memory raffle = raffles[raffleId];
-        return raffle.state == RaffleState.ACTIVE && 
-               block.timestamp >= raffle.endTimestamp;
+        return raffle.state == RaffleState.ACTIVE;
     }
     
     /**
@@ -432,6 +424,62 @@ contract ShelliesRaffleContract is
         return hasRole(ADMIN_ROLE, account);
     }
     
+    // ============ REFUND FUNCTIONS ============
+    
+    /**
+     * @notice Refund NFT prize to admin (for raffles with no participants)
+     * @dev Can only be called on completed raffles with no winner (address(0))
+     * @param raffleId The raffle to refund NFT from
+     * @param recipient The address to receive the refunded NFT (usually admin)
+     */
+    function refundNFT(uint256 raffleId, address recipient) 
+        external 
+        onlyAdmin 
+        raffleExists(raffleId)
+        nonReentrant 
+    {
+        require(recipient != address(0), "Invalid recipient");
+        
+        Raffle storage raffle = raffles[raffleId];
+        require(raffle.state == RaffleState.COMPLETED, "Raffle not completed");
+        require(raffle.winner == address(0), "Raffle has winner");
+        require(raffle.isNFT, "Not an NFT raffle");
+        
+        // Transfer NFT back to recipient
+        IERC721(raffle.prizeToken).safeTransferFrom(
+            address(this), 
+            recipient, 
+            raffle.prizeTokenId
+        );
+        
+        emit EmergencyWithdraw(raffleId, recipient, raffle.prizeToken, raffle.prizeTokenId);
+    }
+    
+    /**
+     * @notice Refund ERC20 tokens to admin (for raffles with no participants)
+     * @dev Can only be called on completed raffles with no winner (address(0))
+     * @param raffleId The raffle to refund tokens from
+     * @param recipient The address to receive the refunded tokens (usually admin)
+     */
+    function refundToken(uint256 raffleId, address recipient) 
+        external 
+        onlyAdmin 
+        raffleExists(raffleId)
+        nonReentrant 
+    {
+        require(recipient != address(0), "Invalid recipient");
+        
+        Raffle storage raffle = raffles[raffleId];
+        require(raffle.state == RaffleState.COMPLETED, "Raffle not completed");
+        require(raffle.winner == address(0), "Raffle has winner");
+        require(!raffle.isNFT, "Not an ERC20 raffle");
+        
+        // Transfer tokens back to recipient
+        IERC20(raffle.prizeToken).transfer(recipient, raffle.prizeTokenId);
+        
+        emit EmergencyWithdraw(raffleId, recipient, raffle.prizeToken, raffle.prizeTokenId);
+    }
+
     // ============ EMERGENCY FUNCTIONS ============
     
     /**

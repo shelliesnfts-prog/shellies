@@ -346,11 +346,6 @@ export const raffle_abi = [
 						"internalType": "uint256",
 						"name": "tokenId",
 						"type": "uint256"
-					},
-					{
-						"internalType": "uint64",
-						"name": "endTimestamp",
-						"type": "uint64"
 					}
 				],
 				"name": "createAndActivateNFTRaffle",
@@ -374,11 +369,6 @@ export const raffle_abi = [
 						"internalType": "uint256",
 						"name": "amount",
 						"type": "uint256"
-					},
-					{
-						"internalType": "uint64",
-						"name": "endTimestamp",
-						"type": "uint64"
 					}
 				],
 				"name": "createAndActivateTokenRaffle",
@@ -402,11 +392,6 @@ export const raffle_abi = [
 						"internalType": "uint256",
 						"name": "tokenId",
 						"type": "uint256"
-					},
-					{
-						"internalType": "uint64",
-						"name": "endTimestamp",
-						"type": "uint64"
 					}
 				],
 				"name": "createRaffleWithNFT",
@@ -430,11 +415,6 @@ export const raffle_abi = [
 						"internalType": "uint256",
 						"name": "amount",
 						"type": "uint256"
-					},
-					{
-						"internalType": "uint64",
-						"name": "endTimestamp",
-						"type": "uint64"
 					}
 				],
 				"name": "createRaffleWithToken",
@@ -543,11 +523,6 @@ export const raffle_abi = [
 						"internalType": "uint256",
 						"name": "prizeTokenId",
 						"type": "uint256"
-					},
-					{
-						"internalType": "uint64",
-						"name": "endTimestamp",
-						"type": "uint64"
 					},
 					{
 						"internalType": "enum ShelliesRaffleContract.RaffleState",
@@ -841,11 +816,6 @@ export const raffle_abi = [
 						"type": "uint96"
 					},
 					{
-						"internalType": "uint64",
-						"name": "endTimestamp",
-						"type": "uint64"
-					},
-					{
 						"internalType": "enum ShelliesRaffleContract.RaffleState",
 						"name": "state",
 						"type": "uint8"
@@ -862,6 +832,42 @@ export const raffle_abi = [
 					}
 				],
 				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "raffleId",
+						"type": "uint256"
+					},
+					{
+						"internalType": "address",
+						"name": "recipient",
+						"type": "address"
+					}
+				],
+				"name": "refundNFT",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "raffleId",
+						"type": "uint256"
+					},
+					{
+						"internalType": "address",
+						"name": "recipient",
+						"type": "address"
+					}
+				],
+				"name": "refundToken",
+				"outputs": [],
+				"stateMutability": "nonpayable",
 				"type": "function"
 			},
 			{

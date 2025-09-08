@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, CheckCircle, AlertCircle, Loader2, Clock, ArrowRight } from 'lucide-react';
-import { useAdminRaffleDeployment, type DeploymentStep, type RaffleDeploymentData } from '@/hooks/useAdminRaffleDeployment';
+import { X, CheckCircle, AlertCircle, Loader2, Clock, ArrowRight, Users, Target } from 'lucide-react';
+import { useAdminRaffleEnding, type EndingStep, type RaffleEndingData } from '@/hooks/useAdminRaffleEnding';
 import { RaffleContractService } from '@/lib/raffle-contract';
 
-interface RaffleDeploymentModalProps {
+interface RaffleEndingModalProps {
   isOpen: boolean;
   onClose: () => void;
   raffle: any; // Raffle from database
@@ -13,45 +13,66 @@ interface RaffleDeploymentModalProps {
   onSuccess?: () => void;
 }
 
-export default function RaffleDeploymentModal({ 
+export default function RaffleEndingModal({ 
   isOpen, 
   onClose, 
   raffle, 
   isDarkMode = false, 
   onSuccess 
-}: RaffleDeploymentModalProps) {
-  const [deploymentData, setDeploymentData] = useState<RaffleDeploymentData | null>(null);
+}: RaffleEndingModalProps) {
+  const [endingData, setEndingData] = useState<RaffleEndingData | null>(null);
+  const [participantsData, setParticipantsData] = useState<any>(null);
   
   const {
     steps,
     currentStep,
-    isDeploying,
-    deploymentComplete,
-    deploymentError,
+    isEnding,
+    endingComplete,
+    endingError,
     initializeSteps,
-    deployRaffleToBlockchain,
-    resetDeployment
-  } = useAdminRaffleDeployment();
+    endRaffleOnBlockchain,
+    resetEnding
+  } = useAdminRaffleEnding();
 
-  // Initialize deployment data when modal opens
+  // Initialize ending data when modal opens
   useEffect(() => {
     if (isOpen && raffle) {
-      const data: RaffleDeploymentData = {
-        raffleId: RaffleContractService.generateRaffleId(raffle.id),
-        prizeTokenAddress: raffle.prize_token_address,
-        prizeTokenType: raffle.prize_token_type,
-        prizeTokenId: raffle.prize_token_id,
-        prizeAmount: raffle.prize_amount
+      const data: RaffleEndingData = {
+        raffleId: raffle.id
       };
       
-      setDeploymentData(data);
+      setEndingData(data);
       initializeSteps(data);
+      fetchParticipantsPreview();
     }
   }, [isOpen, raffle]);
 
-  // Handle deployment completion
+  // Fetch participants preview for display
+  const fetchParticipantsPreview = async () => {
+    try {
+      const response = await fetch('/api/admin/raffles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'prepare_admin_end',
+          raffleId: raffle.id
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setParticipantsData(data);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching participants preview:', error);
+    }
+  };
+
+  // Handle ending completion
   useEffect(() => {
-    if (deploymentComplete) {
+    if (endingComplete) {
       setTimeout(() => {
         if (onSuccess) {
           onSuccess();
@@ -59,32 +80,44 @@ export default function RaffleDeploymentModal({
         onClose();
       }, 2000);
     }
-  }, [deploymentComplete]);
+  }, [endingComplete]);
 
-  const handleStartDeployment = async () => {
-    if (!deploymentData) return;
+  const handleStartEnding = async () => {
+    if (!endingData) return;
     
-    const result = await deployRaffleToBlockchain(deploymentData);
+    const confirmed = confirm(
+      `Are you sure you want to end this raffle?\n\n` +
+      `This will:\n` +
+      `• Execute the smart contract endRaffle function\n` +
+      `• Randomly select a winner from ${participantsData?.totalParticipants || 0} participants\n` +
+      `• Transfer the prize to the winner\n` +
+      `• Mark the raffle as completed\n\n` +
+      `This action CANNOT be undone!`
+    );
+
+    if (!confirmed) return;
+    
+    const result = await endRaffleOnBlockchain(endingData);
     
     if (!result.success && result.error) {
-      console.error('Deployment failed:', result.error);
+      console.error('Ending failed:', result.error);
     }
   };
 
   const handleClose = () => {
-    if (!isDeploying) {
-      resetDeployment();
+    if (!isEnding) {
+      resetEnding();
       onClose();
     }
   };
 
   const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget && !isDeploying) {
+    if (e.target === e.currentTarget && !isEnding) {
       handleClose();
     }
   };
 
-  const getStepIcon = (step: DeploymentStep) => {
+  const getStepIcon = (step: EndingStep) => {
     switch (step.status) {
       case 'completed':
         return <CheckCircle className="w-5 h-5 text-green-500" />;
@@ -115,7 +148,7 @@ export default function RaffleDeploymentModal({
           <div className="flex items-start justify-between">
             <div className="flex-1 mr-4">
               <h2 className={`text-xl font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                Deploy Raffle to Blockchain
+                End Raffle on Blockchain
               </h2>
               <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                 {raffle.title}
@@ -123,18 +156,18 @@ export default function RaffleDeploymentModal({
               <div className="flex items-center gap-2 mt-2">
                 <span className={`text-xs px-2 py-1 rounded-full ${
                   isDarkMode 
-                    ? 'bg-purple-900/50 text-purple-300 border border-purple-800'
-                    : 'bg-purple-100 text-purple-700 border border-purple-200'
+                    ? 'bg-red-900/50 text-red-300 border border-red-800'
+                    : 'bg-red-100 text-red-700 border border-red-200'
                 }`}>
-                  Prize: {raffle.prize_token_type} • ID: {raffle.id}
+                  Status: {raffle.status} • ID: {raffle.id}
                 </span>
               </div>
             </div>
             <button
               onClick={handleClose}
-              disabled={isDeploying}
+              disabled={isEnding}
               className={`p-2 rounded-lg transition-colors duration-200 ${
-                isDeploying
+                isEnding
                   ? 'opacity-50 cursor-not-allowed'
                   : isDarkMode 
                     ? 'hover:bg-gray-700 text-gray-400 hover:text-gray-300' 
@@ -149,10 +182,37 @@ export default function RaffleDeploymentModal({
         {/* Modal Content */}
         <div className="p-6">
           
-          {/* Deployment Steps */}
+          {/* Participants Preview */}
+          {participantsData && (
+            <div className={`mb-6 p-4 rounded-xl border ${
+              isDarkMode 
+                ? 'bg-gray-700/50 border-gray-600' 
+                : 'bg-gray-50 border-gray-200'
+            }`}>
+              <h3 className={`text-md font-semibold mb-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                Raffle Summary
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center space-x-2">
+                  <Users className={`w-4 h-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`} />
+                  <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {participantsData.totalParticipants} Participants
+                  </span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Target className={`w-4 h-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`} />
+                  <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {participantsData.totalTickets} Total Tickets
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Ending Steps */}
           <div className="space-y-4">
             <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-              Deployment Steps
+              Ending Process
             </h3>
             
             <div className="space-y-3">
@@ -247,7 +307,7 @@ export default function RaffleDeploymentModal({
           </div>
 
           {/* Global Error Display */}
-          {deploymentError && (
+          {endingError && (
             <div className={`mt-6 p-4 rounded-xl border ${
               isDarkMode 
                 ? 'bg-red-900/20 border-red-800 text-red-300' 
@@ -256,15 +316,15 @@ export default function RaffleDeploymentModal({
               <div className="flex items-start space-x-3">
                 <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="font-semibold text-sm">Deployment Failed</h4>
-                  <p className="text-xs mt-1">{deploymentError}</p>
+                  <h4 className="font-semibold text-sm">Ending Failed</h4>
+                  <p className="text-xs mt-1">{endingError}</p>
                 </div>
               </div>
             </div>
           )}
 
           {/* Success Message */}
-          {deploymentComplete && (
+          {endingComplete && (
             <div className={`mt-6 p-4 rounded-xl border ${
               isDarkMode 
                 ? 'bg-green-900/20 border-green-800 text-green-300' 
@@ -273,8 +333,28 @@ export default function RaffleDeploymentModal({
               <div className="flex items-center space-x-3">
                 <CheckCircle className="w-5 h-5 flex-shrink-0" />
                 <div>
-                  <h4 className="font-semibold text-sm">Deployment Successful!</h4>
-                  <p className="text-xs mt-1">Your raffle is now live on the blockchain and accepting entries.</p>
+                  <h4 className="font-semibold text-sm">Raffle Ended Successfully!</h4>
+                  <p className="text-xs mt-1">Winner has been selected and the prize has been distributed.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Warning Message */}
+          {!isEnding && !endingComplete && !endingError && (
+            <div className={`mt-6 p-4 rounded-xl border ${
+              isDarkMode 
+                ? 'bg-yellow-900/20 border-yellow-800 text-yellow-300' 
+                : 'bg-yellow-50 border-yellow-200 text-yellow-700'
+            }`}>
+              <div className="flex items-start space-x-3">
+                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-semibold text-sm">⚠️ Important Warning</h4>
+                  <p className="text-xs mt-1">
+                    This action will permanently end the raffle and cannot be undone. 
+                    Make sure all participants have had adequate time to enter before proceeding.
+                  </p>
                 </div>
               </div>
             </div>
@@ -286,45 +366,47 @@ export default function RaffleDeploymentModal({
           <div className="flex items-center justify-end space-x-3">
             <button
               onClick={handleClose}
-              disabled={isDeploying}
+              disabled={isEnding}
               className={`px-6 py-2 rounded-lg font-medium text-sm transition-all duration-200 ${
-                isDeploying
+                isEnding
                   ? 'opacity-50 cursor-not-allowed'
                   : isDarkMode 
                     ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              {deploymentComplete ? 'Close' : 'Cancel'}
+              {endingComplete ? 'Close' : 'Cancel'}
             </button>
             
-            {!deploymentComplete && !deploymentError && (
+            {!endingComplete && !endingError && participantsData && (
               <button
-                onClick={handleStartDeployment}
-                disabled={isDeploying || steps.length === 0}
+                onClick={handleStartEnding}
+                disabled={isEnding || steps.length === 0}
                 className={`px-6 py-2 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center min-w-[140px] ${
-                  isDeploying || steps.length === 0
+                  isEnding || steps.length === 0
                     ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
-                    : 'bg-purple-600 text-white hover:bg-purple-700 hover:shadow-md active:scale-95'
+                    : participantsData.totalParticipants === 0
+                      ? 'bg-orange-600 text-white hover:bg-orange-700 hover:shadow-md active:scale-95'
+                      : 'bg-red-600 text-white hover:bg-red-700 hover:shadow-md active:scale-95'
                 }`}
               >
-                {isDeploying ? (
+                {isEnding ? (
                   <div className="flex items-center space-x-2">
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Deploying...</span>
+                    <span>Ending...</span>
                   </div>
                 ) : (
-                  'Start Deployment'
+                  'End Raffle'
                 )}
               </button>
             )}
 
-            {deploymentError && !isDeploying && (
+            {endingError && !isEnding && (
               <button
-                onClick={handleStartDeployment}
+                onClick={handleStartEnding}
                 className="px-6 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium text-sm transition-all duration-200"
               >
-                Retry Deployment
+                Retry Ending
               </button>
             )}
           </div>

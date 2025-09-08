@@ -272,7 +272,6 @@ export class RaffleContractService {
     prizeToken: string;
     prizeTokenId: string;
     isNFT: boolean;
-    endTimestamp: string;
     state: number;
     winner: string;
   } | null> {
@@ -289,15 +288,14 @@ export class RaffleContractService {
         args: [BigInt(raffleId)],
       });
 
-      const [prizeToken, prizeTokenId, endTimestamp, state, isNFT, winner] = result as [
-        string, bigint, bigint, number, boolean, string
+      const [prizeToken, prizeTokenId, state, isNFT, winner] = result as [
+        string, bigint, number, boolean, string
       ];
 
       return {
         prizeToken,
         prizeTokenId: prizeTokenId.toString(),
         isNFT,
-        endTimestamp: endTimestamp.toString(),
         state,
         winner,
       };
@@ -330,12 +328,6 @@ export class RaffleContractService {
     return /^0x[a-fA-F0-9]{40}$/.test(address);
   }
 
-  /**
-   * Convert end date to timestamp
-   */
-  static dateToTimestamp(dateString: string): number {
-    return Math.floor(new Date(dateString).getTime() / 1000);
-  }
 
   /**
    * Helper function to get the blockchain raffle ID from database ID
@@ -514,7 +506,6 @@ export class RaffleContractService {
     raffleId: number,
     prizeTokenAddress: string,
     tokenId: string,
-    endTimestamp: number,
     writeContract: any // wagmi writeContract function
   ): Promise<{ success: boolean; txHash?: string; error?: string }> {
     console.log("====> create raffle with NFT");
@@ -527,7 +518,6 @@ export class RaffleContractService {
         raffleId,
         prizeTokenAddress,
         tokenId,
-        endTimestamp,
         contractAddress: this.contractAddress
       });
 
@@ -542,8 +532,7 @@ export class RaffleContractService {
         args: [
           BigInt(raffleId),
           prizeTokenAddress as `0x${string}`,
-          BigInt(tokenId),
-          BigInt(endTimestamp)
+          BigInt(tokenId)
         ],
       });
 
@@ -566,7 +555,6 @@ export class RaffleContractService {
     raffleId: number,
     prizeTokenAddress: string,
     amount: string,
-    endTimestamp: number,
     writeContract: any // wagmi writeContract function
   ): Promise<{ success: boolean; txHash?: string; error?: string }> {
     try {
@@ -577,8 +565,7 @@ export class RaffleContractService {
       console.log('Admin creating ERC20 raffle with parameters:', {
         raffleId,
         prizeTokenAddress,
-        amount,
-        endTimestamp
+        amount
       });
 
       // Call the contract method directly (admin wallet will be prompted to sign)
@@ -590,8 +577,7 @@ export class RaffleContractService {
         args: [
           BigInt(raffleId),
           prizeTokenAddress as `0x${string}`,
-          BigInt(amount),
-          BigInt(endTimestamp)
+          BigInt(amount)
         ],
       });
 
@@ -698,6 +684,191 @@ export class RaffleContractService {
       return { success: true, txHash };
     } catch (error) {
       console.error('Error in admin ERC20 approval:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown blockchain error' 
+      };
+    }
+  }
+
+  /**
+   * ADMIN WALLET: Refund NFT prize (for completed raffles with no winner) - client-side
+   */
+  static async adminRefundNFT(
+    raffleId: number,
+    recipient: string,
+    writeContract: any // wagmi writeContract function
+  ): Promise<{ success: boolean; txHash?: string; error?: string }> {
+    try {
+      if (!this.contractAddress) {
+        return { success: false, error: 'Raffle contract address not configured' };
+      }
+
+      console.log('Admin refunding NFT:', { raffleId, recipient });
+
+      const txHash = await writeContract({
+        address: this.contractAddress as `0x${string}`,
+        abi: raffleContractAbi,
+        functionName: 'refundNFT',
+        args: [BigInt(raffleId), recipient as `0x${string}`],
+      });
+
+      console.log('Admin NFT refund transaction:', txHash);
+      return { success: true, txHash };
+    } catch (error) {
+      console.error('Error in admin NFT refund:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown blockchain error' 
+      };
+    }
+  }
+
+  /**
+   * ADMIN WALLET: Refund ERC20 tokens (for completed raffles with no winner) - client-side
+   */
+  static async adminRefundToken(
+    raffleId: number,
+    recipient: string,
+    writeContract: any // wagmi writeContract function
+  ): Promise<{ success: boolean; txHash?: string; error?: string }> {
+    try {
+      if (!this.contractAddress) {
+        return { success: false, error: 'Raffle contract address not configured' };
+      }
+
+      console.log('Admin refunding tokens:', { raffleId, recipient });
+
+      const txHash = await writeContract({
+        address: this.contractAddress as `0x${string}`,
+        abi: raffleContractAbi,
+        functionName: 'refundToken',
+        args: [BigInt(raffleId), recipient as `0x${string}`],
+      });
+
+      console.log('Admin token refund transaction:', txHash);
+      return { success: true, txHash };
+    } catch (error) {
+      console.error('Error in admin token refund:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown blockchain error' 
+      };
+    }
+  }
+
+  /**
+   * ADMIN WALLET: End raffle (picks winner and distributes prize) - client-side
+   * This method fetches participants from the database and calls the smart contract endRaffle method
+   * via admin wallet instead of server wallet
+   */
+  static async adminEndRaffle(
+    databaseId: string | number,
+    writeContract: any // wagmi writeContract function
+  ): Promise<{ success: boolean; txHash?: string; error?: string; participants?: any[] }> {
+    try {
+      if (!this.contractAddress) {
+        return { success: false, error: 'Raffle contract address not configured' };
+      }
+
+      const raffleId = this.generateRaffleId(databaseId);
+      
+      // Fetch participants via API (client-side cannot access supabaseAdmin directly)
+      const response = await fetch('/api/admin/raffles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'prepare_admin_end',
+          raffleId: databaseId
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        return { success: false, error: errorData.error || 'Failed to fetch participants via API' };
+      }
+
+      const participantsData = await response.json();
+      
+      if (!participantsData.success) {
+        return { success: false, error: participantsData.error || 'API returned unsuccessful result' };
+      }
+
+      console.log('🔍 DEBUG: API response for participants:', participantsData);
+
+      // Use data from API response
+      const participants = (participantsData.participants || []) as `0x${string}`[];
+      const ticketCounts = (participantsData.ticketCounts || []).map((count: number) => BigInt(count));
+      
+      // Generate a random seed for winner selection
+      const randomSeed = BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER));
+      
+      console.log('🔍 DEBUG: Admin ending raffle with detailed parameters:', {
+        raffleId,
+        databaseId,
+        participantsCount: participants.length,
+        participants: participants,
+        ticketCounts: ticketCounts.map((count:any) => count.toString()),
+        totalTickets: ticketCounts.reduce((sum: any, count: any) => sum + count, BigInt(0)).toString(),
+        randomSeed: randomSeed.toString(),
+        contractAddress: this.contractAddress,
+        apiResponseData: participantsData
+      });
+
+      // Validate that we have the correct data
+      if (participantsData.totalParticipants > 0 && participants.length === 0) {
+        console.error('❌ CRITICAL: API says there are participants but participants array is empty!', {
+          apiResponse: participantsData,
+          processedParticipants: participants,
+          processedTicketCounts: ticketCounts
+        });
+      }
+
+      // Call endRaffle on the smart contract with all required parameters
+      // Contract will handle the case where participants array is empty
+      const txHash = await writeContract({
+        address: this.contractAddress as `0x${string}`,
+        abi: raffle_abi,
+        functionName: 'endRaffle',
+        args: [BigInt(raffleId), participants, ticketCounts, randomSeed],
+      });
+
+      console.log('Admin end raffle transaction submitted:', txHash);
+      
+      // Wait for transaction confirmation to check if it succeeded
+      try {
+        const receipt = await publicClient.waitForTransactionReceipt({ 
+          hash: txHash,
+          timeout: 60000 // 60 seconds timeout
+        });
+        
+        if (receipt.status === 'reverted') {
+          console.error('Transaction reverted:', receipt);
+          return {
+            success: false,
+            error: 'Transaction was reverted by the blockchain. Please check the transaction details.'
+          };
+        }
+        
+        console.log('Admin end raffle transaction confirmed:', receipt);
+        
+        return { 
+          success: true, 
+          txHash,
+          participants: participants.map((address, index) => ({
+            address,
+            ticketCount: Number(ticketCounts[index])
+          }))
+        };
+      } catch (receiptError) {
+        console.error('Error waiting for transaction receipt:', receiptError);
+        return {
+          success: false,
+          error: `Transaction may have failed. Hash: ${txHash}. Error: ${receiptError instanceof Error ? receiptError.message : 'Unknown error'}`
+        };
+      }
+    } catch (error) {
+      console.error('Error in admin end raffle:', error);
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Unknown blockchain error' 

@@ -20,7 +20,6 @@ export interface RaffleDeploymentData {
   prizeTokenType: 'NFT' | 'ERC20';
   prizeTokenId?: string;
   prizeAmount?: string;
-  endTimestamp: number;
 }
 
 export function useAdminRaffleDeployment() {
@@ -120,7 +119,6 @@ export function useAdminRaffleDeployment() {
           deploymentData.raffleId,
           deploymentData.prizeTokenAddress,
           deploymentData.prizeTokenId,
-          deploymentData.endTimestamp,
           writeContractAsync
         );
       } else if (deploymentData.prizeTokenType === 'ERC20' && deploymentData.prizeAmount) {
@@ -128,7 +126,6 @@ export function useAdminRaffleDeployment() {
           deploymentData.raffleId,
           deploymentData.prizeTokenAddress,
           deploymentData.prizeAmount,
-          deploymentData.endTimestamp,
           writeContractAsync
         );
       } else {

@@ -220,8 +220,10 @@ export class AdminService {
     }
   }
 
-  // End raffle by setting status to COMPLETED and calling smart contract
+  // End raffle by setting status to COMPLETED and calling smart contract (DEPRECATED - uses server wallet)
   static async endRaffleEarly(raffleId: string): Promise<{ success: boolean; txHash?: string; error?: string }> {
+    console.warn('🚨 Using deprecated server wallet ending method. Consider using admin wallet ending instead.');
+    
     try {
       const client = supabaseAdmin || supabase;
       
@@ -252,6 +254,56 @@ export class AdminService {
       return { success: true, txHash: contractResult.txHash };
     } catch (error) {
       console.error('Unexpected error ending raffle:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  // Get raffle participants for admin wallet ending
+  static async getRaffleParticipants(raffleId: string): Promise<{
+    success: boolean;
+    participants?: string[];
+    ticketCounts?: number[];
+    totalParticipants?: number;
+    totalTickets?: number;
+    error?: string;
+  }> {
+    try {
+      const client = supabaseAdmin || supabase;
+      
+      const { data: entries, error: entriesError } = await client
+        .from('shellies_raffle_entries')
+        .select('wallet_address, ticket_count')
+        .eq('raffle_id', raffleId);
+
+      if (entriesError) {
+        console.error('Error fetching raffle entries:', entriesError);
+        return { success: false, error: 'Failed to fetch raffle participants' };
+      }
+
+      if (!entries || entries.length === 0) {
+        return { success: false, error: 'No participants found for this raffle' };
+      }
+
+      // Aggregate ticket counts by wallet address
+      const participantMap = new Map<string, number>();
+      entries.forEach((entry: any) => {
+        const current = participantMap.get(entry.wallet_address) || 0;
+        participantMap.set(entry.wallet_address, current + entry.ticket_count);
+      });
+
+      const participants = Array.from(participantMap.keys());
+      const ticketCounts = Array.from(participantMap.values());
+      const totalTickets = ticketCounts.reduce((sum, count) => sum + count, 0);
+
+      return {
+        success: true,
+        participants,
+        ticketCounts,
+        totalParticipants: participants.length,
+        totalTickets
+      };
+    } catch (error) {
+      console.error('Unexpected error fetching participants:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
