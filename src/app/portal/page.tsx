@@ -32,18 +32,33 @@ import {
 } from 'lucide-react';
 
 import { Raffle } from '@/lib/supabase';
-import { getTimeRemainingDays } from '@/lib/dateUtils';
+import { getTimeRemaining } from '@/lib/dateUtils';
+
+// Custom hook for live countdown
+function useLiveCountdown(endDate: string) {
+  const [timeRemaining, setTimeRemaining] = useState(() => getTimeRemaining(endDate));
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimeRemaining(getTimeRemaining(endDate));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [endDate]);
+
+  return timeRemaining;
+}
 
 // Raffle Card Component
 interface RaffleCardProps {
   raffle: Raffle;
-  timeRemaining: string;
   isDarkMode: boolean;
   onJoinClick: () => void;
 }
 
-function RaffleCard({ raffle, timeRemaining, isDarkMode, onJoinClick }: RaffleCardProps) {
+function RaffleCard({ raffle, isDarkMode, onJoinClick }: RaffleCardProps) {
   const [imageError, setImageError] = useState(false);
+  const timeRemaining = useLiveCountdown(raffle.end_date);
   
   // Determine raffle state based on status
   const isRaffleEnded = raffle.status === 'COMPLETED' || raffle.status === 'CANCELLED';
@@ -556,7 +571,6 @@ export default function Portal() {
                     <RaffleCard 
                       key={raffle.id} 
                       raffle={raffle} 
-                      timeRemaining={getTimeRemainingDays(raffle.end_date)}
                       isDarkMode={isDarkMode}
                       onJoinClick={() => handleJoinRaffle(raffle)}
                     />

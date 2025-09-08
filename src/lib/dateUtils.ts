@@ -43,7 +43,7 @@ export function formatDate(dateString: string, includeTime: boolean = true): str
 /**
  * Calculates time remaining until end date in a human-readable format
  * @param endDate - The end date string
- * @returns Time remaining as string (e.g., "2d 5h 30m" or "Ended")
+ * @returns Time remaining as string (e.g., "2d 5h 30m 15s" or "Ended")
  */
 export function getTimeRemaining(endDate: string): string {
   const now = new Date();
@@ -55,8 +55,18 @@ export function getTimeRemaining(endDate: string): string {
   const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
   const hours = Math.floor((diffTime % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
   const minutes = Math.floor((diffTime % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((diffTime % (1000 * 60)) / 1000);
   
-  return `${days}d ${hours}h ${minutes}m`;
+  // Show more detail when time is shorter
+  if (days > 0) {
+    return `${days}d ${hours}h ${minutes}m`;
+  } else if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds}s`;
+  } else if (minutes > 0) {
+    return `${minutes}m ${seconds}s`;
+  } else {
+    return `${seconds}s`;
+  }
 }
 
 /**
