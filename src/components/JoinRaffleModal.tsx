@@ -71,7 +71,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
       setMessage(null);
       setImageError(false);
       fetchUserData();
-      fetchParticipants();
+      fetchParticipants(true); // Initial load with loading indicator
       // Only fetch detailed entry info if we need points_spent details
       if (raffle.user_ticket_count && raffle.user_ticket_count > 0) {
         fetchUserEntry();
@@ -80,6 +80,29 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
       }
     }
   }, [isOpen, raffle]);
+
+  // Polling mechanism for participants updates
+  useEffect(() => {
+    if (!isOpen || !raffle) return;
+
+    // Check if raffle is still active for polling
+    const isRaffleStillActive = raffle.status === 'ACTIVE' && isRaffleActive(raffle.end_date);
+    
+    if (!isRaffleStillActive) return;
+
+    // Set up polling interval (every 8 seconds)
+    const pollInterval = setInterval(() => {
+      // Only poll if raffle is still active
+      if (raffle.status === 'ACTIVE' && isRaffleActive(raffle.end_date)) {
+        fetchParticipants(false); // Poll without loading indicator
+      }
+    }, 8000);
+
+    // Cleanup interval on component unmount or when dependencies change
+    return () => {
+      clearInterval(pollInterval);
+    };
+  }, [isOpen, raffle?.id, raffle?.status]);
 
   const fetchUserData = async () => {
     setLoadingUser(true);
@@ -121,10 +144,13 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
     }
   };
 
-  const fetchParticipants = async () => {
+  const fetchParticipants = async (showLoading = true) => {
     if (!raffle) return;
     
-    setLoadingParticipants(true);
+    if (showLoading) {
+      setLoadingParticipants(true);
+    }
+    
     try {
       const response = await fetch(`/api/raffles/${raffle.id}/participants`);
       const data = await response.json();
@@ -137,14 +163,30 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
           return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
         });
         setParticipants(sortedParticipants);
+        
+        // Update raffle participant count based on actual data
+        if (raffle) {
+          raffle.current_participants = sortedParticipants.length;
+        }
       } else {
         setParticipants([]);
+        if (raffle) {
+          raffle.current_participants = 0;
+        }
       }
     } catch (error) {
       console.error('Error fetching participants:', error);
-      setParticipants([]);
+      // Don't clear participants on error during polling to avoid UI flicker
+      if (showLoading) {
+        setParticipants([]);
+        if (raffle) {
+          raffle.current_participants = 0;
+        }
+      }
     } finally {
-      setLoadingParticipants(false);
+      if (showLoading) {
+        setLoadingParticipants(false);
+      }
     }
   };
 
@@ -312,6 +354,10 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
         // Update raffle ticket count locally for immediate UI feedback
         if (raffle) {
           raffle.user_ticket_count = (raffle.user_ticket_count || 0) + ticketCount;
+          // Also update participant count if this is the user's first entry
+          if ((raffle.user_ticket_count || 0) === ticketCount) {
+            raffle.current_participants = (raffle.current_participants || 0) + 1;
+          }
         }
         
         // Update user points locally
@@ -325,7 +371,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
         }
         
         // Refresh participants list
-        await fetchParticipants();
+        await fetchParticipants(false);
         
         // Call success callback if provided (this will refresh the main raffle list)
         if (onSuccess) {
