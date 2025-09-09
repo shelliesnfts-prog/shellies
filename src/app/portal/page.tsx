@@ -313,16 +313,6 @@ export default function Portal() {
     checkAdminStatus();
   }, [walletAddress]);
 
-  if (userLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 border border-gray-200 shadow-xl text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
-          <p className="text-gray-700">Loading user data...</p>
-        </div>
-      </div>
-    );
-  }
 
 
   return (
@@ -398,7 +388,13 @@ export default function Portal() {
                 <div className="relative z-10 h-full flex flex-col justify-between">
                   {/* Top Row */}
                   <div className="flex items-start justify-between">
-                    <h3 className="text-white text-xs font-bold">$Point{(user?.points ?? 0) !== 1 ? 's' : ''}</h3>
+                    <h3 className="text-white text-xs font-bold">
+                      {userLoading ? (
+                        <div className="h-3 bg-white/20 rounded animate-pulse w-12"></div>
+                      ) : (
+                        `$Point${(user?.points ?? 0) !== 1 ? 's' : ''}`
+                      )}
+                    </h3>
                     <button 
                       onClick={handleLogout}
                       className="p-2 hover:bg-white/10 rounded-lg transition-colors duration-200"
@@ -408,9 +404,18 @@ export default function Portal() {
                   </div>
                   
                   {/* Bottom Row */}
-                  <div className="flex items-center ">
-                     <p className="text-white text-sm font-bold mr-2">{user?.points || 0}</p>
-                      <p className="text-white font-medium text-xs">Point{(user?.points ?? 0) !== 1 ? 's' : ''}</p>
+                  <div className="flex items-center">
+                    {userLoading ? (
+                      <div className="flex items-center">
+                        <div className="h-4 bg-white/20 rounded animate-pulse w-8 mr-2"></div>
+                        <div className="h-3 bg-white/20 rounded animate-pulse w-12"></div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-white text-sm font-bold mr-2">{user?.points || 0}</p>
+                        <p className="text-white font-medium text-xs">Point{(user?.points ?? 0) !== 1 ? 's' : ''}</p>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -661,9 +666,13 @@ export default function Portal() {
                     </div>
                     <div className="space-y-1">
                       <h3 className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>NFT Holdings</h3>
-                      <p className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                        {claimStatus?.nftCount ?? 0}
-                      </p>
+                      {userLoading ? (
+                        <div className={`h-8 rounded animate-pulse w-12 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
+                      ) : (
+                        <p className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {claimStatus?.nftCount ?? 0}
+                        </p>
+                      )}
                       <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>Shellies NFTs</p>
                     </div>
                   </div>
@@ -689,66 +698,90 @@ export default function Portal() {
                     </div>
                     <div className="space-y-1">
                       <h3 className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Available Points</h3>
-                      <p className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                        {claimStatus?.currentPoints ?? user?.points ?? 0}
+                      {userLoading ? (
+                        <div className={`h-8 rounded animate-pulse w-16 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
+                      ) : (
+                        <p className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {claimStatus?.currentPoints ?? user?.points ?? 0}
+                        </p>
+                      )}
+                      <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                        {userLoading ? (
+                          <div className={`h-3 rounded animate-pulse w-12 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
+                        ) : (
+                          `Point${(claimStatus?.currentPoints ?? user?.points ?? 0) !== 1 ? 's' : ''} tokens`
+                        )}
                       </p>
-                      <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>Point{(claimStatus?.currentPoints ?? user?.points ?? 0) !== 1 ? 's' : ''} tokens</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Daily Claim Card */}
-                {claimStatus && (
-                  <div className="sm:col-span-2 lg:col-span-2">
-                    <div className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-lg ${
-                      isDarkMode 
-                        ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700' 
-                        : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
-                    }`}>
-                      <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-pink-500/5 to-transparent" />
-                      <div className="relative p-6">
-                        <div className="flex items-start justify-between mb-4">
-                          <div>
-                            <h3 className={`text-sm font-semibold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Daily Rewards</h3>
-                            <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                              Claim your daily points based on NFT holdings
-                            </p>
-                          </div>
-                          <div className={`p-2.5 rounded-xl ${
-                            isDarkMode ? 'bg-gradient-to-br from-purple-500/20 to-pink-500/20' : 'bg-gradient-to-br from-purple-100 to-pink-100'
-                          }`}>
-                            <Gift className="w-5 h-5 text-purple-600" />
-                          </div>
+                <div className="sm:col-span-2 lg:col-span-2">
+                  <div className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-lg ${
+                    isDarkMode 
+                      ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700' 
+                      : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
+                  }`}>
+                    <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-pink-500/5 to-transparent" />
+                    <div className="relative p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <h3 className={`text-sm font-semibold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Daily Rewards</h3>
+                          <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            Claim your daily points based on NFT holdings
+                          </p>
                         </div>
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                              Potential: {claimStatus.potentialPoints} points
-                            </span>
-                            <div className={`flex items-center space-x-1 text-xs ${
-                              claimStatus.canClaim 
-                                ? 'text-green-600' 
-                                : isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                            }`}>
-                              <div className={`w-1.5 h-1.5 rounded-full mr-2 ${
-                                claimStatus.canClaim ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
-                              }`} />
-                              {claimStatus.canClaim ? 'Available now' : 'Check back later'}
+                        <div className={`p-2.5 rounded-xl ${
+                          isDarkMode ? 'bg-gradient-to-br from-purple-500/20 to-pink-500/20' : 'bg-gradient-to-br from-purple-100 to-pink-100'
+                        }`}>
+                          <Gift className="w-5 h-5 text-purple-600" />
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        {userLoading ? (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className={`h-3 rounded animate-pulse w-32 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
+                              <div className={`h-3 rounded animate-pulse w-24 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
                             </div>
+                            <div className={`h-10 rounded-lg animate-pulse w-full ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
                           </div>
-                          <ClaimButtonWithCountdown
-                            canClaim={claimStatus.canClaim}
-                            secondsUntilNextClaim={claimStatus.secondsUntilNextClaim}
-                            nftCount={claimStatus.nftCount}
-                            potentialPoints={claimStatus.potentialPoints}
-                            onClaim={handleClaimDaily}
-                            claiming={claiming}
-                          />
-                        </div>
+                        ) : claimStatus ? (
+                          <>
+                            <div className="flex items-center justify-between">
+                              <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                Potential: {claimStatus.potentialPoints} points
+                              </span>
+                              <div className={`flex items-center space-x-1 text-xs ${
+                                claimStatus.canClaim 
+                                  ? 'text-green-600' 
+                                  : isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                              }`}>
+                                <div className={`w-1.5 h-1.5 rounded-full mr-2 ${
+                                  claimStatus.canClaim ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
+                                }`} />
+                                {claimStatus.canClaim ? 'Available now' : 'Check back later'}
+                              </div>
+                            </div>
+                            <ClaimButtonWithCountdown
+                              canClaim={claimStatus.canClaim}
+                              secondsUntilNextClaim={claimStatus.secondsUntilNextClaim}
+                              nftCount={claimStatus.nftCount}
+                              potentialPoints={claimStatus.potentialPoints}
+                              onClaim={handleClaimDaily}
+                              claiming={claiming}
+                            />
+                          </>
+                        ) : (
+                          <div className={`text-center py-4 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            Unable to load claim status
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
-                )}
+                </div>
               </div>
 
               {/* Error Display */}
