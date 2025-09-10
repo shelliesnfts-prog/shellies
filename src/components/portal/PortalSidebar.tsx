@@ -188,7 +188,7 @@ export function PortalSidebar({
                     </div>
                   ) : (
                     <>
-                      <p className="text-white text-sm font-bold mr-2">{user?.points || 0}</p>
+                      <p className="text-white text-sm font-bold mr-2">{user?.points?.toFixed(1) || '0.0'}</p>
                       <p className="text-white font-medium text-xs">Point{(user?.points ?? 0) !== 1 ? 's' : ''}</p>
                     </>
                   )}

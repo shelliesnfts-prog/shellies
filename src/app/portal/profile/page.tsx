@@ -6,16 +6,23 @@ import { useAccount } from 'wagmi';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
 import { ClaimButtonWithCountdown } from '@/components/ClaimCountdown';
 import { useDashboard } from '@/hooks/useDashboard';
-import { Trophy, Coins, Gift } from 'lucide-react';
+import { NFTService, SHELLIES_CONTRACT_ADDRESS } from '@/lib/nft-service';
+import { useRouter } from 'next/navigation';
+import { Trophy, Coins, Gift, TrendingUp, ArrowRight, Sparkles, Target, Zap } from 'lucide-react';
 
 export default function ProfilePage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const { data: session } = useSession();
   const { address } = useAccount();
+  const router = useRouter();
   const { user, claimStatus, loading: userLoading, claiming, executeClaim, error: claimError, fetchUser } = useDashboard();
 
   const walletAddress = address || session?.address || '';
+
+  // Get tier information for motivational display
+  const nftCount = claimStatus?.nftCount ?? 0;
+  const tierInfo = NFTService.getUserTierInfo(nftCount);
 
   const toggleDarkMode = () => {
     setIsDarkMode(!isDarkMode);
@@ -26,6 +33,18 @@ export default function ProfilePage() {
     if (result.success) {
       await fetchUser();
     }
+  };
+
+  const handleOpenNFTCollection = () => {
+    if (SHELLIES_CONTRACT_ADDRESS) {
+      // Open Shellies NFT collection in Ink blockchain explorer in a new tab
+      const explorerUrl = `https://explorer.inkonchain.com/address/${SHELLIES_CONTRACT_ADDRESS}`;
+      window.open(explorerUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  const handleNavigateToStaking = () => {
+    router.push('/portal/staking');
   };
 
   return (
@@ -61,7 +80,158 @@ export default function ProfilePage() {
                 </span>
               </div>
             </div>
+ {/* Tier Progression Motivation Section */}
+            {!userLoading && claimStatus && (
+              <div className="space-y-6">
+                {/* Regular User - Motivate to get NFTs */}
+                {tierInfo.currentTier === 'Regular' && (
+                  <div className={`relative overflow-hidden rounded-2xl border transition-all duration-300 ${
+                    isDarkMode 
+                      ? 'bg-gradient-to-br from-purple-900/40 to-pink-900/40 border-purple-700/50' 
+                      : 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200'
+                  }`}>
+                    <div className="absolute inset-0 bg-gradient-to-r from-purple-600/10 via-pink-600/10 to-purple-600/10 animate-pulse" />
+                    <div className="relative p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <div className="flex items-center space-x-2 mb-2">
+                            <Sparkles className="w-5 h-5 text-purple-600" />
+                            <h3 className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                              Level Up Your Rewards! 🚀
+                            </h3>
+                          </div>
+                          <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            You're currently earning <span className="font-semibold text-purple-600">1.0 point</span> per day
+                          </p>
+                        </div>
+                        <div className={`p-3 rounded-xl ${
+                          isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
+                        }`}>
+                          <Target className="w-6 h-6 text-purple-600" />
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        <div className={`p-4 rounded-xl border-2 border-dashed ${
+                          isDarkMode 
+                            ? 'border-purple-600/50 bg-purple-900/20' 
+                            : 'border-purple-300 bg-purple-50/50'
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className={`text-sm font-medium ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
+                                Own Shellies NFTs
+                              </p>
+                              <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                Get <span className="font-semibold text-purple-600">5.0 points per NFT</span> daily
+                              </p>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Zap className="w-4 h-4 text-yellow-500" />
+                              <span className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                5x
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm">
+                            <p className={`font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                              Example: 3 NFTs = <span className="text-purple-600 font-bold">15.0 points</span> daily
+                            </p>
+                            <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                              That's 15x more than your current rewards!
+                            </p>
+                          </div>
+                          <button
+                            onClick={handleOpenNFTCollection}
+                            className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-xl font-medium transition-all duration-200 hover:scale-105 shadow-lg"
+                          >
+                            <span className="text-sm">Get NFTs</span>
+                            <ArrowRight className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
+                {/* NFT Holder - Motivate to stake */}
+                {tierInfo.currentTier === 'NFT Holder' && tierInfo.potentialStakingPoints && (
+                  <div className={`relative overflow-hidden rounded-2xl border transition-all duration-300 ${
+                    isDarkMode 
+                      ? 'bg-gradient-to-br from-blue-900/40 to-cyan-900/40 border-blue-700/50' 
+                      : 'bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200'
+                  }`}>
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 via-cyan-600/10 to-blue-600/10 animate-pulse" />
+                    <div className="relative p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <div className="flex items-center space-x-2 mb-2">
+                            <TrendingUp className="w-5 h-5 text-blue-600" />
+                            <h3 className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                              Double Your Earnings! ⚡
+                            </h3>
+                          </div>
+                          <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            Currently earning <span className="font-semibold text-blue-600">{tierInfo.currentPoints.toFixed(1)} points</span> per day from {nftCount} NFT{nftCount !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+                        <div className={`p-3 rounded-xl ${
+                          isDarkMode ? 'bg-blue-500/20' : 'bg-blue-100'
+                        }`}>
+                          <Coins className="w-6 h-6 text-blue-600" />
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        <div className={`p-4 rounded-xl border-2 border-dashed ${
+                          isDarkMode 
+                            ? 'border-blue-600/50 bg-blue-900/20' 
+                            : 'border-blue-300 bg-blue-50/50'
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className={`text-sm font-medium ${isDarkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+                                Stake Your NFTs
+                              </p>
+                              <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                Get <span className="font-semibold text-blue-600">10.0 points per staked NFT</span> daily
+                              </p>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Zap className="w-4 h-4 text-yellow-500" />
+                              <span className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                2x
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm">
+                            <p className={`font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                              Potential: <span className="text-blue-600 font-bold">{tierInfo.potentialStakingPoints.toFixed(1)} points</span> daily
+                            </p>
+                            <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                              That's {(tierInfo.potentialStakingPoints - tierInfo.currentPoints).toFixed(1)} more points per day!
+                            </p>
+                          </div>
+                          <button
+                            onClick={handleNavigateToStaking}
+                            className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white rounded-xl font-medium transition-all duration-200 hover:scale-105 shadow-lg"
+                          >
+                            <span className="text-sm">Start Staking</span>
+                            <ArrowRight className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             {/* Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
               {/* NFT Holdings Card */}
@@ -124,7 +294,7 @@ export default function ProfilePage() {
                       <div className={`h-8 rounded animate-pulse w-16 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
                     ) : (
                       <p className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                        {claimStatus?.currentPoints ?? user?.points ?? 0}
+                        {(claimStatus?.currentPoints ?? user?.points ?? 0).toFixed(1)}
                       </p>
                     )}
                     <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
@@ -175,7 +345,7 @@ export default function ProfilePage() {
                         <>
                           <div className="flex items-center justify-between">
                             <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                              Potential: {claimStatus.potentialPoints} points
+                              Potential: {claimStatus.potentialPoints.toFixed(1)} points
                             </span>
                             <div className={`flex items-center space-x-1 text-xs ${
                               claimStatus.canClaim 
@@ -207,6 +377,8 @@ export default function ProfilePage() {
                 </div>
               </div>
             </div>
+
+           
 
             {/* Error Display */}
             {claimError && (

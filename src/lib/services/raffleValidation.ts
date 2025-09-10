@@ -242,7 +242,7 @@ export class RaffleValidationService {
     if (user.points < totalCost) {
       const shortage = totalCost - user.points;
       throw new ValidationError(
-        `Insufficient points. You need ${totalCost} SHELL but have ${user.points} SHELL (${shortage} short)`,
+        `Insufficient points. You need ${totalCost.toFixed(1)} SHELL but have ${user.points.toFixed(1)} SHELL (${shortage.toFixed(1)} short)`,
         ERROR_CODES.INSUFFICIENT_POINTS
       );
     }

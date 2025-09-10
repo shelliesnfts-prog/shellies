@@ -149,13 +149,50 @@ export class NFTService {
 
   /**
    * Calculate points based on NFT count
-   * 1 NFT = 1 point, 0 NFTs = 0.1 points
+   * Regular users (0 NFTs) = 1 point, NFT holders = 5 points per NFT
    */
   static calculateClaimPoints(nftCount: number): number {
     if (nftCount === 0) {
-      return 0.1;
+      return 1; // Regular users get 1 point
     }
-    return nftCount;
+    return nftCount * 5; // NFT holders get 5 points per NFT
+  }
+
+  /**
+   * Calculate potential staking points (theoretical - for motivation)
+   * Staked NFTs = 10 points per NFT
+   */
+  static calculateStakingPoints(nftCount: number): number {
+    return nftCount * 10; // Each staked NFT gives 10 points
+  }
+
+  /**
+   * Get tier information for a user
+   */
+  static getUserTierInfo(nftCount: number): {
+    currentTier: 'Regular' | 'NFT Holder';
+    currentPoints: number;
+    nextTier: string | null;
+    nextTierPoints: number | null;
+    potentialStakingPoints: number | null;
+  } {
+    if (nftCount === 0) {
+      return {
+        currentTier: 'Regular',
+        currentPoints: 1,
+        nextTier: 'NFT Holder',
+        nextTierPoints: 5,
+        potentialStakingPoints: null
+      };
+    } else {
+      return {
+        currentTier: 'NFT Holder',
+        currentPoints: nftCount * 5,
+        nextTier: null,
+        nextTierPoints: null,
+        potentialStakingPoints: nftCount * 10
+      };
+    }
   }
 
   /**

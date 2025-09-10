@@ -22,7 +22,7 @@ export const supabaseAdmin = supabaseServiceKey
 export interface User {
   id: string;
   wallet_address: string;
-  points: number;
+  points: number; // Now supports decimal values (e.g., 0.1 for regular users)
   nft_count: number;
   last_claim?: string;
   created_at: string;

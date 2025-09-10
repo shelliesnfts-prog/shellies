@@ -87,7 +87,8 @@ export function ClaimButtonWithCountdown({
   };
 
   const formatPoints = (points: number): string => {
-    return points === Math.floor(points) ? points.toString() : points.toFixed(1);
+    // Always show 1 decimal place for consistency (e.g., "0.1", "1.0", "5.0")
+    return points.toFixed(1);
   };
 
   return (

@@ -103,7 +103,7 @@ export default function LeaderboardPage() {
                           }`}>
                             {user.wallet_address.slice(0, 8)}...{user.wallet_address.slice(-8)}
                           </td>
-                          <td className="py-2 text-purple-600 font-medium text-sm">{user.points}</td>
+                          <td className="py-2 text-purple-600 font-medium text-sm">{user.points.toFixed(1)}</td>
                           <td className="py-2 text-blue-600 text-sm">{user.nft_count}</td>
                         </tr>
                       )) : (

@@ -253,7 +253,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
       const shortage = totalCost - userData.points;
       return { 
         isValid: false, 
-        error: `Insufficient points. You need ${totalCost} Point${totalCost !== 1 ? 's' : ''} but have ${userData.points} Point${userData.points !== 1 ? 's' : ''} (${shortage} short)` 
+        error: `Insufficient points. You need ${totalCost.toFixed(1)} Point${totalCost !== 1 ? 's' : ''} but have ${userData.points.toFixed(1)} Point${userData.points !== 1 ? 's' : ''} (${shortage.toFixed(1)} short)` 
       };
     }
 
@@ -461,7 +461,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                   {raffle.status === 'COMPLETED' || raffle.status === 'CANCELLED' ? 'View Raffle' : 'Join Raffle'}: {raffle.title}
                 </h2>
                 <div className="inline-flex items-center px-2 py-1 rounded-full bg-purple-100 text-purple-700 text-xs font-medium">
-                  {raffle.points_per_ticket} Points per ticket
+                  {raffle.points_per_ticket.toFixed(1)} Points per ticket
                 </div>
               </div>
             </div>
@@ -599,7 +599,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                             <div className={`text-xs ${
                               isDarkMode ? 'text-gray-400' : 'text-gray-500'
                             }`}>
-                              {participant.ticket_count} ticket{participant.ticket_count > 1 ? 's' : ''} • {participant.points_spent} points
+                              {participant.ticket_count} ticket{participant.ticket_count > 1 ? 's' : ''} • {participant.points_spent.toFixed(1)} points
                             </div>
                           </div>
                           <div className="flex-shrink-0 ml-2">
@@ -688,7 +688,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                     </span>
                   </div>
                   <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {raffle.points_per_ticket} Point{raffle.points_per_ticket !== 1 ? 's' : ''}
+                    {raffle.points_per_ticket.toFixed(1)} Point{raffle.points_per_ticket !== 1 ? 's' : ''}
                   </span>
                 </div>
 
@@ -740,7 +740,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                       <>
                         <br />
                         <span className="text-xs opacity-75">
-                          Points spent: {userEntry.points_spent} Point{userEntry.points_spent !== 1 ? 's' : ''}
+                          Points spent: {userEntry.points_spent.toFixed(1)} Point{userEntry.points_spent !== 1 ? 's' : ''}
                         </span>
                       </>
                     )}
@@ -776,13 +776,13 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
               }`}>
                 <div className="space-y-4">
                   <div className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                    Required Points: {raffle.points_per_ticket * ticketCount} $Point{(raffle.points_per_ticket * ticketCount) !== 1 ? 's' : ''}
+                    Required Points: {(raffle.points_per_ticket * ticketCount).toFixed(1)} $Point{(raffle.points_per_ticket * ticketCount) !== 1 ? 's' : ''}
                   </div>
                   
                   {/* User Points Balance */}
                   {userData && (
                     <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                      Your balance: {userData.points} $Point{userData.points !== 1 ? 's' : ''}
+                      Your balance: {userData.points.toFixed(1)} $Point{userData.points !== 1 ? 's' : ''}
                     </div>
                   )}
                   

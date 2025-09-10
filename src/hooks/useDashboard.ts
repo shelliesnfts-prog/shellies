@@ -28,8 +28,8 @@ interface DashboardData {
 interface ClaimResult {
   success: boolean;
   message?: string;
-  newPoints?: number;
-  pointsAdded?: number;
+  newPoints?: number; // Supports decimal values
+  pointsAdded?: number; // Supports decimal values (e.g., 0.1)
   nftCount?: number;
   error?: string;
 }
@@ -130,6 +130,11 @@ export function useDashboard() {
         }
       } : null);
 
+      // Broadcast the points update to other components/hooks
+      window.dispatchEvent(new CustomEvent('pointsUpdated', { 
+        detail: { newPoints: result.newPoints, walletAddress: session.address }
+      }));
+
       return result;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to process claim';
@@ -149,6 +154,38 @@ export function useDashboard() {
   useEffect(() => {
     fetchDashboard();
   }, [fetchDashboard]);
+
+  // Listen for points updates from other components
+  useEffect(() => {
+    const handlePointsUpdate = (event: CustomEvent) => {
+      const { newPoints, walletAddress } = event.detail;
+      
+      // Only update if it's for the current user
+      if (session?.address === walletAddress && dashboardData) {
+        setDashboardData(prev => prev ? {
+          ...prev,
+          user: {
+            ...prev.user,
+            points: newPoints,
+            last_claim: new Date().toISOString()
+          },
+          claimStatus: {
+            ...prev.claimStatus,
+            canClaim: false,
+            secondsUntilNextClaim: 24 * 60 * 60, // 24 hours in seconds
+            currentPoints: newPoints,
+            lastClaim: new Date().toISOString()
+          }
+        } : null);
+      }
+    };
+
+    window.addEventListener('pointsUpdated', handlePointsUpdate as EventListener);
+    
+    return () => {
+      window.removeEventListener('pointsUpdated', handlePointsUpdate as EventListener);
+    };
+  }, [session?.address, dashboardData]);
 
   // Periodic refresh only when user can't claim (less frequent)
   useEffect(() => {

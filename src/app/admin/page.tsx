@@ -894,7 +894,7 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
                                 </button>
                               </div>
                             </td>
-                            <td className="py-3 px-4 text-purple-600 font-medium">{user.points}</td>
+                            <td className="py-3 px-4 text-purple-600 font-medium">{user.points.toFixed(1)}</td>
                             <td className={`py-3 px-4 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                               {new Date(user.created_at).toLocaleDateString()}
                             </td>
@@ -1020,7 +1020,7 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
                         <div className="space-y-2 text-sm">
                           <div className={`flex justify-between ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                             <span>Points per ticket:</span>
-                            <span className="font-medium">{raffle.points_per_ticket}</span>
+                            <span className="font-medium">{raffle.points_per_ticket.toFixed(1)}</span>
                           </div>
                           <div className={`flex justify-between ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                             <span>Max tickets:</span>
@@ -1155,7 +1155,7 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
                               {entry.raffle?.title}
                             </td>
                             <td className="py-3 px-4 text-purple-600 font-medium">{entry.tickets_purchased || 1}</td>
-                            <td className="py-3 px-4 text-blue-600 font-medium">{entry.points_spent || entry.raffle?.points_per_ticket}</td>
+                            <td className="py-3 px-4 text-blue-600 font-medium">{(entry.points_spent || entry.raffle?.points_per_ticket || 0).toFixed(1)}</td>
                             <td className={`py-3 px-4 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                               {new Date(entry.created_at).toLocaleDateString()}
                             </td>
