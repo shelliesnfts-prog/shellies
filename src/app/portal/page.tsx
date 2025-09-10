@@ -178,12 +178,15 @@ function RaffleCard({ raffle, isDarkMode, onJoinClick }: RaffleCardProps) {
           </div>
           
           <button 
-            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 hover:shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={!isRaffleActive}
+            className={`px-4 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 hover:shadow-md active:scale-95 ${
+              isRaffleEnded
+                ? 'bg-gray-500 hover:bg-gray-600 text-white'
+                : 'bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50 disabled:cursor-not-allowed'
+            }`}
+            disabled={!isRaffleActive && !isRaffleEnded}
             onClick={onJoinClick}
           >
-            {raffle.status === 'COMPLETED' ? 'Completed' :
-             raffle.status === 'CANCELLED' ? 'Cancelled' :
+            {raffle.status === 'COMPLETED' || raffle.status === 'CANCELLED' ? 'View' :
              raffle.status === 'ACTIVE' ? 'Join' :
              'Not Active'}
           </button>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useWriteContract, useAccount } from 'wagmi';
-import { X, Calendar, Target, Users, Clock, ImageOff, Plus, Minus, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { X, Calendar, Target, Users, Clock, ImageOff, Plus, Minus, Loader2, CheckCircle, AlertCircle, Crown, Trophy } from 'lucide-react';
 import { Raffle } from '@/lib/supabase';
 import { getTimeRemaining, isRaffleActive } from '@/lib/dateUtils';
 import { RaffleContractService } from '@/lib/raffle-contract';
@@ -156,10 +156,19 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
       const data = await response.json();
       
       if (data.success && data.data) {
-        // Sort participants with connected user first, then by join date
+        // Sort participants: winner first (for completed raffles), then connected user, then by join date
         const sortedParticipants = [...data.data].sort((a, b) => {
+          // Winner always goes first for completed raffles
+          if (raffle?.status === 'COMPLETED' && raffle?.winner) {
+            if (a.wallet_address === raffle.winner) return -1;
+            if (b.wallet_address === raffle.winner) return 1;
+          }
+          
+          // Then connected user
           if (a.wallet_address === address) return -1;
           if (b.wallet_address === address) return 1;
+          
+          // Finally by join date
           return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
         });
         setParticipants(sortedParticipants);
@@ -449,7 +458,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
             <div className="flex-1 mr-4">
               <div className="flex items-center gap-3 mb-2">
                 <h2 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                  {raffle.title}
+                  {raffle.status === 'COMPLETED' || raffle.status === 'CANCELLED' ? 'View Raffle' : 'Join Raffle'}: {raffle.title}
                 </h2>
                 <div className="inline-flex items-center px-2 py-1 rounded-full bg-purple-100 text-purple-700 text-xs font-medium">
                   {raffle.points_per_ticket} Points per ticket
@@ -490,11 +499,11 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
               </div>
               
               {/* Participants List */}
-              {participants.length > 0 && (
+              {(participants.length > 0 || loadingParticipants) && (
                 <div className="mt-4">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                      Participants ({participants.length})
+                      Participants {!loadingParticipants && `(${participants.length})`}
                     </h3>
                     {loadingParticipants && (
                       <div className="animate-spin w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full"></div>
@@ -503,70 +512,129 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                   <div className={`max-h-48 overflow-y-auto rounded-lg border ${
                     isDarkMode ? 'border-gray-600 bg-gray-700/30' : 'border-gray-200 bg-gray-50'
                   } p-3 space-y-2`}>
-                    {participants.map((participant, index) => (
-                      <div
-                        key={`${participant.wallet_address}-${index}`}
-                        className={`flex items-center justify-between p-2 rounded-lg transition-colors ${
-                          participant.wallet_address === address
-                            ? isDarkMode 
-                              ? 'bg-purple-900/40 border border-purple-700' 
-                              : 'bg-purple-100 border border-purple-200'
-                            : isDarkMode
-                              ? 'bg-gray-700/50 hover:bg-gray-600/50'
-                              : 'bg-white hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center space-x-2">
-                            <span className={`text-sm font-medium ${
-                              participant.wallet_address === address
-                                ? isDarkMode ? 'text-purple-300' : 'text-purple-700'
-                                : isDarkMode ? 'text-gray-200' : 'text-gray-900'
-                            }`}>
-                              {truncateAddress(participant.wallet_address)}
-                            </span>
-                            {participant.wallet_address === address && (
-                              <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                                isDarkMode 
-                                  ? 'bg-purple-800 text-purple-200' 
-                                  : 'bg-purple-200 text-purple-800'
+                    {loadingParticipants && participants.length === 0 ? (
+                      // Loading state - show skeleton placeholders
+                      <div className="space-y-2">
+                        {[1, 2, 3].map((index) => (
+                          <div
+                            key={`loading-${index}`}
+                            className={`flex items-center justify-between p-2 rounded-lg animate-pulse ${
+                              isDarkMode ? 'bg-gray-700/50' : 'bg-white'
+                            }`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center space-x-2">
+                                <div className={`h-4 w-24 rounded ${
+                                  isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
+                                }`}></div>
+                              </div>
+                              <div className={`mt-1 h-3 w-32 rounded ${
+                                isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
+                              }`}></div>
+                            </div>
+                            <div className="flex-shrink-0 ml-2">
+                              <div className={`h-6 w-16 rounded-full ${
+                                isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
+                              }`}></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : participants.length > 0 ? (
+                      // Show actual participants
+                      participants.map((participant, index) => {
+                        const isWinner = raffle?.status === 'COMPLETED' && raffle?.winner && participant.wallet_address === raffle.winner;
+                        const isCurrentUser = participant.wallet_address === address;
+                        
+                        return (
+                        <div
+                          key={`${participant.wallet_address}-${index}`}
+                          className={`flex items-center justify-between p-2 rounded-lg transition-colors ${
+                            isWinner
+                              ? isDarkMode 
+                                ? 'bg-gradient-to-r from-yellow-900/40 to-yellow-800/40 border border-yellow-700 ring-1 ring-yellow-600/20' 
+                                : 'bg-gradient-to-r from-yellow-50 to-yellow-100 border border-yellow-300 ring-1 ring-yellow-400/20'
+                              : isCurrentUser
+                                ? isDarkMode 
+                                  ? 'bg-purple-900/40 border border-purple-700' 
+                                  : 'bg-purple-100 border border-purple-200'
+                                : isDarkMode
+                                  ? 'bg-gray-700/50 hover:bg-gray-600/50'
+                                  : 'bg-white hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center space-x-2">
+                              {isWinner && (
+                                <Crown className="w-4 h-4 text-yellow-500 flex-shrink-0" />
+                              )}
+                              <span className={`text-sm font-medium ${
+                                isWinner
+                                  ? isDarkMode ? 'text-yellow-300' : 'text-yellow-700'
+                                  : isCurrentUser
+                                    ? isDarkMode ? 'text-purple-300' : 'text-purple-700'
+                                    : isDarkMode ? 'text-gray-200' : 'text-gray-900'
                               }`}>
-                                You
+                                {truncateAddress(participant.wallet_address)}
+                              </span>
+                              {isWinner && (
+                                <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                                  isDarkMode 
+                                    ? 'bg-yellow-800 text-yellow-200 border border-yellow-700' 
+                                    : 'bg-yellow-200 text-yellow-800 border border-yellow-300'
+                                }`}>
+                                  Winner
+                                </span>
+                              )}
+                              {isCurrentUser && !isWinner && (
+                                <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                                  isDarkMode 
+                                    ? 'bg-purple-800 text-purple-200' 
+                                    : 'bg-purple-200 text-purple-800'
+                                }`}>
+                                  You
+                                </span>
+                              )}
+                            </div>
+                            <div className={`text-xs ${
+                              isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                            }`}>
+                              {participant.ticket_count} ticket{participant.ticket_count > 1 ? 's' : ''} • {participant.points_spent} points
+                            </div>
+                          </div>
+                          <div className="flex-shrink-0 ml-2">
+                            {participant.join_tx_hash ? (
+                              <a
+                                href={`https://explorer.inkonchain.com/tx/${participant.join_tx_hash}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`text-xs px-2 py-1 rounded-full transition-colors border ${
+                                  isDarkMode
+                                    ? 'border-gray-500 text-gray-300 hover:bg-gray-600 hover:text-white'
+                                    : 'border-gray-300 text-gray-600 hover:bg-gray-100 hover:text-gray-800'
+                                }`}
+                              >
+                                View Txn
+                              </a>
+                            ) : (
+                              <span className={`text-xs px-2 py-1 rounded-full ${
+                                isDarkMode
+                                  ? 'bg-gray-600 text-gray-400'
+                                  : 'bg-gray-200 text-gray-500'
+                              }`}>
+                                No Txn
                               </span>
                             )}
                           </div>
-                          <div className={`text-xs ${
-                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                          }`}>
-                            {participant.ticket_count} ticket{participant.ticket_count > 1 ? 's' : ''} • {participant.points_spent} points
-                          </div>
                         </div>
-                        <div className="flex-shrink-0 ml-2">
-                          {participant.join_tx_hash ? (
-                            <a
-                              href={`https://explorer.inkonchain.com/tx/${participant.join_tx_hash}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={`text-xs px-2 py-1 rounded-full transition-colors border ${
-                                isDarkMode
-                                  ? 'border-gray-500 text-gray-300 hover:bg-gray-600 hover:text-white'
-                                  : 'border-gray-300 text-gray-600 hover:bg-gray-100 hover:text-gray-800'
-                              }`}
-                            >
-                              View Txn
-                            </a>
-                          ) : (
-                            <span className={`text-xs px-2 py-1 rounded-full ${
-                              isDarkMode
-                                ? 'bg-gray-600 text-gray-400'
-                                : 'bg-gray-200 text-gray-500'
-                            }`}>
-                              No Txn
-                            </span>
-                          )}
-                        </div>
+                        );
+                      })
+                    ) : (
+                      // Empty state when not loading and no participants
+                      <div className={`text-center py-4 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        No participants yet
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
               )}
@@ -802,52 +870,43 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
             >
               Close
             </button>
-            <button
-              onClick={handleJoinRaffle}
-              disabled={Boolean(
-                raffle.status !== 'ACTIVE' || 
-                !isRaffleActive(raffle.end_date) ||
-                isLoading || 
-                remainingTickets <= 0 ||
-                ((raffle.user_ticket_count || 0) >= raffle.max_tickets_per_user) ||
-                (raffle.max_participants && (raffle.current_participants || 0) >= raffle.max_participants)
-              )}
-              className={`px-6 py-2 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center min-w-[140px] ${
-                raffle.status !== 'ACTIVE' || 
-                !isRaffleActive(raffle.end_date) ||
-                remainingTickets <= 0 || 
-                ((raffle.user_ticket_count || 0) >= raffle.max_tickets_per_user) ||
-                (raffle.max_participants && (raffle.current_participants || 0) >= raffle.max_participants)
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : isLoading
-                    ? 'bg-purple-600 text-white cursor-not-allowed'
-                    : 'bg-purple-600 text-white hover:bg-purple-700 hover:shadow-md active:scale-95'
-              }`}
-            >
-              {isLoading ? (
-                <div className="flex items-center space-x-2">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Joining...</span>
-                </div>
-              ) : (
-                <span>
-                  {raffle.status === 'COMPLETED' 
-                    ? 'Raffle Completed' 
-                    : raffle.status === 'CANCELLED'
-                      ? 'Raffle Cancelled'
-                      : raffle.status !== 'ACTIVE'
-                        ? 'Raffle Not Active'
-                        : !isRaffleActive(raffle.end_date)
-                          ? 'Raffle Ended'
-                          : remainingTickets <= 0
-                            ? 'Max Tickets Reached'
-                            : (raffle.max_participants && (raffle.current_participants || 0) >= raffle.max_participants)
-                              ? 'Max Participants Reached'
-                              : `Join Raffle (${ticketCount} ticket${ticketCount > 1 ? 's' : ''})`
-                  }
-                </span>
-              )}
-            </button>
+            {/* Only show join button for active raffles */}
+            {raffle.status === 'ACTIVE' && isRaffleActive(raffle.end_date) && (
+              <button
+                onClick={handleJoinRaffle}
+                disabled={Boolean(
+                  isLoading || 
+                  remainingTickets <= 0 ||
+                  ((raffle.user_ticket_count || 0) >= raffle.max_tickets_per_user) ||
+                  (raffle.max_participants && (raffle.current_participants || 0) >= raffle.max_participants)
+                )}
+                className={`px-6 py-2 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center min-w-[140px] ${
+                  remainingTickets <= 0 || 
+                  ((raffle.user_ticket_count || 0) >= raffle.max_tickets_per_user) ||
+                  (raffle.max_participants && (raffle.current_participants || 0) >= raffle.max_participants)
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : isLoading
+                      ? 'bg-purple-600 text-white cursor-not-allowed'
+                      : 'bg-purple-600 text-white hover:bg-purple-700 hover:shadow-md active:scale-95'
+                }`}
+              >
+                {isLoading ? (
+                  <div className="flex items-center space-x-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Joining...</span>
+                  </div>
+                ) : (
+                  <span>
+                    {remainingTickets <= 0
+                      ? 'Max Tickets Reached'
+                      : (raffle.max_participants && (raffle.current_participants || 0) >= raffle.max_participants)
+                        ? 'Max Participants Reached'
+                        : `Join Raffle (${ticketCount} ticket${ticketCount > 1 ? 's' : ''})`
+                    }
+                  </span>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>
