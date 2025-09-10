@@ -28,6 +28,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { formatDate, isRaffleActive, localDateTimeInputToUTC } from '@/lib/dateUtils';
+import { parseTokenAmount, formatTokenDisplay, isValidTokenAmount } from '@/lib/token-utils';
 import RaffleDeploymentModal from '@/components/RaffleDeploymentModal';
 import RaffleEndingModal from '@/components/RaffleEndingModal';
 
@@ -73,6 +74,7 @@ export default function AdminPage() {
   const [creatingRaffle, setCreatingRaffle] = useState(false);
   const [prizeInfo, setPrizeInfo] = useState<any>(null);
   const [validatingPrize, setValidatingPrize] = useState(false);
+  const [tokenDecimals, setTokenDecimals] = useState<number>(18); // Store token decimals for conversion
 
   // Admin Wallet Flow State
   const [useAdminWallet, setUseAdminWallet] = useState(true);
@@ -276,14 +278,22 @@ export default function AdminPage() {
           return;
         }
 
-        const [hasBalance, tokenInfo] = await Promise.all([
-          RaffleContractService.checkERC20Balance(
-            walletAddress,
-            raffleForm.prize_token_address,
-            raffleForm.prize_amount
-          ),
-          RaffleContractService.getERC20Info(raffleForm.prize_token_address)
-        ]);
+        const tokenInfo = await RaffleContractService.getERC20Info(raffleForm.prize_token_address);
+        if (!tokenInfo) {
+          setPrizeInfo({ error: 'Failed to fetch token information' });
+          return;
+        }
+
+        // Store token decimals for conversion
+        setTokenDecimals(tokenInfo.decimals);
+
+        // Convert human-readable amount to wei for balance check
+        const weiAmount = parseTokenAmount(raffleForm.prize_amount, tokenInfo.decimals);
+        const hasBalance = await RaffleContractService.checkERC20Balance(
+          walletAddress,
+          raffleForm.prize_token_address,
+          weiAmount
+        );
 
         if (!hasBalance) {
           setPrizeInfo({ error: 'Insufficient token balance' });
@@ -293,6 +303,7 @@ export default function AdminPage() {
         setPrizeInfo({
           type: 'ERC20',
           amount: raffleForm.prize_amount,
+          weiAmount: weiAmount,
           ...tokenInfo,
           hasBalance: true
         });
@@ -331,8 +342,8 @@ export default function AdminPage() {
       return;
     }
 
-    if (raffleForm.prize_type === 'ERC20' && !raffleForm.prize_amount) {
-      alert('Please specify the token amount');
+    if (raffleForm.prize_type === 'ERC20' && (!raffleForm.prize_amount || !isValidTokenAmount(raffleForm.prize_amount))) {
+      alert('Please specify a valid token amount');
       return;
     }
 
@@ -363,7 +374,7 @@ export default function AdminPage() {
             prize_token_address: raffleForm.prize_token_address,
             prize_token_type: raffleForm.prize_type,
             prize_token_id: raffleForm.prize_type === 'NFT' ? raffleForm.prize_token_id : null,
-            prize_amount: raffleForm.prize_type === 'ERC20' ? raffleForm.prize_amount : null,
+            prize_amount: raffleForm.prize_type === 'ERC20' ? parseTokenAmount(raffleForm.prize_amount, tokenDecimals) : null,
           }
         })
       });
@@ -457,8 +468,8 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
       return;
     }
 
-    if (raffleForm.prize_type === 'ERC20' && !raffleForm.prize_amount) {
-      alert('Please specify the token amount');
+    if (raffleForm.prize_type === 'ERC20' && (!raffleForm.prize_amount || !isValidTokenAmount(raffleForm.prize_amount))) {
+      alert('Please specify a valid token amount');
       return;
     }
 
@@ -489,7 +500,7 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
             prize_token_address: raffleForm.prize_token_address,
             prize_token_type: raffleForm.prize_type,
             prize_token_id: raffleForm.prize_type === 'NFT' ? raffleForm.prize_token_id : null,
-            prize_amount: raffleForm.prize_type === 'ERC20' ? raffleForm.prize_amount : null,
+            prize_amount: raffleForm.prize_type === 'ERC20' ? parseTokenAmount(raffleForm.prize_amount, tokenDecimals) : null,
           }
         })
       });
@@ -1050,6 +1061,17 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
                             <span>End date:</span>
                             <span className="font-medium text-xs">{formatDate(raffle.end_date)}</span>
                           </div>
+                          <div className={`flex justify-between ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            <span>Prize:</span>
+                            <span className="font-medium text-xs">
+                              {raffle.prize_token_type === 'ERC20' && raffle.prize_amount ? 
+                                `${formatTokenDisplay(raffle.prize_amount, 18)} tokens` : 
+                                raffle.prize_token_type === 'NFT' ? 
+                                  `NFT #${raffle.prize_token_id}` : 
+                                  'Not set'
+                              }
+                            </span>
+                          </div>
                           <div className="flex justify-between items-center">
                             <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Status:</span>
                             <span className={`px-2 py-1 rounded-full text-xs font-medium border ${
@@ -1507,7 +1529,9 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
 
                 {raffleForm.prize_type === 'ERC20' && (
                   <div className="mt-3">
-                    <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Amount *</label>
+                    <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Token Amount *
+                    </label>
                     <input
                       type="text"
                       value={raffleForm.prize_amount}
@@ -1520,8 +1544,11 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
                           ? 'bg-gray-700 border-gray-600 text-white' 
                           : 'bg-white border-gray-300 text-gray-900'
                       }`}
-                      placeholder="100"
+                      placeholder="143 (human-readable format)"
                     />
+                    <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      Enter the amount in tokens (e.g., 143), not in wei. The system will automatically convert it.
+                    </p>
                   </div>
                 )}
 
@@ -1558,8 +1585,12 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
                         ) : (
                           <>
                             <p><strong>Amount:</strong> {prizeInfo.amount} {prizeInfo.symbol}</p>
+                            <p><strong>Wei Amount:</strong> {prizeInfo.weiAmount}</p>
                             <p><strong>Balance:</strong> ✓ Sufficient</p>
                             {prizeInfo.name && <p><strong>Token:</strong> {prizeInfo.name}</p>}
+                            <p className="text-xs opacity-75">
+                              ✓ Amount will be converted to {prizeInfo.weiAmount} wei for blockchain storage
+                            </p>
                           </>
                         )}
                       </div>
