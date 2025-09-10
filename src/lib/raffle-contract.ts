@@ -95,6 +95,108 @@ export interface RaffleData {
 
 export class RaffleContractService {
   private static contractAddress: string = process.env.NEXT_PUBLIC_RAFFLE_CONTRACT_ADDRESS || '';
+  
+  // Create public client for reading transaction receipts
+  private static publicClient = createPublicClient({
+    chain: inkChain,
+    transport: http()
+  });
+
+  /**
+   * Wait for transaction receipt and verify success
+   * @param txHash - Transaction hash to wait for
+   * @returns Promise that resolves when transaction is confirmed
+   */
+  private static async waitForTransactionReceipt(txHash: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      console.log('Waiting for transaction receipt:', txHash);
+      
+      const receipt = await this.publicClient.waitForTransactionReceipt({ 
+        hash: txHash as `0x${string}`,
+        timeout: 60000 // 60 second timeout
+      });
+      
+      console.log('Transaction receipt:', receipt);
+      
+      if (receipt.status === 'success') {
+        return { success: true };
+      } else {
+        // Transaction failed - try to get more details
+        let errorMessage = 'Transaction reverted on blockchain';
+        
+        try {
+          // Try to get the transaction and simulate it to get revert reason
+          const transaction = await this.publicClient.getTransaction({ 
+            hash: txHash as `0x${string}` 
+          });
+          
+          if (transaction) {
+            console.log('Failed transaction details:', transaction);
+            
+            try {
+              // Try to simulate the transaction to get the revert reason
+              await this.publicClient.call({
+                account: transaction.from,
+                to: transaction.to,
+                data: transaction.input,
+                value: transaction.value,
+                blockNumber: 'latest' // Use latest instead of specific block number
+              });
+            } catch (simulationError: any) {
+              console.log('Transaction simulation error:', simulationError);
+              
+              // Extract revert reason from simulation error
+              if (simulationError?.details) {
+                errorMessage = `Transaction failed: ${simulationError.details}`;
+              } else if (simulationError?.message) {
+                // Look for common error patterns
+                if (simulationError.message.includes('Raffle already exists')) {
+                  errorMessage = 'This raffle ID already exists on the blockchain. Please try again.';
+                } else if (simulationError.message.includes('Invalid amount') || simulationError.message.includes('Amount too large')) {
+                  errorMessage = 'Invalid token amount. Please check the amount and try again.';
+                } else if (simulationError.message.includes('Admin only')) {
+                  errorMessage = 'Admin permission required. Please check your admin status.';
+                } else if (simulationError.message.includes('Invalid token')) {
+                  errorMessage = 'Invalid token address. Please verify the token contract.';
+                } else if (simulationError.message.includes('transferFrom failed') || simulationError.message.includes('ERC20: transfer amount exceeds allowance')) {
+                  errorMessage = 'Token transfer failed. Please check token allowance and balance.';
+                } else if (simulationError.message.includes('Trading not enabled') || simulationError.message.includes('_update::Trading')) {
+                  errorMessage = 'Token transfers are currently disabled by the token contract. Please use a different token or contact the token issuer to enable trading.';
+                } else if (simulationError.message.includes('block is out of range')) {
+                  // For RPC simulation issues, provide a helpful message about the token
+                  errorMessage = 'Transaction failed on blockchain. This is likely due to token transfer restrictions. Please verify the token allows transfers and try with a different token if needed.';
+                } else {
+                  errorMessage = `Transaction failed: ${simulationError.message}`;
+                }
+              }
+            }
+          }
+        } catch (detailError) {
+          console.log('Could not get transaction details:', detailError);
+        }
+        
+        return { 
+          success: false, 
+          error: errorMessage
+        };
+      }
+    } catch (error) {
+      console.error('Error waiting for transaction receipt:', error);
+      
+      // Handle specific timeout errors
+      if (error instanceof Error && error.message.includes('timeout')) {
+        return { 
+          success: false, 
+          error: 'Transaction confirmation timed out. Please check the blockchain explorer to verify if it was successful.' 
+        };
+      }
+      
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Transaction verification failed' 
+      };
+    }
+  }
 
   /**
    * Convert database ID to contract raffle ID
@@ -570,6 +672,48 @@ export class RaffleContractService {
 
       // Call the contract method directly (admin wallet will be prompted to sign)
       // Use createAndActivateTokenRaffle since it combines create + activate in one transaction
+      
+      // Ensure proper BigInt conversion for large numbers
+      let amountBigInt: bigint;
+      try {
+        amountBigInt = typeof amount === 'string' ? BigInt(amount) : BigInt(amount.toString());
+      } catch (error) {
+        console.error('Error converting amount to BigInt:', amount, error);
+        throw new Error(`Invalid amount format: ${amount}`);
+      }
+      
+      console.log('Calling createAndActivateTokenRaffle with:', {
+        raffleId: BigInt(raffleId).toString(),
+        prizeTokenAddress,
+        amount: amountBigInt.toString(),
+        amountLength: amountBigInt.toString().length
+      });
+
+      // Pre-flight checks before calling the contract
+      try {
+        console.log('Performing pre-flight checks...');
+        
+        // Check if raffle already exists
+        const existingRaffle = await this.publicClient.readContract({
+          address: this.contractAddress as `0x${string}`,
+          abi: raffleContractAbi,
+          functionName: 'getRaffleInfo',
+          args: [BigInt(raffleId)]
+        });
+        
+        console.log('Existing raffle check:', existingRaffle);
+        if (existingRaffle && existingRaffle[0] !== '0x0000000000000000000000000000000000000000') {
+          throw new Error(`Raffle ID ${raffleId} already exists on the blockchain`);
+        }
+        
+        console.log('Pre-flight checks passed ✅');
+      } catch (preflightError) {
+        console.error('Pre-flight check failed:', preflightError);
+        if (preflightError instanceof Error) {
+          throw preflightError;
+        }
+      }
+
       const txHash = await writeContract({
         address: this.contractAddress as `0x${string}`,
         abi: raffleContractAbi,
@@ -577,11 +721,24 @@ export class RaffleContractService {
         args: [
           BigInt(raffleId),
           prizeTokenAddress as `0x${string}`,
-          BigInt(amount)
+          amountBigInt
         ],
+        // Add explicit gas limit to prevent estimation issues
+        gas: BigInt(500000),
       });
 
-      console.log('Admin ERC20 raffle creation transaction:', txHash);
+      console.log('Admin ERC20 raffle creation transaction submitted:', txHash);
+      
+      // Wait for transaction receipt to verify success
+      const receiptResult = await this.waitForTransactionReceipt(txHash);
+      if (!receiptResult.success) {
+        return { 
+          success: false, 
+          error: `Raffle creation transaction failed: ${receiptResult.error}` 
+        };
+      }
+      
+      console.log('Admin ERC20 raffle creation transaction confirmed successfully');
       return { success: true, txHash };
     } catch (error) {
       console.error('Error in admin ERC20 raffle creation:', error);
@@ -673,14 +830,43 @@ export class RaffleContractService {
 
       console.log('Admin approving ERC20:', { tokenAddress, amount });
 
+      // Ensure proper BigInt conversion for large numbers
+      let amountBigInt: bigint;
+      try {
+        amountBigInt = typeof amount === 'string' ? BigInt(amount) : BigInt(amount.toString());
+      } catch (error) {
+        console.error('Error converting amount to BigInt for approval:', amount, error);
+        throw new Error(`Invalid amount format for approval: ${amount}`);
+      }
+
+      console.log('Calling ERC20 approve with:', {
+        tokenAddress,
+        spender: this.contractAddress,
+        amount: amountBigInt.toString(),
+        amountLength: amountBigInt.toString().length
+      });
+
       const txHash = await writeContract({
         address: tokenAddress as `0x${string}`,
         abi: erc20Abi,
         functionName: 'approve',
-        args: [this.contractAddress as `0x${string}`, BigInt(amount)],
+        args: [this.contractAddress as `0x${string}`, amountBigInt],
+        // Add explicit gas limit to prevent estimation issues
+        gas: BigInt(100000),
       });
 
-      console.log('Admin ERC20 approval transaction:', txHash);
+      console.log('Admin ERC20 approval transaction submitted:', txHash);
+      
+      // Wait for transaction receipt to verify success
+      const receiptResult = await this.waitForTransactionReceipt(txHash);
+      if (!receiptResult.success) {
+        return { 
+          success: false, 
+          error: `Approval transaction failed: ${receiptResult.error}` 
+        };
+      }
+      
+      console.log('Admin ERC20 approval transaction confirmed successfully');
       return { success: true, txHash };
     } catch (error) {
       console.error('Error in admin ERC20 approval:', error);

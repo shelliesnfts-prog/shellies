@@ -287,7 +287,7 @@ export default function AdminPage() {
         // Store token decimals for conversion
         setTokenDecimals(tokenInfo.decimals);
 
-        // Convert human-readable amount to wei for balance check
+        // Convert human-readable amount to wei for balance check only
         const weiAmount = parseTokenAmount(raffleForm.prize_amount, tokenInfo.decimals);
         const hasBalance = await RaffleContractService.checkERC20Balance(
           walletAddress,
@@ -374,7 +374,7 @@ export default function AdminPage() {
             prize_token_address: raffleForm.prize_token_address,
             prize_token_type: raffleForm.prize_type,
             prize_token_id: raffleForm.prize_type === 'NFT' ? raffleForm.prize_token_id : null,
-            prize_amount: raffleForm.prize_type === 'ERC20' ? parseTokenAmount(raffleForm.prize_amount, tokenDecimals) : null,
+            prize_amount: raffleForm.prize_type === 'ERC20' ? raffleForm.prize_amount : null,
           }
         })
       });
@@ -500,7 +500,7 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
             prize_token_address: raffleForm.prize_token_address,
             prize_token_type: raffleForm.prize_type,
             prize_token_id: raffleForm.prize_type === 'NFT' ? raffleForm.prize_token_id : null,
-            prize_amount: raffleForm.prize_type === 'ERC20' ? parseTokenAmount(raffleForm.prize_amount, tokenDecimals) : null,
+            prize_amount: raffleForm.prize_type === 'ERC20' ? raffleForm.prize_amount : null,
           }
         })
       });
@@ -1065,7 +1065,7 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
                             <span>Prize:</span>
                             <span className="font-medium text-xs">
                               {raffle.prize_token_type === 'ERC20' && raffle.prize_amount ? 
-                                `${formatTokenDisplay(raffle.prize_amount, 18)} tokens` : 
+                                `${raffle.prize_amount} tokens` : 
                                 raffle.prize_token_type === 'NFT' ? 
                                   `NFT #${raffle.prize_token_id}` : 
                                   'Not set'

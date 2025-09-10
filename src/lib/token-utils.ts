@@ -23,9 +23,17 @@ export function formatTokenAmount(weiAmount: string | bigint, decimals: number =
  */
 export function parseTokenAmount(tokenAmount: string, decimals: number = 18): string {
   try {
-    if (!tokenAmount || isNaN(Number(tokenAmount))) {
+    if (!tokenAmount || tokenAmount.trim() === '') {
       return '0';
     }
+    
+    // Use parseFloat instead of Number for better precision handling
+    // and validate that it's a valid positive number
+    const numValue = parseFloat(tokenAmount);
+    if (isNaN(numValue) || numValue < 0 || !isFinite(numValue)) {
+      return '0';
+    }
+    
     return parseUnits(tokenAmount, decimals).toString();
   } catch (error) {
     console.error('Error parsing token amount:', error);

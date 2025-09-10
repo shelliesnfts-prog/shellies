@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { Trophy, ImageOff, Copy } from 'lucide-react';
 import { Raffle } from '@/lib/supabase';
 import { getTimeRemaining } from '@/lib/dateUtils';
+import { formatTokenDisplay } from '@/lib/token-utils';
 
 function useLiveCountdown(endDate: string) {
   const [timeRemaining, setTimeRemaining] = useState(() => getTimeRemaining(endDate));
@@ -93,6 +94,27 @@ export function RaffleCard({ raffle, isDarkMode, onJoinClick }: RaffleCardProps)
           <h3 className={`text-base font-semibold group-hover:text-purple-700 transition-colors duration-300 line-clamp-1 ${
             isDarkMode ? 'text-gray-100' : 'text-gray-900'
           }`}>{raffle.title}</h3>
+          
+          {/* Prize Display - Prominent for Token Raffles */}
+          {raffle.prize_token_type === 'ERC20' && raffle.prize_amount && (
+            <div className="flex items-center gap-1.5 mb-1">
+              <Trophy className="w-4 h-4 text-green-500" />
+              <span className="text-sm font-bold text-green-600">
+                Win {raffle.prize_amount} Tokens! 🎉
+              </span>
+            </div>
+          )}
+          
+          {/* Prize Display - For NFT Raffles */}
+          {raffle.prize_token_type === 'NFT' && raffle.prize_token_id && (
+            <div className="flex items-center gap-1.5 mb-1">
+              <Trophy className="w-4 h-4 text-purple-500" />
+              <span className="text-sm font-bold text-purple-600">
+                Win NFT #{raffle.prize_token_id}! 🎉
+              </span>
+            </div>
+          )}
+          
           <p className={`text-xs leading-relaxed line-clamp-2 ${
             isDarkMode ? 'text-gray-300' : 'text-gray-600'
           }`}>{raffle.description}</p>

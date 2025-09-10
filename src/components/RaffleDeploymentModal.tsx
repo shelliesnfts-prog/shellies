@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { X, CheckCircle, AlertCircle, Loader2, Clock, ArrowRight } from 'lucide-react';
 import { useAdminRaffleDeployment, type DeploymentStep, type RaffleDeploymentData } from '@/hooks/useAdminRaffleDeployment';
 import { RaffleContractService } from '@/lib/raffle-contract';
+import { parseTokenAmount } from '@/lib/token-utils';
 
 interface RaffleDeploymentModalProps {
   isOpen: boolean;
@@ -41,7 +42,10 @@ export default function RaffleDeploymentModal({
         prizeTokenAddress: raffle.prize_token_address,
         prizeTokenType: raffle.prize_token_type,
         prizeTokenId: raffle.prize_token_id,
-        prizeAmount: raffle.prize_amount
+        // Convert human-readable amount to wei for ERC20 contract interaction
+        prizeAmount: raffle.prize_token_type === 'ERC20' && raffle.prize_amount 
+          ? parseTokenAmount(raffle.prize_amount, 18) 
+          : raffle.prize_amount
       };
       
       setDeploymentData(data);
