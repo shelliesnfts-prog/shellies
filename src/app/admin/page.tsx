@@ -24,7 +24,8 @@ import {
   Eye,
   Plus,
   Copy,
-  Edit
+  Edit,
+  ExternalLink
 } from 'lucide-react';
 import { formatDate, isRaffleActive, localDateTimeInputToUTC } from '@/lib/dateUtils';
 import RaffleDeploymentModal from '@/components/RaffleDeploymentModal';
@@ -779,6 +780,21 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
                   <ListChecks className="w-5 h-5 mr-3" />
                   <span className="font-medium text-sm">Entries</span>
                 </button>
+              </li>
+              
+              {/* Portal Link */}
+              <li>
+                <a
+                  href="/portal/raffles"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
+                    isDarkMode ? 'text-gray-400 hover:bg-gray-700 hover:text-gray-300' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                  }`}
+                >
+                  <ExternalLink className="w-5 h-5 mr-3" />
+                  <span className="font-medium text-sm">Portal</span>
+                </a>
               </li>
               
               {/* More Dropdown */}
