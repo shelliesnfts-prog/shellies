@@ -180,16 +180,22 @@ export function useAdminRaffleDeployment() {
 
       // Mark raffle as failed in database
       try {
-        await fetch('/api/admin/raffles', {
+        const response = await fetch('/api/admin/raffles', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             action: 'mark_blockchain_failed',
             raffleId: deploymentData.raffleId,
-            error: errorMessage,
+            blockchainError: errorMessage,
             shouldDelete: false // Keep for retry
           })
         });
+        
+        if (response.ok) {
+          console.log('Successfully marked raffle as blockchain failed');
+        } else {
+          console.error('Failed to mark raffle as failed:', await response.text());
+        }
       } catch (dbError) {
         console.error('Failed to mark raffle as failed:', dbError);
       }
