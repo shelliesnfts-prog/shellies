@@ -25,11 +25,8 @@ export function useUser() {
       return;
     }
 
-    // Don't refetch if it's the same address and we already have data
-    if (lastAddressRef.current === session.address && user && !error) {
-      setLoading(false);
-      return;
-    }
+    // Only skip if address hasn't changed and we're already loading
+    // Remove the aggressive caching to always allow fresh data fetching
 
     try {
       fetchingRef.current = true;
@@ -54,7 +51,36 @@ export function useUser() {
       setLoading(false);
       fetchingRef.current = false;
     }
-  }, [session?.address, status, user, error]);
+  }, [session?.address, status]);
+
+  // Force refresh user data
+  const refetchUser = useCallback(async () => {
+    if (!session?.address || status !== 'authenticated') return;
+    
+    try {
+      fetchingRef.current = true;
+      setLoading(true);
+      setError(null);
+      
+      const response = await fetch('/api/user');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch user data');
+      }
+      
+      const userData = await response.json();
+      setUser(userData);
+      lastAddressRef.current = session.address;
+    } catch (err) {
+      console.error('Error refetching user:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch user data');
+      setUser(null);
+      lastAddressRef.current = null;
+    } finally {
+      setLoading(false);
+      fetchingRef.current = false;
+    }
+  }, [session?.address, status]);
 
   // Claim daily points
   const claimDailyPoints = async (pointsToAdd: number) => {
@@ -132,11 +158,24 @@ export function useUser() {
     fetchUser();
   }, [fetchUser]);
 
+  // Refetch user data when window regains focus (common pattern for fresh data)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (session?.address && !fetchingRef.current) {
+        fetchUser();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [fetchUser, session?.address]);
+
   return {
     user,
     loading,
     error,
     fetchUser,
+    refetchUser,
     claimDailyPoints,
     updateNFTCount,
     canClaimDaily,
