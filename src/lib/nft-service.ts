@@ -1027,6 +1027,7 @@ export class NFTService {
       console.log(`🚀 Fetching NFTs with metadata for ${walletAddress}`);
 
       const apiUrl = `https://explorer.inkonchain.com/api/v2/addresses/${walletAddress}/nft/collections?type=`;
+      console.log(`📞 Making API call to: ${apiUrl}`);
       
       const response = await fetch(apiUrl, {
         headers: {
@@ -1035,19 +1036,29 @@ export class NFTService {
         }
       });
 
+      console.log(`📡 API Response Status: ${response.status} ${response.statusText}`);
+
       if (!response.ok) {
         throw new Error(`API request failed: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
+      console.log(`📦 Raw API Response:`, JSON.stringify(data, null, 2));
       
       if (!data.items || !Array.isArray(data.items)) {
+        console.log(`⚠️ No items found in API response`);
         return [];
       }
 
       // Find our Shellies collection and extract all data
+      console.log(`🔍 Looking for Shellies contract: ${this.contractAddress?.toLowerCase()}`);
+      console.log(`📊 Found ${data.items.length} collection(s) in response`);
+      
       for (const collection of data.items) {
-        if (collection.token?.address_hash?.toLowerCase() === this.contractAddress.toLowerCase()) {
+        const collectionAddress = collection.token?.address_hash?.toLowerCase();
+        console.log(`🔎 Checking collection: ${collection.token?.name} (${collection.token?.symbol}) at ${collectionAddress}`);
+        
+        if (collectionAddress === this.contractAddress.toLowerCase()) {
           console.log(`✅ Found Shellies collection with ${collection.token_instances?.length || 0} tokens`);
           
           const nfts: Array<{
@@ -1080,8 +1091,18 @@ export class NFTService {
           
           console.log(`🎯 Extracted ${nfts.length} NFTs with full metadata`);
           return nfts.sort((a, b) => a.tokenId - b.tokenId);
+        } else {
+          console.log(`❌ Collection address mismatch: "${collectionAddress}" !== "${this.contractAddress.toLowerCase()}"`);
         }
       }
+      
+      console.log(`❌ No Shellies collection found in ${data.items.length} collections`);
+      console.log(`Available collections:`, data.items.map(c => ({
+        name: c.token?.name,
+        symbol: c.token?.symbol,
+        address: c.token?.address_hash,
+        amount: c.amount
+      })));
       
       return [];
       
