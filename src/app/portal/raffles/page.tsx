@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
 import { RaffleCard } from '@/components/portal/RaffleCard';
+import { RaffleSkeletonGrid } from '@/components/portal/RaffleCardSkeleton';
 import JoinRaffleModal from '@/components/JoinRaffleModal';
 import { Gift } from 'lucide-react';
 import { Raffle } from '@/lib/supabase';
@@ -106,10 +107,7 @@ export default function RafflesPage() {
 
             {/* Raffle Grid */}
             {rafflesLoading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-3"></div>
-                <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Loading raffles...</p>
-              </div>
+              <RaffleSkeletonGrid isDarkMode={isDarkMode} count={6} />
             ) : raffles.length === 0 ? (
               <div className="text-center py-8">
                 <Gift className={`w-12 h-12 mx-auto mb-3 ${isDarkMode ? 'text-gray-500' : 'text-gray-300'}`} />

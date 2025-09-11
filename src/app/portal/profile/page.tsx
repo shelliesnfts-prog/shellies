@@ -8,6 +8,7 @@ import { ClaimButtonWithCountdown } from '@/components/ClaimCountdown';
 import { usePoints } from '@/contexts/PointsContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { NFTService, SHELLIES_CONTRACT_ADDRESS } from '@/lib/nft-service';
+import { ProfilePageSkeleton } from '@/components/portal/ProfilePageSkeleton';
 import { useRouter } from 'next/navigation';
 import { Trophy, Coins, Gift, TrendingUp, ArrowRight, Sparkles, Target, Zap } from 'lucide-react';
 
@@ -51,6 +52,9 @@ export default function ProfilePage() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col lg:ml-4 min-h-screen">
         <main className="flex-1 p-3 sm:p-4 lg:p-6 mt-16 lg:mt-0 mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 xl:px-16 2xl:px-32">
+          {userLoading ? (
+            <ProfilePageSkeleton isDarkMode={isDarkMode} />
+          ) : (
           <div className="space-y-6">
             {/* Header Section */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -386,6 +390,7 @@ export default function ProfilePage() {
               </div>
             )}
           </div>
+          )}
         </main>
       </div>
     </div>

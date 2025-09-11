@@ -13,6 +13,7 @@ import { parseContractError } from '@/lib/errors';
 import { useDashboard } from '@/hooks/useDashboard';
 import { usePoints } from '@/contexts/PointsContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { StakingPageSkeleton } from '@/components/portal/StakingPageSkeleton';
 
 interface NFTToken {
   tokenId: number;
@@ -720,6 +721,9 @@ export default function StakingPage() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col lg:ml-4 min-h-screen">
         <main className="flex-1 p-3 sm:p-4 lg:p-6 mt-16 lg:mt-0 mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 xl:px-16 2xl:px-32">
+          {loading ? (
+            <StakingPageSkeleton isDarkMode={isDarkMode} />
+          ) : (
           <div className="space-y-6">
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -1189,6 +1193,7 @@ export default function StakingPage() {
               </div>
             )}
           </div>
+          )}
         </main>
       </div>
     </div>

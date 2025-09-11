@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useAccount } from 'wagmi';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
 import { useTheme } from '@/contexts/ThemeContext';
+import { LeaderboardPageSkeleton } from '@/components/portal/LeaderboardPageSkeleton';
 import { Trophy, Medal, Award, Crown, Star, ChevronDown, Users, TrendingUp } from 'lucide-react';
 
 export default function LeaderboardPage() {
@@ -106,6 +107,9 @@ export default function LeaderboardPage() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col lg:ml-4 min-h-screen">
         <main className="flex-1 p-3 sm:p-4 lg:p-6 mt-16 lg:mt-0 mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 xl:px-16 2xl:px-32">
+          {leaderboardLoading ? (
+            <LeaderboardPageSkeleton isDarkMode={isDarkMode} count={10} />
+          ) : (
           <div className="space-y-6">
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -273,6 +277,7 @@ export default function LeaderboardPage() {
               )}
             </div>
           </div>
+          )}
         </main>
       </div>
     </div>
