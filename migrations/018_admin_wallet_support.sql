@@ -7,8 +7,7 @@ ADD COLUMN IF NOT EXISTS blockchain_deployed_at TIMESTAMP NULL,
 ADD COLUMN IF NOT EXISTS blockchain_error TEXT NULL,
 ADD COLUMN IF NOT EXISTS blockchain_failed_at TIMESTAMP NULL;
 
--- Add new status values
--- Note: This is a comment for the enum type update - you may need to handle this differently based on your setup
+-- Add new status values - moved to separate migration 021_add_blockchain_failed_status.sql
 -- ALTER TYPE raffle_status ADD VALUE IF NOT EXISTS 'BLOCKCHAIN_FAILED';
 
 -- Add index for blockchain deployed raffles

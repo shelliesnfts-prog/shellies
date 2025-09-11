@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status'); // 'active', 'finished', or 'all'
     
     console.log('🎫 Raffles API called with status:', status);
-    console.log('🚫 Filtering out BLOCKCHAIN_FAILED raffles from portal display');
+    console.log('🚫 Filtering out blockchain failed raffles from portal display');
     
     // Get session to include user ticket counts if authenticated
     const session = await getServerSession(authOptions);
@@ -19,8 +19,9 @@ export async function GET(request: NextRequest) {
     // Build the base query with proper JOIN for ticket counts
     let raffleQuery = supabase.from('shellies_raffle_raffles').select('*');
     
-    // Always exclude BLOCKCHAIN_FAILED raffles from portal display
-    raffleQuery = raffleQuery.neq('status', 'BLOCKCHAIN_FAILED');
+    // Always exclude blockchain failed raffles from portal display
+    // Currently using CANCELLED status with blockchain_error until enum is updated
+    raffleQuery = raffleQuery.or('status.neq.CANCELLED,and(status.eq.CANCELLED,blockchain_error.is.null)');
     
     // Filter by status if specified
     if (status === 'active') {

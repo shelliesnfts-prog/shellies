@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { formatEther } from 'viem';
 import { RaffleContractService } from '@/lib/raffle-contract';
 import { parseContractError } from '@/lib/errors';
 
@@ -32,13 +33,25 @@ export function useAdminRaffleDeployment() {
   const { writeContractAsync } = useWriteContract();
 
   const initializeSteps = (deploymentData: RaffleDeploymentData) => {
+    // Convert wei amount to human readable format for display
+    const formatTokenAmount = (weiAmount: string) => {
+      try {
+        const formatted = formatEther(BigInt(weiAmount));
+        // Remove unnecessary trailing zeros
+        return parseFloat(formatted).toString();
+      } catch (error) {
+        console.error('Error formatting token amount:', error);
+        return weiAmount;
+      }
+    };
+
     const baseSteps: DeploymentStep[] = [
       {
         id: 'approve',
         name: deploymentData.prizeTokenType === 'NFT' ? 'Approve NFT' : 'Approve Token',
         description: deploymentData.prizeTokenType === 'NFT' 
           ? `Approve NFT #${deploymentData.prizeTokenId} for transfer`
-          : `Approve ${deploymentData.prizeAmount} tokens for transfer`,
+          : `Approve ${formatTokenAmount(deploymentData.prizeAmount || '0')} tokens for transfer`,
         status: 'pending'
       },
       {

@@ -158,9 +158,10 @@ export async function POST(request: NextRequest) {
           });
         } else {
           // Mark as failed but keep in database for retry
+          // Using CANCELLED status with blockchain_error flag until database enum is updated
           const failedUpdate = await AdminService.updateRaffle(raffleId, { 
-            status: 'BLOCKCHAIN_FAILED',
-            blockchain_error: blockchainError || 'Unknown blockchain error',
+            status: 'CANCELLED',
+            blockchain_error: blockchainError || 'BLOCKCHAIN_DEPLOYMENT_FAILED',
             blockchain_failed_at: new Date().toISOString()
           });
           
@@ -171,7 +172,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ 
             success: true, 
             message: 'Raffle marked as blockchain deployment failed',
-            status: 'BLOCKCHAIN_FAILED'
+            status: 'CANCELLED' // Temporary until database enum is updated
           });
         }
 
