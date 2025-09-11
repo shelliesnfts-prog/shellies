@@ -109,7 +109,7 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
       fetchingRef.current = false;
     }
-  }, [session?.address, status, user, claimStatus, error]);
+  }, [session?.address, status]);
 
   // Execute regular daily claim
   const executeRegularClaim = useCallback(async (): Promise<ClaimResult> => {

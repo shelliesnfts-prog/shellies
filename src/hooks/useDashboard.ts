@@ -84,7 +84,7 @@ export function useDashboard() {
       setLoading(false);
       fetchingRef.current = false;
     }
-  }, [session?.address, status, dashboardData, error]);
+  }, [session?.address, status]);
 
   // Execute claim
   const executeClaim = useCallback(async (): Promise<ClaimResult> => {
