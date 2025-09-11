@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
 import { Trophy, Star, TrendingUp, Loader2, CheckCircle, AlertTriangle, Coins, Lock, Unlock, Shield } from 'lucide-react';
 import { NFTService } from '@/lib/nft-service';
 import { StakingService } from '@/lib/staking-service';
+import { ImageUtils } from '@/lib/image-utils';
 import { staking_abi } from '@/lib/staking-abi';
 import { erc721Abi } from 'viem';
 import { parseContractError } from '@/lib/errors';
@@ -24,6 +25,104 @@ interface NFTToken {
     description?: string;
     attributes?: any[];
   };
+}
+
+// NFT Image component with enhanced error handling and fallbacks
+function NFTImage({ 
+  src, 
+  alt, 
+  tokenId, 
+  isDarkMode 
+}: { 
+  src?: string; 
+  alt: string; 
+  tokenId: number; 
+  isDarkMode: boolean; 
+}) {
+  const [imageState, setImageState] = useState<'loading' | 'loaded' | 'error'>('loading');
+  const [currentSrc, setCurrentSrc] = useState<string | undefined>();
+  const [fallbackUrls, setFallbackUrls] = useState<string[]>([]);
+  const [currentFallbackIndex, setCurrentFallbackIndex] = useState(0);
+
+  // Process the image URL and get fallbacks
+  useEffect(() => {
+    if (!src) {
+      setImageState('error');
+      return;
+    }
+
+    const processed = ImageUtils.processNftImageUrl(src);
+    if (processed.primaryUrl) {
+      setCurrentSrc(processed.primaryUrl);
+      setFallbackUrls(processed.fallbackUrls);
+      setCurrentFallbackIndex(0);
+      setImageState('loading');
+    } else {
+      setImageState('error');
+    }
+  }, [src]);
+
+  const tryNextFallback = useCallback(() => {
+    if (currentFallbackIndex < fallbackUrls.length) {
+      const nextUrl = fallbackUrls[currentFallbackIndex];
+      console.log(`Trying fallback ${currentFallbackIndex + 1}/${fallbackUrls.length} for token ${tokenId}:`, nextUrl);
+      setCurrentSrc(nextUrl);
+      setCurrentFallbackIndex(prev => prev + 1);
+      setImageState('loading');
+    } else {
+      console.warn(`All image sources failed for token ${tokenId}`);
+      setImageState('error');
+    }
+  }, [currentFallbackIndex, fallbackUrls, tokenId]);
+
+  const handleLoad = useCallback(() => {
+    setImageState('loaded');
+  }, []);
+
+  const handleError = useCallback(() => {
+    console.warn(`Failed to load image for token ${tokenId}:`, currentSrc);
+    tryNextFallback();
+  }, [currentSrc, tokenId, tryNextFallback]);
+
+  if (!src || imageState === 'error') {
+    return (
+      <div className="w-full h-full flex items-center justify-center">
+        <div className="text-center">
+          <Trophy className={`w-8 h-8 mx-auto mb-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+          <div className={`text-xs ${isDarkMode ? 'text-gray-600' : 'text-gray-500'}`}>
+            #{tokenId}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {imageState === 'loading' && (
+        <div className="absolute inset-0 flex items-center justify-center backdrop-blur-sm">
+          <div className="text-center">
+            <Loader2 className={`w-6 h-6 mx-auto mb-2 animate-spin ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+            <div className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-600'}`}>
+              Loading...
+            </div>
+          </div>
+        </div>
+      )}
+      {currentSrc && (
+        <img 
+          src={currentSrc}
+          alt={alt}
+          className={`w-full h-full object-cover transition-opacity duration-300 ${
+            imageState === 'loaded' ? 'opacity-100' : 'opacity-0'
+          }`}
+          onLoad={handleLoad}
+          onError={handleError}
+          {...ImageUtils.getImageAttributes(false)}
+        />
+      )}
+    </>
+  );
 }
 
 export default function StakingPage() {
@@ -1061,29 +1160,15 @@ export default function StakingPage() {
                     </div>
 
                     {/* NFT Image */}
-                    <div className={`w-full aspect-square rounded-lg mb-3 overflow-hidden ${
+                    <div className={`w-full aspect-square rounded-lg mb-3 overflow-hidden relative ${
                       isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
                     }`}>
-                      {nft.image ? (
-                        <img 
-                          src={nft.image} 
-                          alt={nft.name || `Shellie #${nft.tokenId}`}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            // Fallback to placeholder on image load error
-                            const target = e.target as HTMLImageElement;
-                            target.style.display = 'none';
-                            const placeholder = target.nextElementSibling as HTMLDivElement;
-                            if (placeholder) placeholder.style.display = 'flex';
-                          }}
-                        />
-                      ) : null}
-                      <div 
-                        className={`w-full h-full flex items-center justify-center ${nft.image ? 'hidden' : 'flex'}`}
-                        style={{ display: nft.image ? 'none' : 'flex' }}
-                      >
-                        <Trophy className={`w-8 h-8 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`} />
-                      </div>
+                      <NFTImage 
+                        src={nft.image}
+                        alt={nft.name || `Shellie #${nft.tokenId}`}
+                        tokenId={nft.tokenId}
+                        isDarkMode={isDarkMode}
+                      />
                     </div>
 
                     {/* Token Info */}

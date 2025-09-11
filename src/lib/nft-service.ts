@@ -1,5 +1,6 @@
 import { createPublicClient, http, erc721Abi } from 'viem';
 import { defineChain } from 'viem';
+import { ImageUtils } from './image-utils';
 
 // Ink chain configuration (mainnet - correct endpoints)
 const inkChain = defineChain({
@@ -934,6 +935,25 @@ export class NFTService {
   }
 
   /**
+   * Validate and fix image URL using ImageUtils
+   */
+  static validateImageUrl(imageUrl: string | undefined): string | undefined {
+    if (!imageUrl) return undefined;
+    
+    // Use ImageUtils for better IPFS handling
+    if (imageUrl.startsWith('ipfs://')) {
+      return ImageUtils.convertIpfsToHttp(imageUrl);
+    }
+    
+    if (ImageUtils.isValidImageUrl(imageUrl)) {
+      return imageUrl;
+    }
+    
+    console.warn(`Invalid image URL: ${imageUrl}`);
+    return undefined;
+  }
+
+  /**
    * Fetch NFT metadata from URI
    */
   static async fetchMetadata(tokenURI: string): Promise<{
@@ -946,7 +966,7 @@ export class NFTService {
       // Handle IPFS URLs
       let fetchURL = tokenURI;
       if (tokenURI.startsWith('ipfs://')) {
-        fetchURL = tokenURI.replace('ipfs://', 'https://ipfs.io/ipfs/');
+        fetchURL = ImageUtils.convertIpfsToHttp(tokenURI);
       }
 
       const response = await fetch(fetchURL);
@@ -956,10 +976,8 @@ export class NFTService {
 
       const metadata = await response.json();
       
-      // Handle IPFS image URLs
-      if (metadata.image && metadata.image.startsWith('ipfs://')) {
-        metadata.image = metadata.image.replace('ipfs://', 'https://ipfs.io/ipfs/');
-      }
+      // Validate and fix image URL
+      metadata.image = this.validateImageUrl(metadata.image);
 
       return metadata;
     } catch (error) {
@@ -1045,19 +1063,15 @@ export class NFTService {
             for (const instance of collection.token_instances) {
               if (instance.id) {
                 const tokenId = parseInt(instance.id, 10);
+                const rawImage = instance.image_url || instance.metadata?.image;
                 const nftData = {
                   tokenId,
                   name: instance.metadata?.name || `Shellie #${tokenId}`,
-                  image: instance.image_url || instance.metadata?.image,
+                  image: this.validateImageUrl(rawImage),
                   description: instance.metadata?.description,
                   attributes: instance.metadata?.attributes || [],
                   metadata: instance.metadata
                 };
-                
-                // Fix IPFS URLs if needed
-                if (nftData.image && nftData.image.startsWith('ipfs://')) {
-                  nftData.image = nftData.image.replace('ipfs://', 'https://ipfs.io/ipfs/');
-                }
                 
                 nfts.push(nftData);
               }
