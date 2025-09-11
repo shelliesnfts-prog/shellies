@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useAccount } from 'wagmi';
 import { useRouter, usePathname } from 'next/navigation';
-import { useDashboard } from '@/hooks/useDashboard';
+import { usePoints } from '@/contexts/PointsContext';
 import { ClaimButtonWithCountdown } from '@/components/ClaimCountdown';
 import { 
   Trophy, 
@@ -44,15 +44,15 @@ export function PortalSidebar({
   const { address, isConnected } = useAccount();
   const router = useRouter();
   const pathname = usePathname();
-  const { user, claimStatus, loading: userLoading, claiming, executeClaim, error: claimError, fetchUser } = useDashboard();
+  const { user, claimStatus, loading: userLoading, claiming, executeRegularClaim, error: claimError, refreshUserData } = usePoints();
 
   // Get wallet address from session or wagmi
   const walletAddress = address || session?.address || '';
 
   const handleClaimDaily = async () => {
-    const result = await executeClaim();
+    const result = await executeRegularClaim();
     if (result.success) {
-      await fetchUser();
+      await refreshUserData();
     }
   };
 

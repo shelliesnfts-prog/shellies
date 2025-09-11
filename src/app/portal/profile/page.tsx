@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useAccount } from 'wagmi';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
 import { ClaimButtonWithCountdown } from '@/components/ClaimCountdown';
-import { useDashboard } from '@/hooks/useDashboard';
+import { usePoints } from '@/contexts/PointsContext';
 import { NFTService, SHELLIES_CONTRACT_ADDRESS } from '@/lib/nft-service';
 import { useRouter } from 'next/navigation';
 import { Trophy, Coins, Gift, TrendingUp, ArrowRight, Sparkles, Target, Zap } from 'lucide-react';
@@ -16,7 +16,7 @@ export default function ProfilePage() {
   const { data: session } = useSession();
   const { address } = useAccount();
   const router = useRouter();
-  const { user, claimStatus, loading: userLoading, claiming, executeClaim, error: claimError, fetchUser } = useDashboard();
+  const { user, claimStatus, loading: userLoading, claiming, executeRegularClaim, error: claimError, refreshUserData } = usePoints();
 
   const walletAddress = address || session?.address || '';
 
@@ -29,9 +29,9 @@ export default function ProfilePage() {
   };
 
   const handleClaimDaily = async () => {
-    const result = await executeClaim();
+    const result = await executeRegularClaim();
     if (result.success) {
-      await fetchUser();
+      await refreshUserData();
     }
   };
 

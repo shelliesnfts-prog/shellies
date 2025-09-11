@@ -136,6 +136,10 @@ export class NFTService {
   // Cache for NFT counts (2 hour cache for better performance)
   private static nftCache = new Map<string, { count: number; timestamp: number; }>();
   private static readonly CACHE_DURATION = 2 * 60 * 60 * 1000; // 2 hours (reduced blockchain calls)
+  
+  // Cache for owned token IDs (shorter cache due to potential transfers/staking)
+  private static ownedTokensCache = new Map<string, { tokenIds: number[]; timestamp: number; method: string; }>();
+  private static readonly OWNED_TOKENS_CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
 
   /**
    * Get NFT count for a wallet address with rate limit handling
@@ -434,8 +438,21 @@ export class NFTService {
   static clearCache(walletAddress?: string): void {
     if (walletAddress) {
       this.nftCache.delete(walletAddress.toLowerCase());
+      this.ownedTokensCache.delete(walletAddress.toLowerCase());
     } else {
       this.nftCache.clear();
+      this.ownedTokensCache.clear();
+    }
+  }
+
+  /**
+   * Clear only owned tokens cache (useful after staking/unstaking)
+   */
+  static clearOwnedTokensCache(walletAddress?: string): void {
+    if (walletAddress) {
+      this.ownedTokensCache.delete(walletAddress.toLowerCase());
+    } else {
+      this.ownedTokensCache.clear();
     }
   }
 
@@ -457,8 +474,8 @@ export class NFTService {
   }
 
   /**
-   * Get all NFT token IDs owned by a wallet address
-   * Uses ERC721Enumerable if available, falls back to checking common ranges
+   * Get all NFT token IDs owned by a wallet address using Ink Chain Explorer API
+   * Simple and fast - no complex blockchain queries needed!
    */
   static async getOwnedTokenIds(walletAddress: string): Promise<number[]> {
     try {
@@ -466,97 +483,381 @@ export class NFTService {
         return [];
       }
 
-      console.log(`Fetching owned token IDs for ${walletAddress}`);
+      // Check cache first
+      const cached = this.ownedTokensCache.get(walletAddress.toLowerCase());
+      const now = Date.now();
+      
+      if (cached && (now - cached.timestamp) < this.OWNED_TOKENS_CACHE_DURATION) {
+        console.log(`🎯 Cache hit for ${walletAddress}: ${cached.tokenIds.length} tokens`);
+        return cached.tokenIds;
+      }
 
-      // First, get the balance to know how many tokens to fetch
-      const balance = await this.getNFTCount(walletAddress);
-      if (balance === 0) {
+      console.log(`🚀 Fetching NFTs for ${walletAddress} using Ink Chain Explorer API`);
+
+      const apiUrl = `https://explorer.inkonchain.com/api/v2/addresses/${walletAddress}/nft/collections?type=`;
+      
+      const response = await fetch(apiUrl, {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'Shellies-App/1.0'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (!data.items || !Array.isArray(data.items)) {
+        console.log('No NFTs found for this address');
+        this.ownedTokensCache.set(walletAddress.toLowerCase(), {
+          tokenIds: [],
+          timestamp: now,
+          method: 'api'
+        });
         return [];
       }
 
-      // Try ERC721Enumerable approach first
-      try {
-        const tokenIds: number[] = [];
-        for (let i = 0; i < balance; i++) {
-          const tokenId = await publicClient.readContract({
-            address: this.contractAddress as `0x${string}`,
-            abi: erc721EnumerableAbi,
-            functionName: 'tokenOfOwnerByIndex',
-            args: [walletAddress as `0x${string}`, BigInt(i)]
-          });
-          tokenIds.push(Number(tokenId));
+      // Find our Shellies collection and extract token IDs
+      const ownedTokenIds: number[] = [];
+      
+      for (const collection of data.items) {
+        if (collection.token?.address_hash?.toLowerCase() === this.contractAddress.toLowerCase()) {
+          console.log(`✅ Found Shellies collection with ${collection.token_instances?.length || 0} tokens`);
+          
+          if (collection.token_instances && Array.isArray(collection.token_instances)) {
+            for (const instance of collection.token_instances) {
+              if (instance.id) {
+                ownedTokenIds.push(parseInt(instance.id, 10));
+              }
+            }
+          }
+          break; // Found our collection, no need to check others
         }
-        console.log(`Successfully fetched ${tokenIds.length} token IDs using enumerable: ${tokenIds}`);
-        return tokenIds.sort((a, b) => a - b);
-      } catch (enumerableError) {
-        console.log('ERC721Enumerable not supported, trying fallback method');
+      }
+      
+      const sortedTokenIds = ownedTokenIds.sort((a, b) => a - b);
+      
+      // Cache the result
+      this.ownedTokensCache.set(walletAddress.toLowerCase(), {
+        tokenIds: sortedTokenIds,
+        timestamp: now,
+        method: 'api'
+      });
+      
+      console.log(`🎯 Found ${sortedTokenIds.length} Shellie tokens: ${sortedTokenIds}`);
+      return sortedTokenIds;
+      
+    } catch (error) {
+      console.error(`Failed to fetch NFTs for ${walletAddress}:`, error);
+      
+      // Return cached value if available, even if expired
+      const cached = this.ownedTokensCache.get(walletAddress.toLowerCase());
+      if (cached) {
+        console.log(`Using expired cache due to error: ${cached.tokenIds.length} tokens`);
+        return cached.tokenIds;
+      }
+      
+      return [];
+    }
+  }
+
+  /**
+   * Get owned token IDs by analyzing Transfer events (fallback method)
+   * Much more efficient than checking every token individually
+   * Uses chunked queries to respect RPC limits
+   */
+  private static async getOwnedTokenIdsByEvents(walletAddress: string): Promise<number[]> {
+    try {
+      console.log(`🔍 Using event-based discovery for ${walletAddress}`);
+      
+      // Get current block number
+      const currentBlock = await publicClient.getBlockNumber();
+      const maxBlockRange = BigInt(8000); // Use 8000 blocks to stay under 10k limit
+      const totalRangeToCheck = BigInt(50000); // Check last 50k blocks (~1 week)
+      
+      let allReceivedEvents: any[] = [];
+      let allSentEvents: any[] = [];
+      
+      // Query events in chunks
+      for (let i = BigInt(0); i < totalRangeToCheck; i += maxBlockRange) {
+        const fromBlock = currentBlock - totalRangeToCheck + i;
+        const toBlock = currentBlock - totalRangeToCheck + i + maxBlockRange - BigInt(1);
         
-        // Fallback: check token IDs by range (assuming sequential minting)
-        // This is less efficient but works for most NFT contracts
+        // Don't go beyond current block
+        const actualToBlock = toBlock > currentBlock ? currentBlock : toBlock;
+        
+        console.log(`Querying chunk: blocks ${fromBlock} to ${actualToBlock}`);
+        
         try {
-          const totalSupply = await publicClient.readContract({
+          // Get received events for this chunk
+          const receivedChunk = await this.callWithFallback(
+            () => publicClient.getContractEvents({
+              address: this.contractAddress as `0x${string}`,
+              abi: erc721Abi,
+              eventName: 'Transfer',
+              args: {
+                to: walletAddress as `0x${string}`
+              },
+              fromBlock,
+              toBlock: actualToBlock
+            }),
+            () => backupClient.getContractEvents({
+              address: this.contractAddress as `0x${string}`,
+              abi: erc721Abi,
+              eventName: 'Transfer',
+              args: {
+                to: walletAddress as `0x${string}`
+              },
+              fromBlock,
+              toBlock: actualToBlock
+            })
+          );
+          
+          // Get sent events for this chunk
+          const sentChunk = await this.callWithFallback(
+            () => publicClient.getContractEvents({
+              address: this.contractAddress as `0x${string}`,
+              abi: erc721Abi,
+              eventName: 'Transfer',
+              args: {
+                from: walletAddress as `0x${string}`
+              },
+              fromBlock,
+              toBlock: actualToBlock
+            }),
+            () => backupClient.getContractEvents({
+              address: this.contractAddress as `0x${string}`,
+              abi: erc721Abi,
+              eventName: 'Transfer',
+              args: {
+                from: walletAddress as `0x${string}`
+              },
+              fromBlock,
+              toBlock: actualToBlock
+            })
+          );
+          
+          allReceivedEvents.push(...receivedChunk);
+          allSentEvents.push(...sentChunk);
+          
+          // Add delay between chunks to avoid rate limits
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+        } catch (chunkError) {
+          console.warn(`Failed to query chunk ${fromBlock}-${actualToBlock}:`, chunkError);
+          // Continue with other chunks
+        }
+        
+        if (actualToBlock >= currentBlock) break;
+      }
+
+      // Calculate current ownership
+      const receivedTokens = new Set(allReceivedEvents.map(event => Number(event.args.tokenId)));
+      const sentTokens = new Set(allSentEvents.map(event => Number(event.args.tokenId)));
+      
+      // Tokens currently owned = received - sent
+      const ownedTokens = [...receivedTokens].filter(tokenId => !sentTokens.has(tokenId));
+
+      console.log(`📊 Event analysis: received ${receivedTokens.size}, sent ${sentTokens.size}, owned ${ownedTokens.length}`);
+
+      if (ownedTokens.length === 0) {
+        console.log(`⚠️ No tokens found via events, trying extended search...`);
+        return await this.getOwnedTokenIdsFallback(walletAddress);
+      }
+
+      // Verify ownership for tokens we think are owned (to handle edge cases)
+      const verifiedTokens: number[] = [];
+      const batchSize = 10; // Smaller batch size
+      
+      for (let i = 0; i < ownedTokens.length; i += batchSize) {
+        const batch = ownedTokens.slice(i, i + batchSize);
+        const verifications = await Promise.allSettled(
+          batch.map(async (tokenId) => {
+            try {
+              const owner = await this.callWithFallback(
+                () => publicClient.readContract({
+                  address: this.contractAddress as `0x${string}`,
+                  abi: erc721Abi,
+                  functionName: 'ownerOf',
+                  args: [BigInt(tokenId)]
+                }),
+                () => backupClient.readContract({
+                  address: this.contractAddress as `0x${string}`,
+                  abi: erc721Abi,
+                  functionName: 'ownerOf',
+                  args: [BigInt(tokenId)]
+                })
+              );
+              return { tokenId, owner: owner as string };
+            } catch (error) {
+              return { tokenId, owner: null };
+            }
+          })
+        );
+
+        for (const result of verifications) {
+          if (result.status === 'fulfilled' && 
+              result.value.owner?.toLowerCase() === walletAddress.toLowerCase()) {
+            verifiedTokens.push(result.value.tokenId);
+          }
+        }
+
+        // Add delay between batches
+        if (i + batchSize < ownedTokens.length) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      }
+
+      console.log(`✅ Event-based method found ${verifiedTokens.length} verified token IDs: ${verifiedTokens}`);
+      return verifiedTokens.sort((a, b) => a - b);
+      
+    } catch (error) {
+      console.error('Event-based method failed, using fallback:', error);
+      return await this.getOwnedTokenIdsFallback(walletAddress);
+    }
+  }
+
+  /**
+   * Smart fallback method - uses multiple strategies to find the user's NFTs
+   */
+  private static async getOwnedTokenIdsFallback(walletAddress: string): Promise<number[]> {
+    try {
+      console.log(`⚠️ Using smart fallback method for ${walletAddress}`);
+      
+      const ownedTokenIds: number[] = [];
+      const balance = await this.getNFTCount(walletAddress);
+      
+      if (balance === 0) return [];
+      
+      console.log(`🎯 User has ${balance} NFTs, searching with smart strategy...`);
+      
+      // Strategy 1: Get total supply to understand the range
+      let totalSupply = 0;
+      try {
+        const supply = await this.callWithFallback(
+          () => publicClient.readContract({
             address: this.contractAddress as `0x${string}`,
             abi: erc721EnumerableAbi,
             functionName: 'totalSupply'
-          });
+          }),
+          () => backupClient.readContract({
+            address: this.contractAddress as `0x${string}`,
+            abi: erc721EnumerableAbi,
+            functionName: 'totalSupply'
+          })
+        );
+        totalSupply = Number(supply);
+        console.log(`📊 Total supply: ${totalSupply} tokens`);
+      } catch (error) {
+        console.log('Could not get total supply, using estimated range');
+        totalSupply = 10000; // Default assumption
+      }
+      
+      // Strategy 2: Smart sampling - check different ranges
+      const batchSize = 8;
+      const ranges = [
+        { start: 1, end: Math.min(500, totalSupply) },                    // Early tokens
+        { start: Math.floor(totalSupply * 0.25), end: Math.floor(totalSupply * 0.35) }, // 25-35%
+        { start: Math.floor(totalSupply * 0.45), end: Math.floor(totalSupply * 0.55) }, // 45-55%
+        { start: Math.floor(totalSupply * 0.65), end: Math.floor(totalSupply * 0.75) }, // 65-75%
+        { start: Math.floor(totalSupply * 0.85), end: Math.min(totalSupply, Math.floor(totalSupply * 0.95)) }, // 85-95%
+        { start: Math.max(1, totalSupply - 500), end: totalSupply }       // Recent tokens
+      ];
+      
+      for (const range of ranges) {
+        if (ownedTokenIds.length >= balance) break;
+        
+        console.log(`🔍 Searching range ${range.start} to ${range.end}`);
+        
+        for (let start = range.start; start <= range.end && ownedTokenIds.length < balance; start += batchSize) {
+          const end = Math.min(start + batchSize - 1, range.end);
+          const batchPromises: Promise<{ tokenId: number; owner: string | null }>[] = [];
 
-          const ownedTokenIds: number[] = [];
-          const maxTokens = Math.min(Number(totalSupply), 10000); // Limit to prevent excessive calls
-          
-          // Check ownership of each token ID up to total supply
-          const batchSize = 10; // Reduced batch size to avoid rate limits
-          for (let start = 1; start <= maxTokens; start += batchSize) {
-            const end = Math.min(start + batchSize - 1, maxTokens);
-            const batchPromises: Promise<{ tokenId: number; owner: string | null }>[] = [];
+          for (let tokenId = start; tokenId <= end; tokenId++) {
+            batchPromises.push(
+              this.callWithFallback(
+                () => publicClient.readContract({
+                  address: this.contractAddress as `0x${string}`,
+                  abi: erc721Abi,
+                  functionName: 'ownerOf',
+                  args: [BigInt(tokenId)]
+                }),
+                () => backupClient.readContract({
+                  address: this.contractAddress as `0x${string}`,
+                  abi: erc721Abi,
+                  functionName: 'ownerOf',
+                  args: [BigInt(tokenId)]
+                })
+              ).then(owner => ({ tokenId, owner: owner as string }))
+              .catch(() => ({ tokenId, owner: null }))
+            );
+          }
 
-            for (let tokenId = start; tokenId <= end; tokenId++) {
-              batchPromises.push(
-                // Try primary client first, fallback to backup on rate limit
-                this.callWithFallback(
-                  () => publicClient.readContract({
-                    address: this.contractAddress as `0x${string}`,
-                    abi: erc721EnumerableAbi,
-                    functionName: 'ownerOf',
-                    args: [BigInt(tokenId)]
-                  }),
-                  () => backupClient.readContract({
-                    address: this.contractAddress as `0x${string}`,
-                    abi: erc721EnumerableAbi,
-                    functionName: 'ownerOf',
-                    args: [BigInt(tokenId)]
-                  })
-                ).then(owner => ({ tokenId, owner: owner as string }))
-                .catch(() => ({ tokenId, owner: null })) // Token doesn't exist
-              );
-            }
-
-            const batchResults = await Promise.all(batchPromises);
-            for (const result of batchResults) {
-              if (result.owner?.toLowerCase() === walletAddress.toLowerCase()) {
-                ownedTokenIds.push(result.tokenId);
-              }
-            }
-
-            // Add delay between batches to avoid rate limiting
-            if (start + batchSize <= maxTokens) {
-              await new Promise(resolve => setTimeout(resolve, 500));
-            }
-
-            // If we found all expected tokens, we can stop early
-            if (ownedTokenIds.length >= balance) {
-              break;
+          const batchResults = await Promise.all(batchPromises);
+          for (const result of batchResults) {
+            if (result.owner?.toLowerCase() === walletAddress.toLowerCase()) {
+              ownedTokenIds.push(result.tokenId);
+              console.log(`✅ Found token #${result.tokenId} in range ${range.start}-${range.end}`);
             }
           }
 
-          console.log(`Fallback method found ${ownedTokenIds.length} token IDs: ${ownedTokenIds}`);
-          return ownedTokenIds.sort((a, b) => a - b);
-        } catch (fallbackError) {
-          console.error('Both enumerable and fallback methods failed:', fallbackError);
-          return [];
+          // Add delay between batches
+          await new Promise(resolve => setTimeout(resolve, 200));
         }
       }
+      
+      // Strategy 3: If still not found all tokens, do a final broader search
+      if (ownedTokenIds.length < balance && ownedTokenIds.length > 0) {
+        console.log(`🔍 Found ${ownedTokenIds.length}/${balance}, doing targeted search around found tokens...`);
+        
+        // Search around found token IDs (they might be clustered)
+        for (const foundId of ownedTokenIds) {
+          if (ownedTokenIds.length >= balance) break;
+          
+          const searchRadius = 50;
+          const searchStart = Math.max(1, foundId - searchRadius);
+          const searchEnd = Math.min(totalSupply, foundId + searchRadius);
+          
+          for (let tokenId = searchStart; tokenId <= searchEnd; tokenId += 1) {
+            if (ownedTokenIds.includes(tokenId)) continue; // Skip already found
+            
+            try {
+              const owner = await this.callWithFallback(
+                () => publicClient.readContract({
+                  address: this.contractAddress as `0x${string}`,
+                  abi: erc721Abi,
+                  functionName: 'ownerOf',
+                  args: [BigInt(tokenId)]
+                }),
+                () => backupClient.readContract({
+                  address: this.contractAddress as `0x${string}`,
+                  abi: erc721Abi,
+                  functionName: 'ownerOf',
+                  args: [BigInt(tokenId)]
+                })
+              );
+              
+              if ((owner as string).toLowerCase() === walletAddress.toLowerCase()) {
+                ownedTokenIds.push(tokenId);
+                console.log(`✅ Found additional token #${tokenId} near #${foundId}`);
+              }
+              
+              await new Promise(resolve => setTimeout(resolve, 100));
+            } catch (error) {
+              // Continue searching
+            }
+            
+            if (ownedTokenIds.length >= balance) break;
+          }
+        }
+      }
+
+      console.log(`⚡ Smart fallback found ${ownedTokenIds.length}/${balance} token IDs: ${ownedTokenIds}`);
+      return ownedTokenIds.sort((a, b) => a - b);
     } catch (error) {
-      console.error(`Error fetching token IDs for ${walletAddress}:`, error);
+      console.error('Smart fallback method failed:', error);
       return [];
     }
   }
@@ -668,7 +969,8 @@ export class NFTService {
   }
 
   /**
-   * Get NFT metadata with caching
+   * Get comprehensive NFT data including metadata from API
+   * Much faster than individual blockchain calls
    */
   static async getNFTMetadata(tokenId: number): Promise<{
     tokenId: number;
@@ -678,26 +980,100 @@ export class NFTService {
     attributes?: any[];
   }> {
     try {
-      const tokenURI = await this.getTokenURI(tokenId);
-      if (!tokenURI) {
-        return { tokenId, name: `Shellie #${tokenId}` };
-      }
-
-      const metadata = await this.fetchMetadata(tokenURI);
-      if (!metadata) {
-        return { tokenId, name: `Shellie #${tokenId}` };
-      }
-
-      return {
-        tokenId,
-        name: metadata.name || `Shellie #${tokenId}`,
-        image: metadata.image,
-        description: metadata.description,
-        attributes: metadata.attributes
-      };
+      // For now, we'll use a simple approach since the API data will be used in the staking page
+      // The staking page will get all NFT data at once from the collections API
+      return { tokenId, name: `Shellie #${tokenId}` };
     } catch (error) {
       console.error(`Error getting NFT metadata for token ${tokenId}:`, error);
       return { tokenId, name: `Shellie #${tokenId}` };
+    }
+  }
+
+  /**
+   * Get all NFT data with metadata using the collections API
+   * Returns both token IDs and their complete metadata
+   */
+  static async getNFTsWithMetadata(walletAddress: string): Promise<Array<{
+    tokenId: number;
+    name?: string;
+    image?: string;
+    description?: string;
+    attributes?: any[];
+    metadata?: any;
+  }>> {
+    try {
+      if (!this.contractAddress || !this.isValidAddress(walletAddress)) {
+        return [];
+      }
+
+      console.log(`🚀 Fetching NFTs with metadata for ${walletAddress}`);
+
+      const apiUrl = `https://explorer.inkonchain.com/api/v2/addresses/${walletAddress}/nft/collections?type=`;
+      
+      const response = await fetch(apiUrl, {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'Shellies-App/1.0'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (!data.items || !Array.isArray(data.items)) {
+        return [];
+      }
+
+      // Find our Shellies collection and extract all data
+      for (const collection of data.items) {
+        if (collection.token?.address_hash?.toLowerCase() === this.contractAddress.toLowerCase()) {
+          console.log(`✅ Found Shellies collection with ${collection.token_instances?.length || 0} tokens`);
+          
+          const nfts: Array<{
+            tokenId: number;
+            name?: string;
+            image?: string;
+            description?: string;
+            attributes?: any[];
+            metadata?: any;
+          }> = [];
+          
+          if (collection.token_instances && Array.isArray(collection.token_instances)) {
+            for (const instance of collection.token_instances) {
+              if (instance.id) {
+                const tokenId = parseInt(instance.id, 10);
+                const nftData = {
+                  tokenId,
+                  name: instance.metadata?.name || `Shellie #${tokenId}`,
+                  image: instance.image_url || instance.metadata?.image,
+                  description: instance.metadata?.description,
+                  attributes: instance.metadata?.attributes || [],
+                  metadata: instance.metadata
+                };
+                
+                // Fix IPFS URLs if needed
+                if (nftData.image && nftData.image.startsWith('ipfs://')) {
+                  nftData.image = nftData.image.replace('ipfs://', 'https://ipfs.io/ipfs/');
+                }
+                
+                nfts.push(nftData);
+              }
+            }
+          }
+          
+          console.log(`🎯 Extracted ${nfts.length} NFTs with full metadata`);
+          return nfts.sort((a, b) => a.tokenId - b.tokenId);
+        }
+      }
+      
+      return [];
+      
+    } catch (error) {
+      console.error(`Failed to fetch NFTs with metadata for ${walletAddress}:`, error);
+      return [];
     }
   }
 

@@ -9,6 +9,7 @@ import { RaffleContractService } from '@/lib/raffle-contract';
 import { raffle_abi } from '@/lib/raffle-abi';
 import { parseContractError } from '@/lib/errors';
 import { formatTokenDisplay } from '@/lib/token-utils';
+import { usePoints } from '@/contexts/PointsContext';
 
 interface JoinRaffleModalProps {
   isOpen: boolean;
@@ -56,6 +57,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
   // Wagmi hooks for contract interaction
   const { address, isConnected } = useAccount();
   const { writeContractAsync } = useWriteContract();
+  const { refreshUserData } = usePoints();
 
   // Contract configuration
   const contractAddress = process.env.NEXT_PUBLIC_RAFFLE_CONTRACT_ADDRESS;
@@ -382,6 +384,14 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
 
         // Refresh participants list
         await fetchParticipants(false);
+
+        // Refresh global user points state
+        try {
+          await refreshUserData();
+          console.log('Successfully refreshed user data after raffle entry');
+        } catch (error) {
+          console.error('Failed to refresh user data after raffle entry:', error);
+        }
 
         // Call success callback if provided (this will refresh the main raffle list)
         if (onSuccess) {
