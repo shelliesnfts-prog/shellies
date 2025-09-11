@@ -67,12 +67,10 @@ function NFTImage({
   const tryNextFallback = useCallback(() => {
     if (currentFallbackIndex < fallbackUrls.length) {
       const nextUrl = fallbackUrls[currentFallbackIndex];
-      console.log(`Trying fallback ${currentFallbackIndex + 1}/${fallbackUrls.length} for token ${tokenId}:`, nextUrl);
       setCurrentSrc(nextUrl);
       setCurrentFallbackIndex(prev => prev + 1);
       setImageState('loading');
     } else {
-      console.warn(`All image sources failed for token ${tokenId}`);
       setImageState('error');
     }
   }, [currentFallbackIndex, fallbackUrls, tokenId]);
@@ -82,7 +80,6 @@ function NFTImage({
   }, []);
 
   const handleError = useCallback(() => {
-    console.warn(`Failed to load image for token ${tokenId}:`, currentSrc);
     tryNextFallback();
   }, [currentSrc, tokenId, tryNextFallback]);
 
@@ -213,7 +210,6 @@ export default function StakingPage() {
   // Handle transaction receipt
   useEffect(() => {
     if (txReceipt) {
-      console.log('Transaction receipt received:', txReceipt);
       if (txReceipt.status === 'success') {
         if (transactionState.type === 'approve') {
           setTransactionState({ type: null, status: 'success', message: 'Approval confirmed! You can now stake your NFTs.' });
@@ -855,6 +851,68 @@ export default function StakingPage() {
               </div>
             </div>
 
+            {/* Cooldown Timer Section - Always shown when cooldown is active */}
+            {!canPerformStaking && countdownTime > 0 && (
+              <div className={`relative overflow-hidden rounded-2xl border transition-all duration-300 ${
+                isDarkMode 
+                  ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700' 
+                  : 'bg-gradient-to-br from-white to-orange-50/30 border-orange-200/60 shadow-sm'
+              }`}>
+                <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-transparent" />
+                <div className="relative p-6">
+                  <div className="space-y-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center space-x-2 mb-2">
+                          <div className={`p-2 rounded-lg ${
+                            isDarkMode ? 'bg-orange-500/20' : 'bg-orange-100'
+                          }`}>
+                            <Shield className="w-5 h-5 text-orange-600" />
+                          </div>
+                          <h3 className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                            Staking Operations Locked
+                          </h3>
+                          <div className={`text-xs font-medium px-2 py-1 rounded-full ${
+                            isDarkMode ? 'bg-orange-500/20 text-orange-400' : 'bg-orange-50 text-orange-700'
+                          }`}>
+                            Cooldown Active
+                          </div>
+                        </div>
+                        <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                          All staking and unstaking operations are temporarily locked due to the 24-hour cooldown period.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Countdown Timer */}
+                    <div className={`p-4 rounded-xl border-2 border-dashed ${
+                      isDarkMode 
+                        ? 'border-orange-600/50 bg-orange-900/20' 
+                        : 'border-orange-300/60 bg-orange-50/50'
+                    }`}>
+                      <div className="text-center">
+                        <div className={`text-sm mb-2 ${isDarkMode ? 'text-orange-400' : 'text-orange-700'}`}>
+                          🚫 Operations unlock in:
+                        </div>
+                        <div className={`font-mono text-2xl font-bold ${
+                          isDarkMode ? 'text-orange-400' : 'text-orange-600'
+                        }`}>
+                          {formatCountdown(countdownTime)}
+                        </div>
+                        <div className={`text-xs mt-2 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                          Wait for cooldown to end before staking/unstaking
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                      💡 The 24-hour cooldown applies to all staking operations to ensure fair reward distribution.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Staking Rewards Info Section */}
             {stakingStats.totalStaked > 0 && (
               <div className={`relative overflow-hidden rounded-2xl border transition-all duration-300 ${
@@ -889,29 +947,6 @@ export default function StakingPage() {
                         </p>
                       </div>
                     </div>
-
-                    {/* Countdown Timer when in cooldown */}
-                    {!canPerformStaking && countdownTime > 0 && (
-                      <div className={`p-4 rounded-xl border-2 border-dashed ${
-                        isDarkMode 
-                          ? 'border-orange-600/50 bg-orange-900/20' 
-                          : 'border-orange-300/60 bg-orange-50/50'
-                      }`}>
-                        <div className="text-center">
-                          <div className={`text-sm mb-2 ${isDarkMode ? 'text-orange-400' : 'text-orange-700'}`}>
-                            🚫 Staking/Unstaking locked for:
-                          </div>
-                          <div className={`font-mono text-2xl font-bold ${
-                            isDarkMode ? 'text-orange-400' : 'text-orange-600'
-                          }`}>
-                            {formatCountdown(countdownTime)}
-                          </div>
-                          <div className={`text-xs mt-2 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                            Wait for cooldown to end before staking/unstaking
-                          </div>
-                        </div>
-                      </div>
-                    )}
 
                     {/* Success Message */}
                     {stakingClaimMessage && (
