@@ -153,7 +153,6 @@ export class NFTService {
       const now = Date.now();
       
       if (cached && (now - cached.timestamp) < this.CACHE_DURATION) {
-        console.log(`NFT count cache hit for ${walletAddress}: ${cached.count}`);
         return cached.count;
       }
 
@@ -168,7 +167,6 @@ export class NFTService {
         return 0;
       }
 
-      console.log(`Fetching NFT count for ${walletAddress} from contract ${this.contractAddress}`);
 
       // Try primary client first, then backup client if rate limited
       let balance: bigint;
@@ -182,7 +180,6 @@ export class NFTService {
       } catch (primaryError: any) {
         // Check if it's a rate limit error
         if (primaryError?.message?.includes('429') || primaryError?.message?.includes('Rate limit')) {
-          console.log('Primary RPC rate limited, trying backup RPC...');
           
           // Add delay before trying backup
           await new Promise(resolve => setTimeout(resolve, 1000));
@@ -206,7 +203,6 @@ export class NFTService {
         timestamp: now
       });
 
-      console.log(`Successfully fetched NFT count for ${walletAddress}: ${nftCount}`);
       return nftCount;
 
     } catch (error) {
@@ -219,7 +215,6 @@ export class NFTService {
       // Return cached value if available, even if expired
       const cached = this.nftCache.get(walletAddress.toLowerCase());
       if (cached) {
-        console.log(`Using expired cache due to error for ${walletAddress}: ${cached.count}`);
         return cached.count;
       }
       
@@ -325,7 +320,7 @@ export class NFTService {
           };
         }
       } catch (e) {
-        console.log('Contract does not support ERC165/supportsInterface');
+        // Contract does not support ERC165/supportsInterface
       }
 
       // Try a simple balanceOf call with zero address (should not fail with "function not found")
@@ -401,7 +396,7 @@ export class NFTService {
         });
         results.name = name as string;
       } catch (e) {
-        console.log('Contract does not have name() function');
+        // Contract does not have name() function
       }
 
       try {
@@ -412,7 +407,7 @@ export class NFTService {
         });
         results.symbol = symbol as string;
       } catch (e) {
-        console.log('Contract does not have symbol() function');
+        // Contract does not have symbol() function
       }
 
       try {
@@ -423,7 +418,7 @@ export class NFTService {
         });
         results.totalSupply = Number(totalSupply);
       } catch (e) {
-        console.log('Contract does not have totalSupply() function');
+        // Contract does not have totalSupply() function
       }
 
       return results;
@@ -489,11 +484,9 @@ export class NFTService {
       const now = Date.now();
       
       if (cached && (now - cached.timestamp) < this.OWNED_TOKENS_CACHE_DURATION) {
-        console.log(`🎯 Cache hit for ${walletAddress}: ${cached.tokenIds.length} tokens`);
         return cached.tokenIds;
       }
 
-      console.log(`🚀 Fetching NFTs for ${walletAddress} using Ink Chain Explorer API`);
 
       const apiUrl = `https://explorer.inkonchain.com/api/v2/addresses/${walletAddress}/nft/collections?type=`;
       
@@ -511,7 +504,6 @@ export class NFTService {
       const data = await response.json();
       
       if (!data.items || !Array.isArray(data.items)) {
-        console.log('No NFTs found for this address');
         this.ownedTokensCache.set(walletAddress.toLowerCase(), {
           tokenIds: [],
           timestamp: now,
@@ -525,8 +517,6 @@ export class NFTService {
       
       for (const collection of data.items) {
         if (collection.token?.address_hash?.toLowerCase() === this.contractAddress.toLowerCase()) {
-          console.log(`✅ Found Shellies collection with ${collection.token_instances?.length || 0} tokens`);
-          
           if (collection.token_instances && Array.isArray(collection.token_instances)) {
             for (const instance of collection.token_instances) {
               if (instance.id) {
@@ -547,7 +537,6 @@ export class NFTService {
         method: 'api'
       });
       
-      console.log(`🎯 Found ${sortedTokenIds.length} Shellie tokens: ${sortedTokenIds}`);
       return sortedTokenIds;
       
     } catch (error) {
@@ -556,7 +545,6 @@ export class NFTService {
       // Return cached value if available, even if expired
       const cached = this.ownedTokensCache.get(walletAddress.toLowerCase());
       if (cached) {
-        console.log(`Using expired cache due to error: ${cached.tokenIds.length} tokens`);
         return cached.tokenIds;
       }
       
@@ -571,8 +559,6 @@ export class NFTService {
    */
   private static async getOwnedTokenIdsByEvents(walletAddress: string): Promise<number[]> {
     try {
-      console.log(`🔍 Using event-based discovery for ${walletAddress}`);
-      
       // Get current block number
       const currentBlock = await publicClient.getBlockNumber();
       const maxBlockRange = BigInt(8000); // Use 8000 blocks to stay under 10k limit
@@ -589,7 +575,6 @@ export class NFTService {
         // Don't go beyond current block
         const actualToBlock = toBlock > currentBlock ? currentBlock : toBlock;
         
-        console.log(`Querying chunk: blocks ${fromBlock} to ${actualToBlock}`);
         
         try {
           // Get received events for this chunk
@@ -661,10 +646,7 @@ export class NFTService {
       // Tokens currently owned = received - sent
       const ownedTokens = [...receivedTokens].filter(tokenId => !sentTokens.has(tokenId));
 
-      console.log(`📊 Event analysis: received ${receivedTokens.size}, sent ${sentTokens.size}, owned ${ownedTokens.length}`);
-
       if (ownedTokens.length === 0) {
-        console.log(`⚠️ No tokens found via events, trying extended search...`);
         return await this.getOwnedTokenIdsFallback(walletAddress);
       }
 
@@ -711,7 +693,6 @@ export class NFTService {
         }
       }
 
-      console.log(`✅ Event-based method found ${verifiedTokens.length} verified token IDs: ${verifiedTokens}`);
       return verifiedTokens.sort((a, b) => a - b);
       
     } catch (error) {
@@ -725,14 +706,11 @@ export class NFTService {
    */
   private static async getOwnedTokenIdsFallback(walletAddress: string): Promise<number[]> {
     try {
-      console.log(`⚠️ Using smart fallback method for ${walletAddress}`);
-      
       const ownedTokenIds: number[] = [];
       const balance = await this.getNFTCount(walletAddress);
       
       if (balance === 0) return [];
       
-      console.log(`🎯 User has ${balance} NFTs, searching with smart strategy...`);
       
       // Strategy 1: Get total supply to understand the range
       let totalSupply = 0;
@@ -750,9 +728,7 @@ export class NFTService {
           })
         );
         totalSupply = Number(supply);
-        console.log(`📊 Total supply: ${totalSupply} tokens`);
       } catch (error) {
-        console.log('Could not get total supply, using estimated range');
         totalSupply = 10000; // Default assumption
       }
       
@@ -770,7 +746,6 @@ export class NFTService {
       for (const range of ranges) {
         if (ownedTokenIds.length >= balance) break;
         
-        console.log(`🔍 Searching range ${range.start} to ${range.end}`);
         
         for (let start = range.start; start <= range.end && ownedTokenIds.length < balance; start += batchSize) {
           const end = Math.min(start + batchSize - 1, range.end);
@@ -800,7 +775,6 @@ export class NFTService {
           for (const result of batchResults) {
             if (result.owner?.toLowerCase() === walletAddress.toLowerCase()) {
               ownedTokenIds.push(result.tokenId);
-              console.log(`✅ Found token #${result.tokenId} in range ${range.start}-${range.end}`);
             }
           }
 
@@ -811,7 +785,6 @@ export class NFTService {
       
       // Strategy 3: If still not found all tokens, do a final broader search
       if (ownedTokenIds.length < balance && ownedTokenIds.length > 0) {
-        console.log(`🔍 Found ${ownedTokenIds.length}/${balance}, doing targeted search around found tokens...`);
         
         // Search around found token IDs (they might be clustered)
         for (const foundId of ownedTokenIds) {
@@ -842,7 +815,6 @@ export class NFTService {
               
               if ((owner as string).toLowerCase() === walletAddress.toLowerCase()) {
                 ownedTokenIds.push(tokenId);
-                console.log(`✅ Found additional token #${tokenId} near #${foundId}`);
               }
               
               await new Promise(resolve => setTimeout(resolve, 100));
@@ -855,7 +827,6 @@ export class NFTService {
         }
       }
 
-      console.log(`⚡ Smart fallback found ${ownedTokenIds.length}/${balance} token IDs: ${ownedTokenIds}`);
       return ownedTokenIds.sort((a, b) => a - b);
     } catch (error) {
       console.error('Smart fallback method failed:', error);
@@ -879,7 +850,6 @@ export class NFTService {
 
       return supportsEnumerable as boolean;
     } catch (error) {
-      console.log('Cannot check enumerable support:', error);
       return false;
     }
   }
@@ -895,7 +865,6 @@ export class NFTService {
       return await primaryCall();
     } catch (error: any) {
       if (error?.message?.includes('429') || error?.message?.includes('Rate limit')) {
-        console.log('Rate limited, trying backup RPC...');
         await new Promise(resolve => setTimeout(resolve, 500));
         return await backupCall();
       }
@@ -1024,10 +993,7 @@ export class NFTService {
         return [];
       }
 
-      console.log(`🚀 Fetching NFTs with metadata for ${walletAddress}`);
-
       const apiUrl = `https://explorer.inkonchain.com/api/v2/addresses/${walletAddress}/nft/collections?type=`;
-      console.log(`📞 Making API call to: ${apiUrl}`);
       
       const response = await fetch(apiUrl, {
         headers: {
@@ -1036,30 +1002,21 @@ export class NFTService {
         }
       });
 
-      console.log(`📡 API Response Status: ${response.status} ${response.statusText}`);
-
       if (!response.ok) {
         throw new Error(`API request failed: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
-      console.log(`📦 Raw API Response:`, JSON.stringify(data, null, 2));
       
       if (!data.items || !Array.isArray(data.items)) {
-        console.log(`⚠️ No items found in API response`);
         return [];
       }
 
       // Find our Shellies collection and extract all data
-      console.log(`🔍 Looking for Shellies contract: ${this.contractAddress?.toLowerCase()}`);
-      console.log(`📊 Found ${data.items.length} collection(s) in response`);
       
       for (const collection of data.items) {
         const collectionAddress = collection.token?.address_hash?.toLowerCase();
-        console.log(`🔎 Checking collection: ${collection.token?.name} (${collection.token?.symbol}) at ${collectionAddress}`);
-        
         if (collectionAddress === this.contractAddress.toLowerCase()) {
-          console.log(`✅ Found Shellies collection with ${collection.token_instances?.length || 0} tokens`);
           
           const nfts: Array<{
             tokenId: number;
@@ -1089,20 +1046,9 @@ export class NFTService {
             }
           }
           
-          console.log(`🎯 Extracted ${nfts.length} NFTs with full metadata`);
           return nfts.sort((a, b) => a.tokenId - b.tokenId);
-        } else {
-          console.log(`❌ Collection address mismatch: "${collectionAddress}" !== "${this.contractAddress.toLowerCase()}"`);
         }
       }
-      
-      console.log(`❌ No Shellies collection found in ${data.items.length} collections`);
-      console.log(`Available collections:`, data.items.map((c: any) => ({
-        name: c.token?.name,
-        symbol: c.token?.symbol,
-        address: c.token?.address_hash,
-        amount: c.amount
-      })));
       
       return [];
       
@@ -1123,7 +1069,6 @@ export class NFTService {
     try {
       if (!this.contractAddress) return false;
 
-      console.log(`Checking approval for NFT ${tokenId} for staking contract ${stakingContractAddress}`);
 
       const [approvedAddress, isApprovedForAll] = await Promise.all([
         this.callWithFallback(
@@ -1161,13 +1106,6 @@ export class NFTService {
         isApprovedForAll === true
       );
 
-      console.log(`NFT ${tokenId} approval status:`, {
-        approvedAddress,
-        isApprovedForAll,
-        stakingContractAddress,
-        isApproved
-      });
-
       return isApproved;
     } catch (error) {
       console.error(`Error checking NFT approval for token ${tokenId}:`, error);
@@ -1183,8 +1121,6 @@ export class NFTService {
     stakingContractAddress: string,
     tokenIds: number[]
   ): Promise<{ approved: number[]; needApproval: number[] }> {
-    console.log(`Checking approval for ${tokenIds.length} NFTs...`);
-    
     const approved: number[] = [];
     const needApproval: number[] = [];
 
@@ -1206,7 +1142,6 @@ export class NFTService {
       );
 
       if (isApprovedForAll) {
-        console.log('✅ User has approved all NFTs for staking contract');
         return { approved: tokenIds, needApproval: [] };
       }
     } catch (error) {
@@ -1231,7 +1166,6 @@ export class NFTService {
       }
     }
 
-    console.log(`Approval check complete:`, { approved: approved.length, needApproval: needApproval.length });
     return { approved, needApproval };
   }
 

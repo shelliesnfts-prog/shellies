@@ -250,7 +250,6 @@ export class AdminService {
         return { success: false, error: 'Failed to update raffle status in database' };
       }
 
-      console.log('Raffle ended successfully:', { raffleId, txHash: contractResult.txHash });
       return { success: true, txHash: contractResult.txHash };
     } catch (error) {
       console.error('Unexpected error ending raffle:', error);

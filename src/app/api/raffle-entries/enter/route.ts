@@ -33,7 +33,6 @@ export async function POST(request: NextRequest) {
     }
 
     const walletAddress = session.address as string;
-    console.log("==========> session wallet address:", walletAddress);
     
     // Step 2: Parse request body
     const body: EnterRaffleRequest = await request.json();

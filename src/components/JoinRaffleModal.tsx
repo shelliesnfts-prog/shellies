@@ -335,7 +335,6 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
         args: [BigInt(raffleId), BigInt(ticketCount)],
       });
 
-      console.log('Contract transaction signed:', txHash);
 
       setMessage({
         type: 'success',
@@ -388,8 +387,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
         // Refresh global user points state
         try {
           await refreshUserData();
-          console.log('Successfully refreshed user data after raffle entry');
-        } catch (error) {
+          } catch (error) {
           console.error('Failed to refresh user data after raffle entry:', error);
         }
 

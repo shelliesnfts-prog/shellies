@@ -73,7 +73,6 @@ export class StakingService {
       const now = Date.now();
       
       if (cached && (now - cached.timestamp) < this.CACHE_DURATION) {
-        console.log(`Staking cache hit for ${walletAddress}: ${cached.tokenIds.length} tokens`);
         return cached.tokenIds;
       }
 
@@ -81,7 +80,6 @@ export class StakingService {
         return [];
       }
 
-      console.log(`Fetching staked tokens for ${walletAddress} from staking contract`);
 
       const stakedTokens = await this.callWithFallback(
         () => publicClient.readContract({
@@ -106,7 +104,6 @@ export class StakingService {
         timestamp: now
       });
 
-      console.log(`Successfully fetched ${tokenIds.length} staked tokens for ${walletAddress}: ${tokenIds}`);
       return tokenIds;
 
     } catch (error) {
@@ -115,7 +112,6 @@ export class StakingService {
       // Return cached value if available, even if expired
       const cached = this.stakingCache.get(walletAddress.toLowerCase());
       if (cached) {
-        console.log(`Using expired cache due to error for ${walletAddress}: ${cached.tokenIds.length} tokens`);
         return cached.tokenIds;
       }
       
@@ -299,7 +295,6 @@ export class StakingService {
       return await primaryCall();
     } catch (error: any) {
       if (error?.message?.includes('429') || error?.message?.includes('Rate limit')) {
-        console.log('Staking service rate limited, trying backup RPC...');
         await new Promise(resolve => setTimeout(resolve, 500));
         return await backupCall();
       }

@@ -130,7 +130,6 @@ export class RaffleValidationService {
    * Fetch user data from database
    */
   private static async getUserData(walletAddress: string): Promise<UserData> {
-    console.log('Looking up user with wallet address:', walletAddress);
     
     // Use service client to bypass RLS policies
     const { data: user, error } = await supabaseService
@@ -148,12 +147,10 @@ export class RaffleValidationService {
         .select('wallet_address')
         .limit(3);
       
-      console.log('Debug - Sample users:', sampleUsers?.map(u => u.wallet_address), 'Error:', sampleError);
       
       throw new NotFoundError('User not found. Please connect your wallet first.', ERROR_CODES.USER_NOT_FOUND);
     }
 
-    console.log('Successfully found user:', { id: user.id, points: user.points });
     return user;
   }
 

@@ -205,7 +205,6 @@ export function useAdminRaffleDeployment() {
         });
         
         if (response.ok) {
-          console.log('Successfully marked raffle as blockchain failed');
         } else {
           console.error('Failed to mark raffle as failed:', await response.text());
         }

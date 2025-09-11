@@ -236,23 +236,17 @@ export default function StakingPage() {
               // Automatically claim staking rewards if user can claim
               if (canPerformStaking && transactionState.type === 'stake') {
                 try {
-                  console.log('Attempting to automatically claim staking rewards...');
                   const claimResult = await executeStakingClaim();
                   
                   if (claimResult.success) {
                     setStakingClaimMessage(`🎉 Successfully claimed ${claimResult.pointsAdded} points from ${claimResult.stakedNFTCount} staked NFTs!`);
-                    console.log('Auto-claim successful:', claimResult);
                     
                     // Clear message after 8 seconds
                     setTimeout(() => {
                       setStakingClaimMessage('');
                     }, 8000);
-                  } else {
-                    console.log('Auto-claim failed:', claimResult.error);
-                    // Don't show error to user - staking was successful, claim can be done later
                   }
                 } catch (error) {
-                  console.error('Error during auto-claim:', error);
                   // Don't show error to user - staking was successful
                 }
               }
@@ -265,7 +259,6 @@ export default function StakingPage() {
               setTransactionState({ type: null, status: 'idle', message: '' });
               setApprovalState({ needed: false, checking: false, tokensNeedingApproval: [] });
             } catch (error) {
-              console.error('Error refreshing data after transaction:', error);
               setTransactionState({ 
                 type: null, 
                 status: 'error', 
@@ -275,7 +268,6 @@ export default function StakingPage() {
           }, 2000);
         }
       } else {
-        console.error('Transaction failed with receipt:', txReceipt);
         setTransactionState(prev => ({ ...prev, status: 'error', message: 'Transaction failed on blockchain' }));
         // Clear error after 5 seconds
         setTimeout(() => {
@@ -289,7 +281,6 @@ export default function StakingPage() {
   useEffect(() => {
     if (transactionState.status === 'pending' && transactionState.hash) {
       const timeout = setTimeout(() => {
-        console.warn('Transaction taking too long, showing timeout warning');
         setTransactionState(prev => ({ 
           ...prev, 
           message: 'Transaction is taking longer than expected. Check your wallet or block explorer.' 
@@ -303,7 +294,6 @@ export default function StakingPage() {
   // Handle transaction errors
   useEffect(() => {
     if (txError) {
-      console.error('Transaction error from useWaitForTransactionReceipt:', txError);
       setTransactionState(prev => ({
         ...prev,
         status: 'error',
@@ -333,8 +323,6 @@ export default function StakingPage() {
       setLoading(true);
       
       // Fetch staking stats and NFTs in parallel for better performance
-      console.log('Fetching staking stats and NFTs from explorer API...');
-      
       const [stats, nftsWithMetadata] = await Promise.all([
         StakingService.getStakingStats(address),
         NFTService.getNFTsWithMetadata(address)
@@ -372,10 +360,7 @@ export default function StakingPage() {
       setOwnedNFTs(nftTokens);
       setSelectedTokens([]);
       
-      console.log(`✅ Loaded ${nftTokens.length} Shellies NFTs using explorer API!`);
-      
     } catch (error) {
-      console.error('Error fetching user data:', error);
       setTransactionState({
         type: null,
         status: 'error',
@@ -418,21 +403,16 @@ export default function StakingPage() {
         tokenIds
       );
       
-      console.log('NFT approval check result:', approvalResult);
       return approvalResult;
     } catch (error) {
-      console.error('Error checking NFT approvals:', error);
       return { approved: [], needApproval: tokenIds };
     }
   };
 
   const handleApproveAll = async () => {
     if (!address || !stakingContractAddress || !nftContractAddress) {
-      console.error('Missing required data for approval');
       return;
     }
-
-    console.log('🔄 Starting approval transaction...');
     
     try {
       setTransactionState({ type: 'approve', status: 'pending', message: 'Requesting approval for all NFTs...' });
@@ -444,9 +424,6 @@ export default function StakingPage() {
         args: [stakingContractAddress as `0x${string}`, true],
       });
 
-      console.log('✅ Approval transaction submitted!');
-      console.log('Transaction hash:', hash);
-
       setTransactionState({
         type: 'approve',
         status: 'pending',
@@ -455,7 +432,6 @@ export default function StakingPage() {
       });
 
     } catch (error: any) {
-      console.error('❌ Approval transaction failed:', error);
       
       let errorMessage = 'Failed to approve NFTs';
       if (error?.message?.includes('User rejected')) {
@@ -476,29 +452,17 @@ export default function StakingPage() {
 
   const handleStake = async () => {
     if (!selectedTokens.length || !address || !stakingContractAddress) {
-      console.error('Missing required data for staking:', { 
-        selectedTokens: selectedTokens.length, 
-        address, 
-        stakingContractAddress 
-      });
       return;
     }
-
-    console.log('🔄 Starting stake process...');
-    console.log('Selected tokens:', selectedTokens);
-    console.log('User address:', address);
-    console.log('Staking contract:', stakingContractAddress);
 
     try {
       setTransactionState({ type: 'stake', status: 'pending', message: 'Checking NFT ownership and approvals...' });
 
       // Check if user owns these NFTs first
-      console.log('⚠️ Verifying NFT ownership before staking...');
       const ownedTokens = ownedNFTs.filter(nft => !nft.isStaked).map(nft => nft.tokenId);
       const invalidTokens = selectedTokens.filter(id => !ownedTokens.includes(id));
       
       if (invalidTokens.length > 0) {
-        console.error('❌ Invalid tokens selected:', invalidTokens);
         setTransactionState({ 
           type: 'stake', 
           status: 'error', 
@@ -508,13 +472,11 @@ export default function StakingPage() {
       }
 
       // Check NFT approvals
-      console.log('🔍 Checking NFT approvals...');
       setApprovalState({ needed: false, checking: true, tokensNeedingApproval: [] });
       
       const { approved, needApproval } = await checkNFTApprovals(selectedTokens);
       
       if (needApproval.length > 0) {
-        console.log('⚠️ NFT approval required for tokens:', needApproval);
         setApprovalState({ 
           needed: true, 
           checking: false, 
@@ -528,11 +490,9 @@ export default function StakingPage() {
         return;
       }
 
-      console.log('✅ All NFTs approved, proceeding with staking...');
       setApprovalState({ needed: false, checking: false, tokensNeedingApproval: [] });
       
       const tokenIds = selectedTokens.map(id => BigInt(id));
-      console.log('Token IDs as BigInt:', tokenIds);
       
       setTransactionState({ type: 'stake', status: 'pending', message: 'Submitting staking transaction...' });
       
@@ -543,9 +503,6 @@ export default function StakingPage() {
         args: [tokenIds],
       });
 
-      console.log('✅ Staking transaction submitted successfully!');
-      console.log('Transaction hash:', hash);
-
       setTransactionState({
         type: 'stake',
         status: 'pending',
@@ -554,14 +511,6 @@ export default function StakingPage() {
       });
 
     } catch (error: any) {
-      console.error('❌ Staking process failed:', error);
-      console.error('Error details:', {
-        message: error?.message,
-        cause: error?.cause,
-        code: error?.code,
-        data: error?.data,
-        stack: error?.stack?.slice(0, 500)
-      });
       
       let errorMessage = 'Failed to stake tokens';
       if (error?.message?.includes('block is out of range')) {
@@ -587,32 +536,19 @@ export default function StakingPage() {
 
   const handleUnstake = async () => {
     if (!selectedTokens.length || !address || !stakingContractAddress) {
-      console.error('Missing required data for unstaking:', { 
-        selectedTokens: selectedTokens.length, 
-        address, 
-        stakingContractAddress 
-      });
       return;
     }
-
-    console.log('🔄 Starting unstake transaction...');
-    console.log('Selected tokens:', selectedTokens);
-    console.log('User address:', address);
-    console.log('Staking contract:', stakingContractAddress);
 
     try {
       setTransactionState({ type: 'unstake', status: 'pending', message: 'Preparing transaction...' });
 
       const tokenIds = selectedTokens.map(id => BigInt(id));
-      console.log('Token IDs as BigInt:', tokenIds);
 
       // Check if user actually has these tokens staked
-      console.log('⚠️ Verifying staked NFTs before unstaking...');
       const stakedTokens = ownedNFTs.filter(nft => nft.isStaked).map(nft => nft.tokenId);
       const invalidTokens = selectedTokens.filter(id => !stakedTokens.includes(id));
       
       if (invalidTokens.length > 0) {
-        console.error('❌ Invalid staked tokens selected:', invalidTokens);
         setTransactionState({ 
           type: 'unstake', 
           status: 'error', 
@@ -620,14 +556,6 @@ export default function StakingPage() {
         });
         return;
       }
-
-      console.log('✅ All tokens valid for unstaking, proceeding with transaction...');
-      console.log('Transaction params:', {
-        address: stakingContractAddress,
-        functionName: 'unstakeBatch',
-        args: [tokenIds],
-        abiLength: staking_abi.length
-      });
       
       const hash = await writeContractAsync({
         address: stakingContractAddress as `0x${string}`,
@@ -635,9 +563,6 @@ export default function StakingPage() {
         functionName: 'unstakeBatch',
         args: [tokenIds],
       });
-
-      console.log('✅ Unstake transaction submitted successfully!');
-      console.log('Transaction hash:', hash);
 
       setTransactionState({
         type: 'unstake',
@@ -647,14 +572,6 @@ export default function StakingPage() {
       });
 
     } catch (error: any) {
-      console.error('❌ Unstaking transaction failed:', error);
-      console.error('Error details:', {
-        message: error?.message,
-        cause: error?.cause,
-        code: error?.code,
-        data: error?.data,
-        stack: error?.stack?.slice(0, 500)
-      });
       
       // Check for specific error patterns
       let errorMessage = 'Failed to unstake tokens';

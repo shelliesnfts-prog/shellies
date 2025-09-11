@@ -18,13 +18,11 @@ export async function POST(request: NextRequest) {
     }
 
     const walletAddress = session.address as string;
-    console.log(`Processing staking claim for wallet: ${walletAddress}`);
 
     // Step 1: Check staked NFT count from blockchain
     const stakingStats = await StakingService.getStakingStats(walletAddress);
     const stakedNFTCount = stakingStats.totalStaked;
     
-    console.log(`Staked NFT count for ${walletAddress}: ${stakedNFTCount}`);
 
     if (stakedNFTCount === 0) {
       return NextResponse.json({ 
@@ -35,7 +33,6 @@ export async function POST(request: NextRequest) {
 
     // Step 2: Calculate staking points based on staked NFTs (10 points per NFT)
     const pointsToAdd = StakingService.calculateDailyPoints(stakedNFTCount);
-    console.log(`Staking points to add: ${pointsToAdd}`);
 
     // Step 3: Use database function to safely process staking claim
     const client = supabaseAdmin || supabase;

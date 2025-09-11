@@ -28,7 +28,6 @@ export async function GET(
       );
     }
 
-    console.log(`Fetching participants for raffle ID: ${raffleId} (converted from "${raffleIdStr}")`);
 
     // Use admin client to bypass RLS since we've already authenticated the request
     if (!supabaseAdmin) {
@@ -58,7 +57,6 @@ export async function GET(
       participants = result.data;
       participantsError = result.error;
       
-      console.log(`Query result - participants:`, participants?.length || 0, 'entries, error:', participantsError);
     } catch (error: any) {
       // If join_tx_hash column doesn't exist, query without it
       if (error?.code === '42703' || (error?.message && error.message.includes('join_tx_hash'))) {

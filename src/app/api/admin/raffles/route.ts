@@ -46,7 +46,6 @@ export async function POST(request: NextRequest) {
       case 'create':
         // Phase 3: Legacy server wallet method - DEPRECATED 
         // This method has been removed to enforce the new admin wallet approach
-        console.warn('⚠️ Legacy server wallet creation attempt detected. Redirecting to new admin wallet flow.');
         
         return NextResponse.json({
           error: 'Server wallet raffle creation is deprecated and has been removed.',
@@ -243,23 +242,12 @@ export async function POST(request: NextRequest) {
           const { supabaseAdmin, supabase } = await import('@/lib/supabase');
           const client = supabaseAdmin || supabase;
           
-          console.log('🔍 DEBUG API: Using Supabase client:', {
-            hasSupabaseAdmin: !!supabaseAdmin,
-            usingClient: supabaseAdmin ? 'supabaseAdmin' : 'supabase',
-            clientType: typeof client
-          });
           
           const { data: entries, error: entriesError } = await client
             .from('shellies_raffle_entries')
             .select('wallet_address, ticket_count')
             .eq('raffle_id', raffleId);
 
-          console.log('🔍 DEBUG API: prepare_admin_end query result:', {
-            raffleId,
-            entriesError,
-            entries,
-            entriesLength: entries?.length || 0
-          });
 
           if (entriesError) {
             console.error('❌ Database error fetching participants:', entriesError);
@@ -272,15 +260,10 @@ export async function POST(request: NextRequest) {
           // Handle case where no participants joined - create empty arrays
           const entryData = entries || [];
 
-          console.log('🔍 DEBUG API: Processing entry data:', {
-            entryData,
-            entryDataLength: entryData.length
-          });
 
           // Aggregate ticket counts by wallet address
           const participantMap = new Map<string, number>();
           entryData.forEach((entry: any) => {
-            console.log('🔍 DEBUG API: Processing entry:', entry);
             const current = participantMap.get(entry.wallet_address) || 0;
             participantMap.set(entry.wallet_address, current + entry.ticket_count);
           });
@@ -289,15 +272,6 @@ export async function POST(request: NextRequest) {
           const ticketCounts = Array.from(participantMap.values());
           const totalTickets = ticketCounts.reduce((sum, count) => sum + count, 0);
 
-          console.log('🔍 DEBUG API: Final prepare_admin_end result:', {
-            participants,
-            ticketCounts,
-            totalParticipants: participants.length,
-            totalTickets,
-            participantMapSize: participantMap.size,
-            participantMapEntries: Array.from(participantMap.entries()),
-            blockchainRaffleId: RaffleContractService.generateRaffleId(raffleId)
-          });
 
           return NextResponse.json({ 
             success: true,

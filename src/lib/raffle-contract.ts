@@ -109,14 +109,12 @@ export class RaffleContractService {
    */
   private static async waitForTransactionReceipt(txHash: string): Promise<{ success: boolean; error?: string }> {
     try {
-      console.log('Waiting for transaction receipt:', txHash);
       
       const receipt = await this.publicClient.waitForTransactionReceipt({ 
         hash: txHash as `0x${string}`,
         timeout: 60000 // 60 second timeout
       });
       
-      console.log('Transaction receipt:', receipt);
       
       if (receipt.status === 'success') {
         return { success: true };
@@ -131,7 +129,6 @@ export class RaffleContractService {
           });
           
           if (transaction) {
-            console.log('Failed transaction details:', transaction);
             
             try {
               // Try to simulate the transaction to get the revert reason
@@ -142,7 +139,6 @@ export class RaffleContractService {
                 value: transaction.value
               });
             } catch (simulationError: any) {
-              console.log('Transaction simulation error:', simulationError);
               
               // Extract revert reason from simulation error
               if (simulationError?.details) {
@@ -171,7 +167,6 @@ export class RaffleContractService {
             }
           }
         } catch (detailError) {
-          console.log('Could not get transaction details:', detailError);
         }
         
         return { 
@@ -460,7 +455,6 @@ export class RaffleContractService {
     endTimestamp: number
   ): Promise<{ success: boolean; txHash?: string; error?: string }> {
     // Phase 3: Method deprecated - return error instead of executing
-    console.warn('🚨 Attempted to use deprecated serverCreateRaffleWithNFT method');
     
     return {
       success: false,
@@ -480,7 +474,6 @@ export class RaffleContractService {
     endTimestamp: number
   ): Promise<{ success: boolean; txHash?: string; error?: string }> {
     // Phase 3: Method deprecated - return error instead of executing
-    console.warn('🚨 Attempted to use deprecated serverCreateRaffleWithToken method');
     
     return {
       success: false,
@@ -495,7 +488,6 @@ export class RaffleContractService {
    */
   static async serverActivateRaffle(raffleId: number): Promise<{ success: boolean; txHash?: string; error?: string }> {
     // Phase 3: Method deprecated - return error instead of executing
-    console.warn('🚨 Attempted to use deprecated serverActivateRaffle method');
     
     return {
       success: false,
@@ -555,7 +547,6 @@ export class RaffleContractService {
         args: [BigInt(raffleId), participants, ticketCounts, randomSeed],
       });
 
-      console.log('End raffle transaction submitted:', txHash);
       
       // Wait for transaction confirmation
       const receipt = await publicClient.waitForTransactionReceipt({ 
@@ -581,7 +572,6 @@ export class RaffleContractService {
           console.error('Error updating database status:', error);
         }
 
-        console.log('Raffle ended successfully:', receipt);
         return { success: true, txHash };
       } else {
         console.error('End raffle transaction failed:', receipt);
@@ -609,23 +599,15 @@ export class RaffleContractService {
     tokenId: string,
     writeContract: any // wagmi writeContract function
   ): Promise<{ success: boolean; txHash?: string; error?: string }> {
-    console.log("====> create raffle with NFT");
     try {
       if (!this.contractAddress) {
         return { success: false, error: 'Raffle contract address not configured' };
       }
 
-      console.log('Admin creating NFT raffle with parameters:', {
-        raffleId,
-        prizeTokenAddress,
-        tokenId,
-        contractAddress: this.contractAddress
-      });
 
 
       // Call the contract method directly (admin wallet will be prompted to sign)
       // Use createAndActivateNFTRaffle since it combines create + activate in one transaction
-      console.log('🚀 Proceeding with actual transaction...');
       const txHash = await writeContract({
         address: this.contractAddress as `0x${string}`,
         abi: raffleContractAbi,
@@ -637,7 +619,6 @@ export class RaffleContractService {
         ],
       });
 
-      console.log('Admin NFT raffle creation transaction:', txHash);
       return { success: true, txHash };
     } catch (error) {
       console.error('Error in admin NFT raffle creation:', error);
@@ -663,11 +644,6 @@ export class RaffleContractService {
         return { success: false, error: 'Raffle contract address not configured' };
       }
 
-      console.log('Admin creating ERC20 raffle with parameters:', {
-        raffleId,
-        prizeTokenAddress,
-        amount
-      });
 
       // Call the contract method directly (admin wallet will be prompted to sign)
       // Use createAndActivateTokenRaffle since it combines create + activate in one transaction
@@ -681,16 +657,9 @@ export class RaffleContractService {
         throw new Error(`Invalid amount format: ${amount}`);
       }
       
-      console.log('Calling createAndActivateTokenRaffle with:', {
-        raffleId: BigInt(raffleId).toString(),
-        prizeTokenAddress,
-        amount: amountBigInt.toString(),
-        amountLength: amountBigInt.toString().length
-      });
 
       // Pre-flight checks before calling the contract
       try {
-        console.log('Performing pre-flight checks...');
         
         // Check if raffle already exists
         const existingRaffle = await this.publicClient.readContract({
@@ -700,12 +669,10 @@ export class RaffleContractService {
           args: [BigInt(raffleId)]
         });
         
-        console.log('Existing raffle check:', existingRaffle);
         if (existingRaffle && existingRaffle[0] !== '0x0000000000000000000000000000000000000000') {
           throw new Error(`Raffle ID ${raffleId} already exists on the blockchain`);
         }
         
-        console.log('Pre-flight checks passed ✅');
       } catch (preflightError) {
         console.error('Pre-flight check failed:', preflightError);
         if (preflightError instanceof Error) {
@@ -726,7 +693,6 @@ export class RaffleContractService {
         gas: BigInt(500000),
       });
 
-      console.log('Admin ERC20 raffle creation transaction submitted:', txHash);
       
       // Wait for transaction receipt to verify success
       const receiptResult = await this.waitForTransactionReceipt(txHash);
@@ -737,7 +703,6 @@ export class RaffleContractService {
         };
       }
       
-      console.log('Admin ERC20 raffle creation transaction confirmed successfully');
       return { success: true, txHash };
     } catch (error) {
       console.error('Error in admin ERC20 raffle creation:', error);
@@ -761,7 +726,6 @@ export class RaffleContractService {
         return { success: false, error: 'Raffle contract address not configured' };
       }
 
-      console.log('Admin activating raffle:', raffleId);
 
       const txHash = await writeContract({
         address: this.contractAddress as `0x${string}`,
@@ -770,7 +734,6 @@ export class RaffleContractService {
         args: [BigInt(raffleId)],
       });
 
-      console.log('Admin raffle activation transaction:', txHash);
       return { success: true, txHash };
     } catch (error) {
       console.error('Error in admin raffle activation:', error);
@@ -794,7 +757,6 @@ export class RaffleContractService {
         return { success: false, error: 'Raffle contract address not configured' };
       }
 
-      console.log('Admin approving NFT:', { tokenAddress, tokenId });
 
       const txHash = await writeContract({
         address: tokenAddress as `0x${string}`,
@@ -803,7 +765,6 @@ export class RaffleContractService {
         args: [this.contractAddress as `0x${string}`, BigInt(tokenId)],
       });
 
-      console.log('Admin NFT approval transaction:', txHash);
       return { success: true, txHash };
     } catch (error) {
       console.error('Error in admin NFT approval:', error);
@@ -827,7 +788,6 @@ export class RaffleContractService {
         return { success: false, error: 'Raffle contract address not configured' };
       }
 
-      console.log('Admin approving ERC20:', { tokenAddress, amount });
 
       // Ensure proper BigInt conversion for large numbers
       let amountBigInt: bigint;
@@ -838,12 +798,6 @@ export class RaffleContractService {
         throw new Error(`Invalid amount format for approval: ${amount}`);
       }
 
-      console.log('Calling ERC20 approve with:', {
-        tokenAddress,
-        spender: this.contractAddress,
-        amount: amountBigInt.toString(),
-        amountLength: amountBigInt.toString().length
-      });
 
       const txHash = await writeContract({
         address: tokenAddress as `0x${string}`,
@@ -854,7 +808,6 @@ export class RaffleContractService {
         gas: BigInt(100000),
       });
 
-      console.log('Admin ERC20 approval transaction submitted:', txHash);
       
       // Wait for transaction receipt to verify success
       const receiptResult = await this.waitForTransactionReceipt(txHash);
@@ -865,7 +818,6 @@ export class RaffleContractService {
         };
       }
       
-      console.log('Admin ERC20 approval transaction confirmed successfully');
       return { success: true, txHash };
     } catch (error) {
       console.error('Error in admin ERC20 approval:', error);
@@ -889,7 +841,6 @@ export class RaffleContractService {
         return { success: false, error: 'Raffle contract address not configured' };
       }
 
-      console.log('Admin refunding NFT:', { raffleId, recipient });
 
       const txHash = await writeContract({
         address: this.contractAddress as `0x${string}`,
@@ -898,7 +849,6 @@ export class RaffleContractService {
         args: [BigInt(raffleId), recipient as `0x${string}`],
       });
 
-      console.log('Admin NFT refund transaction:', txHash);
       return { success: true, txHash };
     } catch (error) {
       console.error('Error in admin NFT refund:', error);
@@ -922,7 +872,6 @@ export class RaffleContractService {
         return { success: false, error: 'Raffle contract address not configured' };
       }
 
-      console.log('Admin refunding tokens:', { raffleId, recipient });
 
       const txHash = await writeContract({
         address: this.contractAddress as `0x${string}`,
@@ -931,7 +880,6 @@ export class RaffleContractService {
         args: [BigInt(raffleId), recipient as `0x${string}`],
       });
 
-      console.log('Admin token refund transaction:', txHash);
       return { success: true, txHash };
     } catch (error) {
       console.error('Error in admin token refund:', error);
@@ -979,7 +927,6 @@ export class RaffleContractService {
         return { success: false, error: participantsData.error || 'API returned unsuccessful result' };
       }
 
-      console.log('🔍 DEBUG: API response for participants:', participantsData);
 
       // Use data from API response
       const participants = (participantsData.participants || []) as `0x${string}`[];
@@ -988,17 +935,6 @@ export class RaffleContractService {
       // Generate a random seed for winner selection
       const randomSeed = BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER));
       
-      console.log('🔍 DEBUG: Admin ending raffle with detailed parameters:', {
-        raffleId,
-        databaseId,
-        participantsCount: participants.length,
-        participants: participants,
-        ticketCounts: ticketCounts.map((count:any) => count.toString()),
-        totalTickets: ticketCounts.reduce((sum: any, count: any) => sum + count, BigInt(0)).toString(),
-        randomSeed: randomSeed.toString(),
-        contractAddress: this.contractAddress,
-        apiResponseData: participantsData
-      });
 
       // Validate that we have the correct data
       if (participantsData.totalParticipants > 0 && participants.length === 0) {
@@ -1018,7 +954,6 @@ export class RaffleContractService {
         args: [BigInt(raffleId), participants, ticketCounts, randomSeed],
       });
 
-      console.log('Admin end raffle transaction submitted:', txHash);
       
       // Wait for transaction confirmation to check if it succeeded
       try {
@@ -1035,7 +970,6 @@ export class RaffleContractService {
           };
         }
         
-        console.log('Admin end raffle transaction confirmed:', receipt);
         
         return { 
           success: true, 

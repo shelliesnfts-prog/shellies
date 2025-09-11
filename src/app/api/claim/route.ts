@@ -17,15 +17,12 @@ export async function POST(request: NextRequest) {
     }
 
     const walletAddress = session.address as string;
-    console.log(`Processing claim for wallet: ${walletAddress}`);
 
     // Step 1: Check NFT count from blockchain
     const nftCount = await NFTService.getNFTCount(walletAddress);
-    console.log(`NFT count for ${walletAddress}: ${nftCount}`);
 
     // Step 2: Calculate points based on NFT ownership
     const pointsToAdd = NFTService.calculateClaimPoints(nftCount);
-    console.log(`Points to add: ${pointsToAdd}`);
 
     // Step 3: Use database function to safely process claim
     const client = supabaseAdmin || supabase;
