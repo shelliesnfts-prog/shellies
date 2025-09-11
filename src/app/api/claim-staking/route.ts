@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { StakingService } from '@/lib/staking-service';
+import { UserService } from '@/lib/user-service';
+import { NFTService } from '@/lib/nft-service';
 import { supabaseAdmin, supabase } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
@@ -63,7 +65,12 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Step 4: Return success with updated user data
+    // Step 4: Clear all relevant caches to ensure fresh data on next fetch
+    UserService.clearUserCache(walletAddress);
+    NFTService.clearCache(walletAddress);
+    StakingService.clearCache(walletAddress);
+
+    // Step 5: Return success with updated user data
     return NextResponse.json({ 
       success: true,
       message: result.message,

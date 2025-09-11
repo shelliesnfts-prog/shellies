@@ -58,11 +58,8 @@ export function useDashboard() {
       return;
     }
 
-    // Don't refetch if it's the same address and we already have data
-    if (lastAddressRef.current === session.address && dashboardData && !error) {
-      setLoading(false);
-      return;
-    }
+    // Always fetch fresh data to avoid stale cache issues
+    // Removed problematic caching logic that prevented fresh data fetches
 
     try {
       fetchingRef.current = true;
@@ -113,22 +110,14 @@ export function useDashboard() {
         return result;
       }
 
-      // Update dashboard data after successful claim
-      setDashboardData(prev => prev ? {
-        ...prev,
-        user: {
-          ...prev.user,
-          points: result.newPoints,
-          last_claim: new Date().toISOString()
-        },
-        claimStatus: {
-          ...prev.claimStatus,
-          canClaim: false,
-          secondsUntilNextClaim: result.nextClaimIn / 1000,
-          currentPoints: result.newPoints,
-          lastClaim: new Date().toISOString()
-        }
-      } : null);
+      // Clear local state to force fresh fetch and update display immediately
+      setDashboardData(null);
+      lastAddressRef.current = null; // Force refetch
+
+      // Immediately fetch fresh data to reflect the claim
+      setTimeout(() => {
+        fetchDashboard();
+      }, 100);
 
       // Broadcast the points update to other components/hooks
       window.dispatchEvent(new CustomEvent('pointsUpdated', { 

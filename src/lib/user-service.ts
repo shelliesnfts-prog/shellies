@@ -5,19 +5,22 @@ export class UserService {
   private static userCache = new Map<string, { user: User; timestamp: number }>();
   private static readonly USER_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-  // Get or create user by wallet address (with caching)
-  static async getOrCreateUser(walletAddress: string): Promise<User | null> {
+  // Get or create user by wallet address (with optional caching)
+  static async getOrCreateUser(walletAddress: string, bypassCache: boolean = false): Promise<User | null> {
     try {
-      // Check cache first
-      const cached = this.userCache.get(walletAddress.toLowerCase());
-      const now = Date.now();
-      
-      if (cached && (now - cached.timestamp) < this.USER_CACHE_DURATION) {
-        return cached.user;
+      // Check cache first (unless bypassing)
+      if (!bypassCache) {
+        const cached = this.userCache.get(walletAddress.toLowerCase());
+        const now = Date.now();
+        
+        if (cached && (now - cached.timestamp) < this.USER_CACHE_DURATION) {
+          return cached.user;
+        }
       }
 
       // Use admin client to bypass RLS for server-side operations
       const client = supabaseAdmin || supabase;
+      const now = Date.now();
       
       // First try to get existing user
       const { data: existingUser, error: fetchError } = await client
@@ -27,11 +30,13 @@ export class UserService {
         .single();
 
       if (existingUser) {
-        // Cache the result
-        this.userCache.set(walletAddress.toLowerCase(), {
-          user: existingUser,
-          timestamp: now
-        });
+        // Cache the result only if not bypassing cache
+        if (!bypassCache) {
+          this.userCache.set(walletAddress.toLowerCase(), {
+            user: existingUser,
+            timestamp: now
+          });
+        }
         return existingUser;
       }
 
@@ -53,8 +58,8 @@ export class UserService {
           return null;
         }
 
-        // Cache the new user
-        if (newUser) {
+        // Cache the new user only if not bypassing cache
+        if (newUser && !bypassCache) {
           this.userCache.set(walletAddress.toLowerCase(), {
             user: newUser,
             timestamp: now

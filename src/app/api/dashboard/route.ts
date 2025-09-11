@@ -27,9 +27,9 @@ export async function GET(request: NextRequest) {
 
     const walletAddress = session.address as string;
     
-    // Fetch user data and NFT count in parallel (with caching)
+    // Fetch user data and NFT count in parallel (bypass cache to get fresh last_claim data)
     const [user, nftCount] = await Promise.all([
-      UserService.getOrCreateUser(walletAddress),
+      UserService.getOrCreateUser(walletAddress, true), // bypass cache for fresh data
       NFTService.getNFTCount(walletAddress)
     ]);
     

@@ -81,11 +81,8 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Don't refetch if it's the same address and we already have data
-    if (lastAddressRef.current === session.address && user && claimStatus && !error) {
-      setLoading(false);
-      return;
-    }
+    // Always fetch fresh data to avoid stale cache issues
+    // Removed problematic caching logic that prevented fresh data fetches
 
     try {
       fetchingRef.current = true;
@@ -138,20 +135,15 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
         return result;
       }
 
-      // Update local state after successful claim
-      setUser(prev => prev ? {
-        ...prev,
-        points: result.newPoints,
-        last_claim: new Date().toISOString()
-      } : null);
+      // Clear local state to force fresh fetch and update display immediately  
+      setUser(null);
+      setClaimStatus(null);
+      lastAddressRef.current = null; // Force refetch
 
-      setClaimStatus(prev => prev ? {
-        ...prev,
-        canClaim: false,
-        secondsUntilNextClaim: result.nextClaimIn / 1000,
-        currentPoints: result.newPoints,
-        lastClaim: new Date().toISOString()
-      } : null);
+      // Immediately fetch fresh data to reflect the claim
+      setTimeout(() => {
+        fetchUserData();
+      }, 100);
 
       // Broadcast points update
       window.dispatchEvent(new CustomEvent('pointsUpdated', { 
@@ -192,20 +184,15 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
         return result;
       }
 
-      // Update local state after successful staking claim
-      setUser(prev => prev ? {
-        ...prev,
-        points: result.newPoints,
-        last_claim: new Date().toISOString()
-      } : null);
+      // Clear local state to force fresh fetch and update display immediately  
+      setUser(null);
+      setClaimStatus(null);
+      lastAddressRef.current = null; // Force refetch
 
-      setClaimStatus(prev => prev ? {
-        ...prev,
-        canClaim: false,
-        secondsUntilNextClaim: result.nextClaimIn / 1000,
-        currentPoints: result.newPoints,
-        lastClaim: new Date().toISOString()
-      } : null);
+      // Immediately fetch fresh data to reflect the staking claim
+      setTimeout(() => {
+        fetchUserData();
+      }, 100);
 
       // Broadcast points update
       window.dispatchEvent(new CustomEvent('pointsUpdated', { 

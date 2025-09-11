@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { NFTService } from '@/lib/nft-service';
+import { UserService } from '@/lib/user-service';
 import { supabaseAdmin, supabase } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
@@ -54,7 +55,11 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Step 4: Return success with updated user data
+    // Step 4: Clear all relevant caches to ensure fresh data on next fetch
+    UserService.clearUserCache(walletAddress);
+    NFTService.clearCache(walletAddress);
+
+    // Step 5: Return success with updated user data
     return NextResponse.json({ 
       success: true,
       message: result.message,
@@ -88,7 +93,7 @@ export async function GET(request: NextRequest) {
     const walletAddress = session.address as string;
     const client = supabaseAdmin || supabase;
 
-    // Get user's last claim info
+    // Get user's last claim info - always fetch fresh data to avoid stale cache
     const { data: user, error: userError } = await client
       .from('shellies_raffle_users')
       .select('last_claim, points')
