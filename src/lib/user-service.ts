@@ -149,8 +149,8 @@ export class UserService {
     return hoursSinceLastClaim >= 24;
   }
 
-  // Get leaderboard
-  static async getLeaderboard(limit: number = 10): Promise<User[]> {
+  // Get leaderboard with optional user wallet to get their rank
+  static async getLeaderboard(limit: number = 10, userWallet?: string): Promise<(User & { originalRank?: number })[]> {
     try {
       const client = supabaseAdmin || supabase;
       const { data, error } = await client
@@ -164,7 +164,24 @@ export class UserService {
         return [];
       }
 
-      return data || [];
+      let result = data || [];
+
+      // If userWallet is provided, find their actual rank in the full leaderboard
+      if (userWallet && result.length > 0) {
+        const userIndex = result.findIndex(
+          user => user.wallet_address.toLowerCase() === userWallet.toLowerCase()
+        );
+        
+        if (userIndex >= 0) {
+          // Add the original rank to the user's data
+          result[userIndex] = {
+            ...result[userIndex],
+            originalRank: userIndex + 1
+          };
+        }
+      }
+
+      return result;
     } catch (error) {
       console.error('Unexpected error fetching leaderboard:', error);
       return [];
