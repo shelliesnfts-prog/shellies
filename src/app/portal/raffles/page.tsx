@@ -7,15 +7,16 @@ import JoinRaffleModal from '@/components/JoinRaffleModal';
 import { Gift } from 'lucide-react';
 import { Raffle } from '@/lib/supabase';
 import { useDashboard } from '@/hooks/useDashboard';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function RafflesPage() {
   const [raffleView, setRaffleView] = useState('active');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [raffles, setRaffles] = useState<Raffle[]>([]);
   const [rafflesLoading, setRafflesLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedRaffle, setSelectedRaffle] = useState<Raffle | null>(null);
+  const { isDarkMode } = useTheme();
   const { fetchUser } = useDashboard();
 
   const fetchRaffles = async () => {
@@ -33,9 +34,6 @@ export default function RafflesPage() {
     }
   };
 
-  const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode);
-  };
 
   const handleJoinRaffle = (raffle: Raffle) => {
     setSelectedRaffle(raffle);
@@ -58,8 +56,6 @@ export default function RafflesPage() {
   return (
     <div className={`min-h-screen flex transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <PortalSidebar
-        isDarkMode={isDarkMode}
-        toggleDarkMode={toggleDarkMode}
         isMobileMenuOpen={isMobileMenuOpen}
         setIsMobileMenuOpen={setIsMobileMenuOpen}
       />

@@ -1097,7 +1097,7 @@ export class NFTService {
       }
       
       console.log(`❌ No Shellies collection found in ${data.items.length} collections`);
-      console.log(`Available collections:`, data.items.map(c => ({
+      console.log(`Available collections:`, data.items.map((c: any) => ({
         name: c.token?.name,
         symbol: c.token?.symbol,
         address: c.token?.address_hash,

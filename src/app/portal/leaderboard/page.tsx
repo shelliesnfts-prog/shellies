@@ -4,24 +4,21 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useAccount } from 'wagmi';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Trophy, Medal, Award, Crown, Star, ChevronDown, Users, TrendingUp } from 'lucide-react';
 
 export default function LeaderboardPage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [currentLimit, setCurrentLimit] = useState(10);
 
+  const { isDarkMode } = useTheme();
   const { data: session } = useSession();
   const { address } = useAccount();
   const walletAddress = address || session?.address || '';
-
-  const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode);
-  };
 
   const fetchLeaderboard = async (limit = 10, append = false) => {
     try {
@@ -102,8 +99,6 @@ export default function LeaderboardPage() {
   return (
     <div className={`min-h-screen flex transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <PortalSidebar
-        isDarkMode={isDarkMode}
-        toggleDarkMode={toggleDarkMode}
         isMobileMenuOpen={isMobileMenuOpen}
         setIsMobileMenuOpen={setIsMobileMenuOpen}
       />

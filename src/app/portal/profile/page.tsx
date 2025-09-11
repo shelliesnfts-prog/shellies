@@ -6,13 +6,14 @@ import { useAccount } from 'wagmi';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
 import { ClaimButtonWithCountdown } from '@/components/ClaimCountdown';
 import { usePoints } from '@/contexts/PointsContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { NFTService, SHELLIES_CONTRACT_ADDRESS } from '@/lib/nft-service';
 import { useRouter } from 'next/navigation';
 import { Trophy, Coins, Gift, TrendingUp, ArrowRight, Sparkles, Target, Zap } from 'lucide-react';
 
 export default function ProfilePage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const { isDarkMode } = useTheme();
   const { data: session } = useSession();
   const { address } = useAccount();
   const router = useRouter();
@@ -23,10 +24,6 @@ export default function ProfilePage() {
   // Get tier information for motivational display
   const nftCount = claimStatus?.nftCount ?? 0;
   const tierInfo = NFTService.getUserTierInfo(nftCount);
-
-  const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode);
-  };
 
   const handleClaimDaily = async () => {
     await executeRegularClaim();
@@ -47,8 +44,6 @@ export default function ProfilePage() {
   return (
     <div className={`min-h-screen flex transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <PortalSidebar
-        isDarkMode={isDarkMode}
-        toggleDarkMode={toggleDarkMode}
         isMobileMenuOpen={isMobileMenuOpen}
         setIsMobileMenuOpen={setIsMobileMenuOpen}
       />

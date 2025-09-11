@@ -12,6 +12,7 @@ import { erc721Abi } from 'viem';
 import { parseContractError } from '@/lib/errors';
 import { useDashboard } from '@/hooks/useDashboard';
 import { usePoints } from '@/contexts/PointsContext';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface NFTToken {
   tokenId: number;
@@ -127,8 +128,8 @@ function NFTImage({
 
 export default function StakingPage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [loading, setLoading] = useState(true);
+  const { isDarkMode } = useTheme();
   const [stakingStats, setStakingStats] = useState({
     totalStaked: 0,
     dailyPoints: 0,
@@ -197,9 +198,6 @@ export default function StakingPage() {
   const stakingContractAddress = process.env.NEXT_PUBLIC_STAKING_CONTRACT_ADDRESS;
   const nftContractAddress = process.env.NEXT_PUBLIC_SHELLIES_CONTRACT_ADDRESS;
 
-  const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode);
-  };
 
   // Fetch user data on wallet connect
   useEffect(() => {
@@ -693,8 +691,6 @@ export default function StakingPage() {
     return (
       <div className={`min-h-screen flex transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <PortalSidebar
-          isDarkMode={isDarkMode}
-          toggleDarkMode={toggleDarkMode}
           isMobileMenuOpen={isMobileMenuOpen}
           setIsMobileMenuOpen={setIsMobileMenuOpen}
         />
@@ -717,8 +713,6 @@ export default function StakingPage() {
   return (
     <div className={`min-h-screen flex transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'}`}>
       <PortalSidebar
-        isDarkMode={isDarkMode}
-        toggleDarkMode={toggleDarkMode}
         isMobileMenuOpen={isMobileMenuOpen}
         setIsMobileMenuOpen={setIsMobileMenuOpen}
       />

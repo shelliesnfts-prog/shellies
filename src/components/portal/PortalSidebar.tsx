@@ -5,6 +5,7 @@ import { useSession, signOut } from 'next-auth/react';
 import { useAccount } from 'wagmi';
 import { useRouter, usePathname } from 'next/navigation';
 import { usePoints } from '@/contexts/PointsContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { ClaimButtonWithCountdown } from '@/components/ClaimCountdown';
 import { 
   Trophy, 
@@ -26,15 +27,11 @@ import {
 } from 'lucide-react';
 
 interface PortalSidebarProps {
-  isDarkMode: boolean;
-  toggleDarkMode: () => void;
   isMobileMenuOpen: boolean;
   setIsMobileMenuOpen: (open: boolean) => void;
 }
 
 export function PortalSidebar({ 
-  isDarkMode, 
-  toggleDarkMode, 
   isMobileMenuOpen, 
   setIsMobileMenuOpen 
 }: PortalSidebarProps) {
@@ -44,6 +41,7 @@ export function PortalSidebar({
   const { address, isConnected } = useAccount();
   const router = useRouter();
   const pathname = usePathname();
+  const { isDarkMode, toggleDarkMode } = useTheme();
   const { user, claimStatus, loading: userLoading, claiming, executeRegularClaim, error: claimError, refreshUserData } = usePoints();
 
   // Get wallet address from session or wagmi

@@ -3,20 +3,15 @@
 import { useState } from 'react';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
 import { TrendingUp } from 'lucide-react';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function TradePage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
-
-  const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode);
-  };
+  const { isDarkMode } = useTheme();
 
   return (
     <div className={`min-h-screen flex transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <PortalSidebar
-        isDarkMode={isDarkMode}
-        toggleDarkMode={toggleDarkMode}
         isMobileMenuOpen={isMobileMenuOpen}
         setIsMobileMenuOpen={setIsMobileMenuOpen}
       />
