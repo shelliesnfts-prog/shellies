@@ -139,8 +139,7 @@ export class RaffleContractService {
                 account: transaction.from,
                 to: transaction.to,
                 data: transaction.input,
-                value: transaction.value,
-                blockNumber: 'latest' // Use latest instead of specific block number
+                value: transaction.value
               });
             } catch (simulationError: any) {
               console.log('Transaction simulation error:', simulationError);
@@ -676,7 +675,7 @@ export class RaffleContractService {
       // Ensure proper BigInt conversion for large numbers
       let amountBigInt: bigint;
       try {
-        amountBigInt = typeof amount === 'string' ? BigInt(amount) : BigInt(amount.toString());
+        amountBigInt = BigInt(amount);
       } catch (error) {
         console.error('Error converting amount to BigInt:', amount, error);
         throw new Error(`Invalid amount format: ${amount}`);
@@ -833,7 +832,7 @@ export class RaffleContractService {
       // Ensure proper BigInt conversion for large numbers
       let amountBigInt: bigint;
       try {
-        amountBigInt = typeof amount === 'string' ? BigInt(amount) : BigInt(amount.toString());
+        amountBigInt = BigInt(amount);
       } catch (error) {
         console.error('Error converting amount to BigInt for approval:', amount, error);
         throw new Error(`Invalid amount format for approval: ${amount}`);
