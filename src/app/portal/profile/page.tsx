@@ -29,10 +29,7 @@ export default function ProfilePage() {
   };
 
   const handleClaimDaily = async () => {
-    const result = await executeRegularClaim();
-    if (result.success) {
-      await refreshUserData();
-    }
+    await executeRegularClaim();
   };
 
   const handleOpenNFTCollection = () => {
