@@ -37,22 +37,13 @@ export default function LeaderboardPage() {
       if (response.ok) {
         const data = await response.json();
         
-        // If user is connected, move their entry to the top
+        // Mark connected user for highlighting without moving position
         let processedData = [...data];
         if (walletAddress) {
-          const userIndex = processedData.findIndex(
-            user => user.wallet_address.toLowerCase() === walletAddress.toLowerCase()
-          );
-          
-          if (userIndex > 0) {
-            // Move user to top while keeping their actual rank
-            const userEntry = { ...processedData[userIndex], isCurrentUser: true };
-            processedData.splice(userIndex, 1);
-            processedData.unshift(userEntry);
-          } else if (userIndex === 0) {
-            // Mark user as current user if already at top
-            processedData[0].isCurrentUser = true;
-          }
+          processedData = processedData.map(user => ({
+            ...user,
+            isCurrentUser: user.wallet_address.toLowerCase() === walletAddress.toLowerCase()
+          }));
         }
         
         if (append) {
@@ -83,19 +74,19 @@ export default function LeaderboardPage() {
   }, [walletAddress]);
 
   const getRankIcon = (index: number, isCurrentUser: boolean = false) => {
-    if (index === 0) return <Crown className={`w-5 h-5 ${isCurrentUser ? 'text-yellow-400' : 'text-yellow-500'}`} />;
-    if (index === 1) return <Medal className={`w-5 h-5 ${isCurrentUser ? 'text-gray-300' : 'text-gray-400'}`} />;
-    if (index === 2) return <Award className={`w-5 h-5 ${isCurrentUser ? 'text-amber-400' : 'text-amber-600'}`} />;
-    if (index < 10) return <Star className={`w-4 h-4 ${isCurrentUser ? 'text-purple-400' : 'text-purple-500'}`} />;
+    if (index === 0) return <Crown className="w-5 h-5 text-yellow-500" />;
+    if (index === 1) return <Medal className="w-5 h-5 text-gray-400" />;
+    if (index === 2) return <Award className="w-5 h-5 text-amber-600" />;
+    if (index < 10) return <Star className="w-4 h-4 text-purple-500" />;
     return null;
   };
 
   const getRankBadge = (index: number, isCurrentUser: boolean = false) => {
     const baseClasses = `flex items-center justify-center min-w-[2.5rem] h-10 rounded-xl font-bold text-sm transition-all duration-200`;
     
-    if (index === 0) return `${baseClasses} ${isCurrentUser ? 'bg-gradient-to-r from-yellow-400/20 to-amber-400/20 text-yellow-400 border-2 border-yellow-400/30' : 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white shadow-lg'}`;
-    if (index === 1) return `${baseClasses} ${isCurrentUser ? 'bg-gradient-to-r from-gray-300/20 to-slate-300/20 text-gray-300 border-2 border-gray-300/30' : 'bg-gradient-to-r from-gray-400 to-slate-500 text-white shadow-md'}`;
-    if (index === 2) return `${baseClasses} ${isCurrentUser ? 'bg-gradient-to-r from-amber-400/20 to-orange-400/20 text-amber-400 border-2 border-amber-400/30' : 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-md'}`;
+    if (index === 0) return `${baseClasses} bg-gradient-to-r from-yellow-500 to-amber-500 text-white shadow-lg`;
+    if (index === 1) return `${baseClasses} bg-gradient-to-r from-gray-400 to-slate-500 text-white shadow-md`;
+    if (index === 2) return `${baseClasses} bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-md`;
     
     return `${baseClasses} ${
       isCurrentUser 
@@ -168,7 +159,6 @@ export default function LeaderboardPage() {
                 <div className="divide-y divide-gray-200 dark:divide-gray-700">
                   {leaderboard.length > 0 ? leaderboard.map((user: any, index: number) => {
                     const isCurrentUser = user.isCurrentUser;
-                    const displayRank = user.originalRank || index + 1;
                     
                     return (
                       <div 
@@ -194,7 +184,7 @@ export default function LeaderboardPage() {
                         <div className="flex items-center space-x-4">
                           {/* Rank Badge */}
                           <div className={getRankBadge(index, isCurrentUser)}>
-                            {getRankIcon(index, isCurrentUser) || `#${displayRank}`}
+                            {getRankIcon(index, isCurrentUser) || `#${index + 1}`}
                           </div>
                           
                           {/* User Info */}
@@ -223,25 +213,15 @@ export default function LeaderboardPage() {
                           </div>
                           
                           {/* Stats */}
-                          <div className="flex items-center space-x-6">
+                          <div className="flex items-center">
                             <div className="text-center">
-                              <p className={`text-lg font-bold ${
+                              <p className={`text-xl font-bold ${
                                 isCurrentUser ? 'text-purple-600' : 'text-blue-600'
                               }`}>
                                 {user.points.toFixed(1)}
                               </p>
                               <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
                                 Points
-                              </p>
-                            </div>
-                            <div className="text-center">
-                              <p className={`text-lg font-bold ${
-                                isCurrentUser ? 'text-purple-600' : 'text-emerald-600'
-                              }`}>
-                                {user.nft_count || 0}
-                              </p>
-                              <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                                NFTs
                               </p>
                             </div>
                           </div>
