@@ -470,8 +470,8 @@ export class NFTService {
   }
 
   /**
-   * Get all NFT token IDs owned by a wallet address using Ink Chain Explorer API
-   * Simple and fast - no complex blockchain queries needed!
+   * Get all NFT token IDs owned by a wallet address using our API endpoint
+   * This uses a server-side proxy for more reliable data fetching
    */
   static async getOwnedTokenIds(walletAddress: string): Promise<number[]> {
     try {
@@ -487,13 +487,67 @@ export class NFTService {
         return cached.tokenIds;
       }
 
+      // Use our API endpoint instead of direct explorer API call
+      const apiUrl = `/api/nft/owned?address=${encodeURIComponent(walletAddress)}`;
+      
+      const response = await fetch(apiUrl, {
+        headers: {
+          'Accept': 'application/json',
+        },
+        // Disable caching to ensure fresh data
+        cache: 'no-store'
+      });
 
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      const ownedTokenIds = (data.nfts || []).map((nft: any) => nft.tokenId);
+      const sortedTokenIds = ownedTokenIds.sort((a: number, b: number) => a - b);
+      
+      // Cache the result
+      this.ownedTokensCache.set(walletAddress.toLowerCase(), {
+        tokenIds: sortedTokenIds,
+        timestamp: now,
+        method: 'api'
+      });
+      
+      return sortedTokenIds;
+      
+    } catch (error) {
+      console.error(`Failed to fetch NFTs for ${walletAddress}:`, error);
+      
+      // Return cached value if available, even if expired
+      const cached = this.ownedTokensCache.get(walletAddress.toLowerCase());
+      if (cached) {
+        return cached.tokenIds;
+      }
+      
+      // Fallback to direct explorer API call
+      console.log('Attempting fallback to direct explorer API...');
+      return await this.getOwnedTokenIdsFallback(walletAddress);
+    }
+  }
+
+  /**
+   * Fallback method for getting token IDs using direct explorer API
+   */
+  private static async getOwnedTokenIdsFallback(walletAddress: string): Promise<number[]> {
+    try {
+      const now = Date.now();
       const apiUrl = `https://explorer.inkonchain.com/api/v2/addresses/${walletAddress}/nft/collections?type=`;
       
       const response = await fetch(apiUrl, {
         headers: {
           'Accept': 'application/json',
-          'User-Agent': 'Shellies-App/1.0'
+          'User-Agent': 'Shellies-App/1.0',
+          'Cache-Control': 'no-cache'
         }
       });
 
@@ -507,7 +561,7 @@ export class NFTService {
         this.ownedTokensCache.set(walletAddress.toLowerCase(), {
           tokenIds: [],
           timestamp: now,
-          method: 'api'
+          method: 'fallback-api'
         });
         return [];
       }
@@ -534,20 +588,13 @@ export class NFTService {
       this.ownedTokensCache.set(walletAddress.toLowerCase(), {
         tokenIds: sortedTokenIds,
         timestamp: now,
-        method: 'api'
+        method: 'fallback-api'
       });
       
       return sortedTokenIds;
       
     } catch (error) {
-      console.error(`Failed to fetch NFTs for ${walletAddress}:`, error);
-      
-      // Return cached value if available, even if expired
-      const cached = this.ownedTokensCache.get(walletAddress.toLowerCase());
-      if (cached) {
-        return cached.tokenIds;
-      }
-      
+      console.error(`Fallback token ID fetch also failed for ${walletAddress}:`, error);
       return [];
     }
   }
@@ -701,138 +748,6 @@ export class NFTService {
     }
   }
 
-  /**
-   * Smart fallback method - uses multiple strategies to find the user's NFTs
-   */
-  private static async getOwnedTokenIdsFallback(walletAddress: string): Promise<number[]> {
-    try {
-      const ownedTokenIds: number[] = [];
-      const balance = await this.getNFTCount(walletAddress);
-      
-      if (balance === 0) return [];
-      
-      
-      // Strategy 1: Get total supply to understand the range
-      let totalSupply = 0;
-      try {
-        const supply = await this.callWithFallback(
-          () => publicClient.readContract({
-            address: this.contractAddress as `0x${string}`,
-            abi: erc721EnumerableAbi,
-            functionName: 'totalSupply'
-          }),
-          () => backupClient.readContract({
-            address: this.contractAddress as `0x${string}`,
-            abi: erc721EnumerableAbi,
-            functionName: 'totalSupply'
-          })
-        );
-        totalSupply = Number(supply);
-      } catch (error) {
-        totalSupply = 10000; // Default assumption
-      }
-      
-      // Strategy 2: Smart sampling - check different ranges
-      const batchSize = 8;
-      const ranges = [
-        { start: 1, end: Math.min(500, totalSupply) },                    // Early tokens
-        { start: Math.floor(totalSupply * 0.25), end: Math.floor(totalSupply * 0.35) }, // 25-35%
-        { start: Math.floor(totalSupply * 0.45), end: Math.floor(totalSupply * 0.55) }, // 45-55%
-        { start: Math.floor(totalSupply * 0.65), end: Math.floor(totalSupply * 0.75) }, // 65-75%
-        { start: Math.floor(totalSupply * 0.85), end: Math.min(totalSupply, Math.floor(totalSupply * 0.95)) }, // 85-95%
-        { start: Math.max(1, totalSupply - 500), end: totalSupply }       // Recent tokens
-      ];
-      
-      for (const range of ranges) {
-        if (ownedTokenIds.length >= balance) break;
-        
-        
-        for (let start = range.start; start <= range.end && ownedTokenIds.length < balance; start += batchSize) {
-          const end = Math.min(start + batchSize - 1, range.end);
-          const batchPromises: Promise<{ tokenId: number; owner: string | null }>[] = [];
-
-          for (let tokenId = start; tokenId <= end; tokenId++) {
-            batchPromises.push(
-              this.callWithFallback(
-                () => publicClient.readContract({
-                  address: this.contractAddress as `0x${string}`,
-                  abi: erc721Abi,
-                  functionName: 'ownerOf',
-                  args: [BigInt(tokenId)]
-                }),
-                () => backupClient.readContract({
-                  address: this.contractAddress as `0x${string}`,
-                  abi: erc721Abi,
-                  functionName: 'ownerOf',
-                  args: [BigInt(tokenId)]
-                })
-              ).then(owner => ({ tokenId, owner: owner as string }))
-              .catch(() => ({ tokenId, owner: null }))
-            );
-          }
-
-          const batchResults = await Promise.all(batchPromises);
-          for (const result of batchResults) {
-            if (result.owner?.toLowerCase() === walletAddress.toLowerCase()) {
-              ownedTokenIds.push(result.tokenId);
-            }
-          }
-
-          // Add delay between batches
-          await new Promise(resolve => setTimeout(resolve, 200));
-        }
-      }
-      
-      // Strategy 3: If still not found all tokens, do a final broader search
-      if (ownedTokenIds.length < balance && ownedTokenIds.length > 0) {
-        
-        // Search around found token IDs (they might be clustered)
-        for (const foundId of ownedTokenIds) {
-          if (ownedTokenIds.length >= balance) break;
-          
-          const searchRadius = 50;
-          const searchStart = Math.max(1, foundId - searchRadius);
-          const searchEnd = Math.min(totalSupply, foundId + searchRadius);
-          
-          for (let tokenId = searchStart; tokenId <= searchEnd; tokenId += 1) {
-            if (ownedTokenIds.includes(tokenId)) continue; // Skip already found
-            
-            try {
-              const owner = await this.callWithFallback(
-                () => publicClient.readContract({
-                  address: this.contractAddress as `0x${string}`,
-                  abi: erc721Abi,
-                  functionName: 'ownerOf',
-                  args: [BigInt(tokenId)]
-                }),
-                () => backupClient.readContract({
-                  address: this.contractAddress as `0x${string}`,
-                  abi: erc721Abi,
-                  functionName: 'ownerOf',
-                  args: [BigInt(tokenId)]
-                })
-              );
-              
-              if ((owner as string).toLowerCase() === walletAddress.toLowerCase()) {
-                ownedTokenIds.push(tokenId);
-              }
-              
-              await new Promise(resolve => setTimeout(resolve, 100));
-            } catch (error) {
-              // Continue searching
-            }
-            
-            if (ownedTokenIds.length >= balance) break;
-          }
-        }
-      }
-
-      return ownedTokenIds.sort((a, b) => a - b);
-    } catch (error) {
-      console.error('Smart fallback method failed:', error);
-      return [];
-    }
-  }
 
   /**
    * Check if the NFT contract supports ERC721Enumerable
@@ -977,8 +892,8 @@ export class NFTService {
   }
 
   /**
-   * Get all NFT data with metadata using the collections API
-   * Returns both token IDs and their complete metadata
+   * Get all NFT data with metadata using our API endpoint
+   * This uses a server-side proxy for more reliable data fetching
    */
   static async getNFTsWithMetadata(walletAddress: string): Promise<Array<{
     tokenId: number;
@@ -993,12 +908,58 @@ export class NFTService {
         return [];
       }
 
+      // Use our API endpoint instead of direct explorer API call
+      const apiUrl = `/api/nft/owned?address=${encodeURIComponent(walletAddress)}`;
+      
+      const response = await fetch(apiUrl, {
+        headers: {
+          'Accept': 'application/json',
+        },
+        // Disable caching to ensure fresh data after staking operations
+        cache: 'no-store'
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      return data.nfts || [];
+      
+    } catch (error) {
+      console.error(`Failed to fetch NFTs with metadata for ${walletAddress}:`, error);
+      
+      // Fallback to direct explorer API call if our endpoint fails
+      console.log('Attempting fallback to direct explorer API...');
+      return await this.getNFTsWithMetadataFallback(walletAddress);
+    }
+  }
+
+  /**
+   * Fallback method using direct explorer API call
+   * Used when the main API endpoint fails
+   */
+  private static async getNFTsWithMetadataFallback(walletAddress: string): Promise<Array<{
+    tokenId: number;
+    name?: string;
+    image?: string;
+    description?: string;
+    attributes?: any[];
+    metadata?: any;
+  }>> {
+    try {
       const apiUrl = `https://explorer.inkonchain.com/api/v2/addresses/${walletAddress}/nft/collections?type=`;
       
       const response = await fetch(apiUrl, {
         headers: {
           'Accept': 'application/json',
-          'User-Agent': 'Shellies-App/1.0'
+          'User-Agent': 'Shellies-App/1.0',
+          'Cache-Control': 'no-cache'
         }
       });
 
@@ -1013,11 +974,9 @@ export class NFTService {
       }
 
       // Find our Shellies collection and extract all data
-      
       for (const collection of data.items) {
         const collectionAddress = collection.token?.address_hash?.toLowerCase();
         if (collectionAddress === this.contractAddress.toLowerCase()) {
-          
           const nfts: Array<{
             tokenId: number;
             name?: string;
@@ -1053,7 +1012,7 @@ export class NFTService {
       return [];
       
     } catch (error) {
-      console.error(`Failed to fetch NFTs with metadata for ${walletAddress}:`, error);
+      console.error(`Fallback method also failed for ${walletAddress}:`, error);
       return [];
     }
   }
