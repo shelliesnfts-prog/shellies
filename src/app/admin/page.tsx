@@ -52,8 +52,6 @@ export default function AdminPage() {
   const [updatePoints, setUpdatePoints] = useState('');
   const [updateStatus, setUpdateStatus] = useState<'active' | 'blocked'>('active');
   
-  // End Raffle State (Legacy)
-  const [legacyEndingRaffleId, setLegacyEndingRaffleId] = useState<string | null>(null);
   const [endRaffleMessage, setEndRaffleMessage] = useState<{ type: 'success' | 'error'; text: string; txHash?: string } | null>(null);
   
   // Create Raffle Modal State
@@ -76,8 +74,6 @@ export default function AdminPage() {
   const [validatingPrize, setValidatingPrize] = useState(false);
   const [tokenDecimals, setTokenDecimals] = useState<number>(18); // Store token decimals for conversion
 
-  // Admin Wallet Flow State
-  const [useAdminWallet, setUseAdminWallet] = useState(true);
   const [showDeploymentModal, setShowDeploymentModal] = useState(false);
   const [pendingRaffle, setPendingRaffle] = useState<any>(null);
 
@@ -316,131 +312,6 @@ export default function AdminPage() {
     }
   };
 
-  // Create raffle
-  const createRaffle = async () => {
-    if (!raffleForm.title || !raffleForm.description || !raffleForm.points_per_ticket || 
-        !raffleForm.max_tickets_per_user || !raffleForm.end_date) {
-      alert('Please fill in all required fields');
-      return;
-    }
-
-    // Validate end date is in the future
-    const endDate = new Date(raffleForm.end_date);
-    const now = new Date();
-    if (endDate <= now) {
-      alert('End date must be in the future to avoid wasting gas on a transaction that will fail');
-      return;
-    }
-
-    if (!raffleForm.prize_token_address) {
-      alert('Please specify a prize token');
-      return;
-    }
-
-    if (raffleForm.prize_type === 'NFT' && !raffleForm.prize_token_id) {
-      alert('Please specify the NFT token ID');
-      return;
-    }
-
-    if (raffleForm.prize_type === 'ERC20' && (!raffleForm.prize_amount || !isValidTokenAmount(raffleForm.prize_amount))) {
-      alert('Please specify a valid token amount');
-      return;
-    }
-
-    if (!prizeInfo || prizeInfo.error) {
-      alert('Please validate the prize token first');
-      return;
-    }
-
-    try {
-      setCreatingRaffle(true);
-      
-      // Convert datetime-local value to UTC for proper storage
-      const utcDateTime = localDateTimeInputToUTC(raffleForm.end_date);
-      
-      const response = await fetch('/api/admin/raffles', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'create',
-          raffleData: {
-            title: raffleForm.title,
-            description: raffleForm.description,
-            image_url: raffleForm.image_url || null,
-            points_per_ticket: parseInt(raffleForm.points_per_ticket),
-            max_tickets_per_user: parseInt(raffleForm.max_tickets_per_user),
-            max_participants: raffleForm.max_participants ? parseInt(raffleForm.max_participants) : null,
-            end_date: utcDateTime,
-            prize_token_address: raffleForm.prize_token_address,
-            prize_token_type: raffleForm.prize_type,
-            prize_token_id: raffleForm.prize_type === 'NFT' ? raffleForm.prize_token_id : null,
-            prize_amount: raffleForm.prize_type === 'ERC20' ? raffleForm.prize_amount : null,
-          }
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        
-        // Show appropriate success/error message based on blockchain status
-        if (data.blockchainStatus === 'success') {
-          alert(`Raffle created successfully! 
-
-Database ID: ${data.id}
-✅ Blockchain transactions completed!
-
-Transaction hashes:
-${data.transactionHashes ? data.transactionHashes.join('\n') : 'N/A'}
-
-The raffle is now live and accepting entries!`);
-        } else if (data.blockchainStatus === 'failed') {
-          alert(`Raffle saved to database but blockchain interaction failed!
-
-Database ID: ${data.id}
-❌ Blockchain Error: ${data.blockchainError}
-
-Please check the server logs and retry the blockchain deployment manually.`);
-        } else {
-          alert(`Raffle created successfully! Database ID: ${data.id}`);
-        }
-        
-        
-        fetchRaffles();
-        setShowCreateRaffle(false);
-        // Reset form
-        setRaffleForm({
-          title: '',
-          description: '',
-          image_url: '',
-          points_per_ticket: '',
-          max_tickets_per_user: '',
-          max_participants: '',
-          end_date: '',
-          prize_type: 'NFT',
-          prize_token_address: '',
-          prize_token_id: '',
-          prize_amount: '',
-        });
-        setPrizeInfo(null);
-      } else {
-        const errorData = await response.json();
-        const rollbackMsg = errorData.rollbackStatus === 'success' 
-          ? '\n✅ Database has been cleaned up.' 
-          : errorData.rollbackStatus === 'failed' 
-          ? '\n❌ Warning: Database cleanup failed - manual cleanup may be needed.' 
-          : '';
-        
-        alert(`Error creating raffle: ${errorData.error || 'Unknown error'}
-
-Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
-      }
-    } catch (error) {
-      console.error('Error creating raffle:', error);
-      alert('Error creating raffle');
-    } finally {
-      setCreatingRaffle(false);
-    }
-  };
 
   // Create raffle with admin wallet
   const createRaffleWithAdminWallet = async () => {
@@ -560,52 +431,6 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
     setPendingRaffle(null);
   };
 
-  // End raffle early (legacy server method - deprecated)
-  const endRaffleEarlyLegacy = async (raffleId: string) => {
-    console.warn('🚨 Using deprecated server wallet ending method');
-    
-    if (!confirm('⚠️ You are using the deprecated server wallet ending method.\n\nFor better security, consider using the new Admin Wallet ending method.\n\nDo you want to continue with the server wallet method?')) {
-      return;
-    }
-
-    setLegacyEndingRaffleId(raffleId);
-    setEndRaffleMessage(null);
-
-    try {
-      const response = await fetch('/api/admin/raffles', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'end_early',
-          raffleId
-        })
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        setEndRaffleMessage({
-          type: 'success',
-          text: 'Raffle ended successfully! Winner has been selected and prize distributed.',
-          txHash: data.txHash
-        });
-        fetchRaffles();
-      } else {
-        setEndRaffleMessage({
-          type: 'error',
-          text: data.error || 'Failed to end raffle. Please try again.'
-        });
-      }
-    } catch (error) {
-      console.error('Error ending raffle:', error);
-      setEndRaffleMessage({
-        type: 'error',
-        text: 'Network error. Please check your connection and try again.'
-      });
-    } finally {
-      setLegacyEndingRaffleId(null);
-    }
-  };
 
   // Admin wallet end raffle (new method)
   const endRaffleWithAdminWallet = (raffle: any) => {
@@ -1114,29 +939,6 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
                                 : 'End Raffle'
                             }
                           </button>
-                          {raffle.status !== 'COMPLETED' && raffle.status !== 'CANCELLED' && (
-                            <button
-                              onClick={() => endRaffleEarlyLegacy(raffle.id)}
-                              disabled={legacyEndingRaffleId === raffle.id}
-                              className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors border ${
-                                legacyEndingRaffleId === raffle.id 
-                                  ? 'bg-gray-400 cursor-not-allowed border-gray-400'
-                                  : isDarkMode
-                                    ? 'bg-gray-700 hover:bg-gray-600 text-gray-300 border-gray-600'
-                                    : 'bg-white hover:bg-gray-50 text-gray-600 border-gray-300'
-                              }`}
-                              title="Use legacy server wallet method (deprecated)"
-                            >
-                              {legacyEndingRaffleId === raffle.id ? (
-                                <div className="flex items-center gap-1">
-                                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                  <span>Ending...</span>
-                                </div>
-                              ) : (
-                                'Legacy'
-                              )}
-                            </button>
-                          )}
                         </div>
                       </div>
                     </div>
@@ -1411,63 +1213,6 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
               <div className={`border-t pt-4 ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
                 <h4 className={`text-md font-semibold mb-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Prize Configuration</h4>
                 
-                {/* Deployment Method Selection */}
-                <div className="mb-4">
-                  <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Deployment Method *
-                  </label>
-                  <div className="space-y-2">
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        name="deploymentMethod"
-                        checked={useAdminWallet}
-                        onChange={() => setUseAdminWallet(true)}
-                        className="mr-3 text-purple-600"
-                      />
-                      <div className="flex-1">
-                        <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                          Admin Wallet (Default)
-                          <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">Recommended</span>
-                        </span>
-                        <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                          Deploy directly from your wallet - more secure, you keep control of prizes.
-                          Process: Create → Approve Token → Deploy → Activate
-                        </p>
-                      </div>
-                    </label>
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        name="deploymentMethod"
-                        checked={!useAdminWallet}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            const confirmed = confirm(
-                              'Server Wallet deployment is deprecated and will be removed in future versions.\n\n' +
-                              'This method requires the server to own your prizes and has security limitations.\n\n' +
-                              'Are you sure you want to use the legacy server wallet method?\n\n' +
-                              'We recommend using Admin Wallet deployment for better security and control.'
-                            );
-                            if (confirmed) {
-                              setUseAdminWallet(false);
-                            }
-                          }
-                        }}
-                        className="mr-3 text-purple-600"
-                      />
-                      <div className="flex-1">
-                        <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                          Server Wallet (Legacy)
-                          <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">Removed</span>
-                        </span>
-                        <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                          Server wallet deployment has been permanently removed for security reasons
-                        </p>
-                      </div>
-                    </label>
-                  </div>
-                </div>
 
                 <div>
                   <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Prize Type *</label>
@@ -1612,18 +1357,11 @@ Details: ${errorData.details || 'No additional details'}${rollbackMsg}`);
                 Cancel
               </button>
               <button
-                onClick={useAdminWallet ? createRaffleWithAdminWallet : createRaffle}
+                onClick={createRaffleWithAdminWallet}
                 disabled={creatingRaffle}
                 className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors"
               >
-                {creatingRaffle 
-                  ? useAdminWallet 
-                    ? 'Creating...' 
-                    : 'Creating...' 
-                  : useAdminWallet 
-                    ? 'Create & Deploy' 
-                    : 'Create Raffle'
-                }
+                {creatingRaffle ? 'Creating...' : 'Create & Deploy'}
               </button>
             </div>
           </div>
