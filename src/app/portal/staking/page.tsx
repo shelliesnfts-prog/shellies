@@ -1046,7 +1046,7 @@ export default function StakingPage() {
                     }`}
                   >
                     {/* Selection Indicator */}
-                    <div className={`absolute top-2 right-2 w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                    <div style={{zIndex: 999}} className={`absolute top-2 right-2 w-5 h-5 rounded-full border-2 flex items-center justify-center ${
                       selectedTokens.includes(nft.tokenId)
                         ? 'bg-blue-500 border-blue-500'
                         : (isDarkMode ? 'border-gray-500' : 'border-gray-300')
