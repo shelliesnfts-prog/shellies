@@ -21,6 +21,8 @@ interface NFTToken {
   selected?: boolean;
   name?: string;
   image?: string;
+  description?: string;
+  attributes?: any[];
   metadata?: {
     name?: string;
     image?: string;
