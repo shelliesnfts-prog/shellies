@@ -274,40 +274,6 @@ export function PortalSidebar({
               </button>
             </li>
             
-            {/* More Dropdown */}
-            <li className="relative">
-              <button
-                onClick={() => setIsMoreOpen(!isMoreOpen)}
-                className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
-                  isMoreOpen 
-                    ? 'bg-purple-100 text-gray-900' 
-                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
-                }`}
-              >
-                <MoreHorizontal className="w-5 h-5 mr-3" />
-                <span className="font-medium flex-1 text-sm">More</span>
-                <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isMoreOpen ? 'rotate-180' : ''}`} />
-              </button>
-              
-              {/* Dropdown content */}
-              {isMoreOpen && (
-                <div className="mt-2 ml-8 space-y-1 border-l-2 border-gray-100 pl-4">
-                  <button className="w-full flex items-center px-3 py-2 rounded-md text-left transition-all duration-200 text-gray-400 hover:bg-gray-50 hover:text-gray-600">
-                    <Settings className="w-4 h-4 mr-3" />
-                    <span className="text-xs font-medium">Settings</span>
-                  </button>
-                  <button className="w-full flex items-center px-3 py-2 rounded-md text-left transition-all duration-200 text-gray-400 hover:bg-gray-50 hover:text-gray-600">
-                    <Bell className="w-4 h-4 mr-3" />
-                    <span className="text-xs font-medium">Notifications</span>
-                  </button>
-                  <button className="w-full flex items-center px-3 py-2 rounded-md text-left transition-all duration-200 text-gray-400 hover:bg-gray-50 hover:text-gray-600">
-                    <HelpCircle className="w-4 h-4 mr-3" />
-                    <span className="text-xs font-medium">Help & Support</span>
-                  </button>
-                </div>
-              )}
-            </li>
-            
             {/* Admin Panel - Only show if user is admin */}
             {isAdmin && (
               <li className={`border-t pt-2 mt-2 ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
