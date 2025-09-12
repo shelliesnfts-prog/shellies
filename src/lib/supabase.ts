@@ -52,6 +52,8 @@ export interface Raffle {
   blockchain_deployed_at?: string;
   blockchain_error?: string;
   blockchain_failed_at?: string;
+  // Visibility field for hiding raffles from portal
+  is_hidden?: boolean;
 }
 
 export interface RaffleEntry {

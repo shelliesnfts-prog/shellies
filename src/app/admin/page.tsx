@@ -22,6 +22,7 @@ import {
   UserCheck,
   UserX,
   Eye,
+  EyeOff,
   Plus,
   Copy,
   Edit,
@@ -453,6 +454,27 @@ export default function AdminPage() {
   const handleEndingClose = () => {
     setShowEndingModal(false);
     setEndingRaffle(null);
+  };
+
+  // Toggle raffle visibility
+  const toggleRaffleVisibility = async (raffleId: number, currentlyHidden: boolean) => {
+    try {
+      const response = await fetch('/api/admin/raffles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'toggle_visibility',
+          raffleId,
+          isHidden: !currentlyHidden
+        })
+      });
+
+      if (response.ok) {
+        fetchRaffles(); // Refresh raffle list
+      }
+    } catch (error) {
+      console.error('Error toggling raffle visibility:', error);
+    }
   };
 
   useEffect(() => {
@@ -913,6 +935,17 @@ export default function AdminPage() {
                           </div>
                         </div>
                         <div className="flex space-x-2 mt-4">
+                          <button
+                            onClick={() => toggleRaffleVisibility(raffle.id, raffle.is_hidden || false)}
+                            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+                              raffle.is_hidden
+                                ? 'bg-gray-600 hover:bg-gray-700 text-white'
+                                : 'bg-blue-600 hover:bg-blue-700 text-white'
+                            }`}
+                            title={raffle.is_hidden ? 'Show in portal' : 'Hide from portal'}
+                          >
+                            {raffle.is_hidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
                           <button
                             onClick={() => endRaffleWithAdminWallet(raffle)}
                             disabled={

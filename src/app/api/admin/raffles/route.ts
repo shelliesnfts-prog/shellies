@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     }
 
     const requestBody = await request.json();
-    const { action, raffleId, raffleData, isActive, txHash, txHashes, error: blockchainError, shouldDelete } = requestBody;
+    const { action, raffleId, raffleData, isActive, txHash, txHashes, error: blockchainError, shouldDelete, isHidden } = requestBody;
 
     switch (action) {
       case 'create':
@@ -288,6 +288,26 @@ export async function POST(request: NextRequest) {
             success: false 
           }, { status: 500 });
         }
+
+      case 'toggle_visibility':
+        // Toggle raffle visibility (hide/show from portal)
+        if (!raffleId) {
+          return NextResponse.json({ error: 'Raffle ID required' }, { status: 400 });
+        }
+        
+        const visibilityUpdate = await AdminService.updateRaffle(raffleId, { 
+          is_hidden: isHidden
+        });
+        
+        if (!visibilityUpdate) {
+          return NextResponse.json({ error: 'Failed to update raffle visibility' }, { status: 500 });
+        }
+
+        return NextResponse.json({ 
+          success: true, 
+          message: `Raffle ${isHidden ? 'hidden from' : 'visible in'} portal`,
+          isHidden
+        });
 
       default:
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 });

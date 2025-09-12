@@ -20,6 +20,9 @@ export async function GET(request: NextRequest) {
     // Currently using CANCELLED status with blockchain_error until enum is updated
     raffleQuery = raffleQuery.or('status.neq.CANCELLED,and(status.eq.CANCELLED,blockchain_error.is.null)');
     
+    // Always exclude hidden raffles from portal display
+    raffleQuery = raffleQuery.or('is_hidden.is.null,is_hidden.eq.false');
+    
     // Filter by status if specified
     if (status === 'active') {
       raffleQuery = raffleQuery.eq('status', 'ACTIVE');
