@@ -829,60 +829,7 @@ export default function StakingPage() {
                 </div>
               </div>
             )}
-
-            {/* Staking Rewards Info Section */}
-            {stakingStats.totalStaked > 0 && (
-              <div className={`relative overflow-hidden rounded-2xl border transition-all duration-300 ${
-                isDarkMode 
-                  ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700' 
-                  : 'bg-gradient-to-br from-white to-emerald-50/30 border-emerald-200/60 shadow-sm'
-              }`}>
-                <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-green-500/5 to-transparent" />
-                <div className="relative p-6">
-                  <div className="space-y-4">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center space-x-2 mb-2">
-                          <div className={`p-2 rounded-lg ${
-                            isDarkMode ? 'bg-emerald-500/20' : 'bg-emerald-100'
-                          }`}>
-                            <Coins className="w-5 h-5 text-emerald-600" />
-                          </div>
-                          <h3 className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                            Daily Staking Rewards
-                          </h3>
-                          <div className={`text-xs font-medium px-2 py-1 rounded-full ${
-                            canPerformStaking
-                              ? (isDarkMode ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-50 text-emerald-700')
-                              : (isDarkMode ? 'bg-orange-500/20 text-orange-400' : 'bg-orange-50 text-orange-700')
-                          }`}>
-                            {canPerformStaking ? 'Ready' : 'Cooldown Active'}
-                          </div>
-                        </div>
-                        <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                          Earning <span className="font-bold text-emerald-600">{stakingStats.dailyPoints} points daily</span> from your {stakingStats.totalStaked} staked NFT{stakingStats.totalStaked !== 1 ? 's' : ''}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Success Message */}
-                    {stakingClaimMessage && (
-                      <div className={`p-3 rounded-lg border ${
-                        isDarkMode ? 'bg-emerald-900/20 border-emerald-700 text-emerald-300' : 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                      }`}>
-                        <p className="text-sm font-medium">
-                          {stakingClaimMessage}
-                        </p>
-                      </div>
-                    )}
-
-                    <div className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                      💡 Rewards are automatically claimed when you stake NFTs. 24-hour cooldown applies between operations.
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+           
 
             {/* Transaction Status */}
             {transactionState.status !== 'idle' && (

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
 import { RaffleCard } from '@/components/portal/RaffleCard';
 import { RaffleSkeletonGrid } from '@/components/portal/RaffleCardSkeleton';
@@ -19,9 +19,13 @@ export default function RafflesPage() {
   const [selectedRaffle, setSelectedRaffle] = useState<Raffle | null>(null);
   const { isDarkMode } = useTheme();
   const { fetchUser } = useDashboard();
+  const fetchingRef = useRef(false);
 
   const fetchRaffles = async () => {
+    if (fetchingRef.current) return;
+    
     try {
+      fetchingRef.current = true;
       setRafflesLoading(true);
       const response = await fetch(`/api/raffles?status=${raffleView}`);
       if (response.ok) {
@@ -32,6 +36,7 @@ export default function RafflesPage() {
       console.error('Error fetching raffles:', error);
     } finally {
       setRafflesLoading(false);
+      fetchingRef.current = false;
     }
   };
 
