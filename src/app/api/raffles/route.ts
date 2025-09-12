@@ -8,13 +8,18 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status'); // 'active', 'finished', or 'all'
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '10');
     
     
     // Get session to include user ticket counts if authenticated
     const session = await getServerSession(authOptions);
 
+    // Calculate offset for pagination
+    const offset = (page - 1) * limit;
+    
     // Build the base query with proper JOIN for ticket counts
-    let raffleQuery = supabase.from('shellies_raffle_raffles').select('*');
+    let raffleQuery = supabase.from('shellies_raffle_raffles').select('*', { count: 'exact' });
     
     // Always exclude blockchain failed raffles from portal display
     // Currently using CANCELLED status with blockchain_error until enum is updated
@@ -30,9 +35,11 @@ export async function GET(request: NextRequest) {
       raffleQuery = raffleQuery.in('status', ['COMPLETED', 'CANCELLED']);
     }
     
-    raffleQuery = raffleQuery.order('created_at', { ascending: false });
+    raffleQuery = raffleQuery
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
 
-    const { data: raffles, error: rafflesError } = await raffleQuery;
+    const { data: raffles, error: rafflesError, count: totalCount } = await raffleQuery;
 
     if (rafflesError) {
       console.error('❌ Error fetching raffles:', rafflesError);
@@ -208,7 +215,15 @@ export async function GET(request: NextRequest) {
         }));
 
 
-        return NextResponse.json(rafflesWithTicketCounts);
+        return NextResponse.json({
+          raffles: rafflesWithTicketCounts,
+          pagination: {
+            page,
+            limit,
+            totalCount: totalCount || 0,
+            hasMore: (totalCount || 0) > offset + rafflesWithTicketCounts.length
+          }
+        });
         
       } catch (error) {
         console.error('❌ Error fetching user ticket counts:', error);
@@ -224,7 +239,15 @@ export async function GET(request: NextRequest) {
       winner: winnerInfo[raffle.id] || null
     })) || [];
 
-    return NextResponse.json(rafflesWithZeroTickets);
+    return NextResponse.json({
+      raffles: rafflesWithZeroTickets,
+      pagination: {
+        page,
+        limit,
+        totalCount: totalCount || 0,
+        hasMore: (totalCount || 0) > offset + rafflesWithZeroTickets.length
+      }
+    });
   } catch (error) {
     console.error('❌ Error in raffles API:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
