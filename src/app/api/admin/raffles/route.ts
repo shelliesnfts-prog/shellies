@@ -17,9 +17,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
     }
 
-    const raffles = await AdminService.getAllRaffles();
+    // Extract pagination parameters from URL
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = parseInt(searchParams.get('limit') || '20', 10);
     
-    return NextResponse.json(raffles);
+    // Validate pagination parameters
+    const validPage = Math.max(1, page);
+    const validLimit = Math.min(Math.max(1, limit), 100); // Cap at 100 items per page
+
+    const paginatedRaffles = await AdminService.getAllRaffles(validPage, validLimit);
+    
+    return NextResponse.json(paginatedRaffles);
   } catch (error) {
     console.error('Error in admin raffles API:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

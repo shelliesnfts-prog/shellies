@@ -141,8 +141,42 @@ export class AdminService {
     }
   }
 
-  // Get all raffles
-  static async getAllRaffles(): Promise<Raffle[]> {
+  // Get all raffles with pagination
+  static async getAllRaffles(page: number = 1, limit: number = 20): Promise<{ raffles: Raffle[], total: number, page: number }> {
+    try {
+      const client = supabaseAdmin || supabase;
+      const offset = (page - 1) * limit;
+
+      // Get total count
+      const { count } = await client
+        .from('shellies_raffle_raffles')
+        .select('*', { count: 'exact', head: true });
+
+      // Get paginated raffles
+      const { data: raffles, error } = await client
+        .from('shellies_raffle_raffles')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (error) {
+        console.error('Error fetching raffles:', error);
+        return { raffles: [], total: 0, page: 1 };
+      }
+
+      return { 
+        raffles: raffles || [], 
+        total: count || 0,
+        page: page
+      };
+    } catch (error) {
+      console.error('Unexpected error fetching raffles:', error);
+      return { raffles: [], total: 0, page: 1 };
+    }
+  }
+
+  // Legacy method for backward compatibility - returns all raffles without pagination
+  static async getAllRafflesLegacy(): Promise<Raffle[]> {
     try {
       const client = supabaseAdmin || supabase;
       
