@@ -334,7 +334,7 @@ export default function LandingPage() {
           }}></div>
         </div>
         
-        <div className="max-w-7xl mx-auto px-6 relative z-10">
+        <div className="max-w-7xl mx-auto px-6 relative z-10 mt-4">
           <div className="text-center mb-16">
             <motion.div 
               className="inline-flex items-center px-4 py-2 bg-purple-50 border border-purple-200/30 rounded-full mb-8"
