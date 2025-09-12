@@ -871,6 +871,45 @@ export class NFTService {
   }
 
   /**
+   * Get metadata for specific staked NFTs from explorer API
+   */
+  static async getStakedNFTsMetadata(stakingContractAddress: string, tokenIds: number[]): Promise<Array<{
+    tokenId: number;
+    name?: string;
+    image?: string;
+    description?: string;
+    attributes?: any[];
+    metadata?: any;
+  }>> {
+    try {
+      const apiUrl = `/api/nft/staked?stakingAddress=${encodeURIComponent(stakingContractAddress)}&tokenIds=${tokenIds.join(',')}`;
+      
+      const response = await fetch(apiUrl, {
+        headers: {
+          'Accept': 'application/json',
+        },
+        cache: 'no-store'
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      return data.nfts || [];
+      
+    } catch (error) {
+      console.error(`Failed to fetch staked NFTs metadata:`, error);
+      return [];
+    }
+  }
+
+  /**
    * Get comprehensive NFT data including metadata from API
    * Much faster than individual blockchain calls
    */

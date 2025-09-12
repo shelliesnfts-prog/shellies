@@ -344,67 +344,25 @@ export default function StakingPage() {
         });
       }
       
-      // Fetch metadata for staked NFTs (using token IDs from staking stats)
-      if (stats.stakedTokenIds.length > 0) {
-        // Step 1: Fetch all tokenURIs in parallel
-        const tokenURIPromises = stats.stakedTokenIds.map(tokenId => 
-          NFTService.getTokenURI(tokenId).catch(error => {
-            console.warn(`Failed to fetch tokenURI for token ${tokenId}:`, error);
-            return null;
-          })
+      // Fetch metadata for staked NFTs using explorer API (same as available NFTs)
+      if (stats.stakedTokenIds.length > 0 && stakingContractAddress) {
+        const stakedNftsWithMetadata = await NFTService.getStakedNFTsMetadata(
+          stakingContractAddress, 
+          stats.stakedTokenIds
         );
         
-        const tokenURIs = await Promise.all(tokenURIPromises);
-        
-        // Step 2: Fetch all metadata in parallel
-        const metadataPromises = tokenURIs.map((tokenURI, index) => {
-          const tokenId = stats.stakedTokenIds[index];
-          
-          if (!tokenURI) {
-            return Promise.resolve({
-              tokenId,
-              isStaked: true,
-              name: `Shellie #${tokenId}`
-            });
-          }
-          
-          return NFTService.fetchMetadata(tokenURI)
-            .then(metadata => {
-              if (metadata) {
-                return {
-                  tokenId,
-                  isStaked: true,
-                  name: metadata.name || `Shellie #${tokenId}`,
-                  image: metadata.image,
-                  description: metadata.description,
-                  attributes: metadata.attributes,
-                  metadata: metadata
-                };
-              }
-              
-              // Fallback if metadata is null
-              return {
-                tokenId,
-                isStaked: true,
-                name: `Shellie #${tokenId}`
-              };
-            })
-            .catch(error => {
-              console.warn(`Failed to fetch metadata for staked token ${tokenId}:`, error);
-              return {
-                tokenId,
-                isStaked: true,
-                name: `Shellie #${tokenId}`
-              };
-            });
-        });
-        
-        const stakedNftsWithMetadata = await Promise.all(metadataPromises);
-        
         // Add staked NFTs to the map
-        stakedNftsWithMetadata.forEach((nft) => {
-          allTokensMap.set(nft.tokenId, nft);
-        });
+        for (const nft of stakedNftsWithMetadata) {
+          allTokensMap.set(nft.tokenId, {
+            tokenId: nft.tokenId,
+            isStaked: true,
+            name: nft.name,
+            image: nft.image,
+            description: nft.description,
+            attributes: nft.attributes,
+            metadata: nft.metadata
+          });
+        }
       }
       
       const nftTokens = Array.from(allTokensMap.values()).sort((a, b) => a.tokenId - b.tokenId);
