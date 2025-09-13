@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useAccount } from 'wagmi';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
@@ -10,15 +10,17 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { NFTService, SHELLIES_CONTRACT_ADDRESS } from '@/lib/nft-service';
 import { ProfilePageSkeleton } from '@/components/portal/ProfilePageSkeleton';
 import { useRouter } from 'next/navigation';
-import { Trophy, Coins, Gift, TrendingUp, ArrowRight, Sparkles, Target, Zap } from 'lucide-react';
+import { Trophy, Coins, Gift, TrendingUp, ArrowRight, Sparkles, Target, Zap, Lock } from 'lucide-react';
 
 export default function ProfilePage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [stakingClaimStatus, setStakingClaimStatus] = useState<any>(null);
+  const [stakingClaiming, setStakingClaiming] = useState(false);
   const { isDarkMode } = useTheme();
   const { data: session } = useSession();
   const { address } = useAccount();
   const router = useRouter();
-  const { user, claimStatus, loading: userLoading, claiming, executeRegularClaim, error: claimError, refreshUserData } = usePoints();
+  const { user, claimStatus, loading: userLoading, claiming, executeRegularClaim, executeStakingClaim, error: claimError, refreshUserData } = usePoints();
 
   const walletAddress = address || session?.address || '';
 
@@ -28,6 +30,29 @@ export default function ProfilePage() {
 
   const handleClaimDaily = async () => {
     await executeRegularClaim();
+  };
+
+  const handleClaimStaking = async () => {
+    setStakingClaiming(true);
+    try {
+      await executeStakingClaim();
+      // Refresh staking claim status after successful claim
+      await fetchStakingClaimStatus();
+    } finally {
+      setStakingClaiming(false);
+    }
+  };
+
+  const fetchStakingClaimStatus = async () => {
+    try {
+      const response = await fetch('/api/claim-staking');
+      if (response.ok) {
+        const data = await response.json();
+        setStakingClaimStatus(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch staking claim status:', error);
+    }
   };
 
   const handleOpenNFTCollection = () => {
@@ -41,6 +66,13 @@ export default function ProfilePage() {
   const handleNavigateToStaking = () => {
     router.push('/portal/staking');
   };
+
+  // Fetch staking claim status when wallet address changes
+  useEffect(() => {
+    if (walletAddress) {
+      fetchStakingClaimStatus();
+    }
+  }, [walletAddress]);
 
   return (
     <div className={`min-h-screen flex transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
@@ -374,7 +406,70 @@ export default function ProfilePage() {
               </div>
             </div>
 
-           
+            {/* Staking Rewards Section */}
+            {stakingClaimStatus && stakingClaimStatus.stakedNFTCount > 0 && (
+              <div className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-lg ${
+                isDarkMode
+                  ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
+                  : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
+              }`}>
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-cyan-500/5 to-transparent" />
+                <div className="relative p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <h3 className={`text-sm font-semibold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        Staking Rewards
+                      </h3>
+                      <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Claim points from your {stakingClaimStatus.stakedNFTCount} staked NFT{stakingClaimStatus.stakedNFTCount !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                    <div className={`p-2.5 rounded-xl ${
+                      isDarkMode ? 'bg-gradient-to-br from-blue-500/20 to-cyan-500/20' : 'bg-gradient-to-br from-blue-100 to-cyan-100'
+                    }`}>
+                      <Lock className="w-5 h-5 text-blue-600" />
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    {userLoading ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className={`h-3 rounded animate-pulse w-32 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
+                          <div className={`h-3 rounded animate-pulse w-24 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
+                        </div>
+                        <div className={`h-10 rounded-lg animate-pulse w-full ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            Available: {stakingClaimStatus.potentialPoints?.toFixed(1) || '0.0'} points
+                          </span>
+                          <div className={`flex items-center space-x-1 text-xs ${
+                            stakingClaimStatus.canClaim
+                              ? 'text-green-600'
+                              : isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                          }`}>
+                            <div className={`w-1.5 h-1.5 rounded-full mr-2 ${
+                              stakingClaimStatus.canClaim ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
+                            }`} />
+                            {stakingClaimStatus.canClaim ? 'Ready to claim' : 'Check back later'}
+                          </div>
+                        </div>
+                        <ClaimButtonWithCountdown
+                          canClaim={stakingClaimStatus.canClaim}
+                          secondsUntilNextClaim={stakingClaimStatus.secondsUntilNextClaim || 0}
+                          nftCount={stakingClaimStatus.stakedNFTCount}
+                          potentialPoints={stakingClaimStatus.potentialPoints || 0}
+                          onClaim={handleClaimStaking}
+                          claiming={stakingClaiming}
+                        />
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Error Display */}
             {claimError && (

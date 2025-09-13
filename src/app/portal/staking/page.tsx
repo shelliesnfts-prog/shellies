@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
-import { Trophy, Star, TrendingUp, Loader2, CheckCircle, AlertTriangle, Coins, Lock, Unlock, Shield } from 'lucide-react';
+import { Trophy, Star, TrendingUp, Loader2, CheckCircle, AlertTriangle, Coins, Lock, Unlock } from 'lucide-react';
 import { NFTService } from '@/lib/nft-service';
 import { StakingService } from '@/lib/staking-service';
 import { ImageUtils } from '@/lib/image-utils';
@@ -150,44 +150,10 @@ export default function StakingPage() {
     tokensNeedingApproval: number[];
   }>({ needed: false, checking: false, tokensNeedingApproval: [] });
   const [viewMode, setViewMode] = useState<'owned' | 'staked'>('owned');
-  const [stakingClaimMessage, setStakingClaimMessage] = useState<string>('');
 
   // Get global points context early
-  const { user, claimStatus, loading: dashboardLoading, canPerformStaking, executeStakingClaim } = usePoints();
+  const { user, claimStatus, loading: dashboardLoading } = usePoints();
 
-  // Countdown timer state for staking claims
-  const [countdownTime, setCountdownTime] = useState(0);
-
-  // Live countdown timer effect
-  useEffect(() => {
-    if (claimStatus && claimStatus.secondsUntilNextClaim > 0 && !canPerformStaking) {
-      setCountdownTime(claimStatus.secondsUntilNextClaim);
-      
-      const timer = setInterval(() => {
-        setCountdownTime(prev => {
-          if (prev <= 1) {
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-
-      return () => clearInterval(timer);
-    } else {
-      setCountdownTime(0);
-    }
-  }, [claimStatus?.secondsUntilNextClaim, canPerformStaking, claimStatus]);
-
-  // Format countdown timer
-  const formatCountdown = (seconds: number) => {
-    if (seconds <= 0) return null;
-    
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const remainingSeconds = seconds % 60;
-    
-    return `${String(hours).padStart(2, '0')}h ${String(minutes).padStart(2, '0')}m ${String(remainingSeconds).padStart(2, '0')}s`;
-  };
 
   const { address, isConnected } = useAccount();
   const { writeContractAsync } = useWriteContract();
@@ -235,23 +201,6 @@ export default function StakingPage() {
               // Fetch fresh data
               await fetchUserData();
               
-              // Automatically claim staking rewards if user can claim
-              if (canPerformStaking && transactionState.type === 'stake') {
-                try {
-                  const claimResult = await executeStakingClaim();
-                  
-                  if (claimResult.success) {
-                    setStakingClaimMessage(`🎉 Successfully claimed ${claimResult.pointsAdded} points from ${claimResult.stakedNFTCount} staked NFTs!`);
-                    
-                    // Clear message after 8 seconds
-                    setTimeout(() => {
-                      setStakingClaimMessage('');
-                    }, 8000);
-                  }
-                } catch (error) {
-                  // Don't show error to user - staking was successful
-                }
-              }
               
               // Broadcast points update to refresh dashboard
               window.dispatchEvent(new CustomEvent('stakingUpdated', { 
@@ -314,7 +263,6 @@ export default function StakingPage() {
     setOwnedNFTs([]);
     setSelectedTokens([]);
     setApprovalState({ needed: false, checking: false, tokensNeedingApproval: [] });
-    setStakingClaimMessage('');
     setLoading(false);
   };
 
@@ -780,67 +728,6 @@ export default function StakingPage() {
               </div>
             </div>
 
-            {/* Cooldown Timer Section - Always shown when cooldown is active */}
-            {!canPerformStaking && countdownTime > 0 && (
-              <div className={`relative overflow-hidden rounded-2xl border transition-all duration-300 ${
-                isDarkMode 
-                  ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700' 
-                  : 'bg-gradient-to-br from-white to-orange-50/30 border-orange-200/60 shadow-sm'
-              }`}>
-                <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-transparent" />
-                <div className="relative p-6">
-                  <div className="space-y-4">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center space-x-2 mb-2">
-                          <div className={`p-2 rounded-lg ${
-                            isDarkMode ? 'bg-orange-500/20' : 'bg-orange-100'
-                          }`}>
-                            <Shield className="w-5 h-5 text-orange-600" />
-                          </div>
-                          <h3 className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                            Staking Operations Locked
-                          </h3>
-                          <div className={`text-xs font-medium px-2 py-1 rounded-full ${
-                            isDarkMode ? 'bg-orange-500/20 text-orange-400' : 'bg-orange-50 text-orange-700'
-                          }`}>
-                            Cooldown Active
-                          </div>
-                        </div>
-                        <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                          All staking and unstaking operations are temporarily locked due to the 24-hour cooldown period.
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Countdown Timer */}
-                    <div className={`p-4 rounded-xl border-2 border-dashed ${
-                      isDarkMode 
-                        ? 'border-orange-600/50 bg-orange-900/20' 
-                        : 'border-orange-300/60 bg-orange-50/50'
-                    }`}>
-                      <div className="text-center">
-                        <div className={`text-sm mb-2 ${isDarkMode ? 'text-orange-400' : 'text-orange-700'}`}>
-                          🚫 Operations unlock in:
-                        </div>
-                        <div className={`font-mono text-2xl font-bold ${
-                          isDarkMode ? 'text-orange-400' : 'text-orange-600'
-                        }`}>
-                          {formatCountdown(countdownTime)}
-                        </div>
-                        <div className={`text-xs mt-2 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                          Wait for cooldown to end before staking/unstaking
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                      💡 The 24-hour cooldown applies to all staking operations to ensure fair reward distribution.
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
            
 
             {/* Transaction Status */}
@@ -958,23 +845,17 @@ export default function StakingPage() {
                 {viewMode === 'owned' ? (
                   <button
                     onClick={handleStake}
-                    disabled={selectedTokens.length === 0 || transactionState.status === 'pending' || !canPerformStaking}
+                    disabled={selectedTokens.length === 0 || transactionState.status === 'pending'}
                     className={`px-6 py-2 text-sm font-bold rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
-                      selectedTokens.length > 0 && transactionState.status !== 'pending' && canPerformStaking
+                      selectedTokens.length > 0 && transactionState.status !== 'pending'
                         ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white hover:scale-105 shadow-lg hover:shadow-blue-500/25'
                         : 'bg-gray-300 text-gray-500'
                     }`}
-                    title={!canPerformStaking ? 'Staking is disabled during 24h cooldown period' : ''}
                   >
                     {transactionState.status === 'pending' && transactionState.type === 'stake' ? (
                       <div className="flex items-center space-x-2">
                         <Loader2 className="w-4 h-4 animate-spin" />
                         <span>Staking...</span>
-                      </div>
-                    ) : !canPerformStaking ? (
-                      <div className="flex items-center space-x-2">
-                        <Shield className="w-4 h-4" />
-                        <span>Locked ({selectedTokens.length})</span>
                       </div>
                     ) : (
                       <div className="flex items-center space-x-2">
@@ -986,23 +867,17 @@ export default function StakingPage() {
                 ) : (
                   <button
                     onClick={handleUnstake}
-                    disabled={selectedTokens.length === 0 || transactionState.status === 'pending' || !canPerformStaking}
+                    disabled={selectedTokens.length === 0 || transactionState.status === 'pending'}
                     className={`px-6 py-2 text-sm font-bold rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
-                      selectedTokens.length > 0 && transactionState.status !== 'pending' && canPerformStaking
+                      selectedTokens.length > 0 && transactionState.status !== 'pending'
                         ? 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white hover:scale-105 shadow-lg hover:shadow-orange-500/25'
                         : 'bg-gray-300 text-gray-500'
                     }`}
-                    title={!canPerformStaking ? 'Unstaking is disabled during 24h cooldown period' : ''}
                   >
                     {transactionState.status === 'pending' && transactionState.type === 'unstake' ? (
                       <div className="flex items-center space-x-2">
                         <Loader2 className="w-4 h-4 animate-spin" />
                         <span>Unstaking...</span>
-                      </div>
-                    ) : !canPerformStaking ? (
-                      <div className="flex items-center space-x-2">
-                        <Shield className="w-4 h-4" />
-                        <span>Locked ({selectedTokens.length})</span>
                       </div>
                     ) : (
                       <div className="flex items-center space-x-2">

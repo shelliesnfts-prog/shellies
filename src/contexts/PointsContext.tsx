@@ -65,8 +65,9 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
   const fetchingRef = useRef(false);
   const lastAddressRef = useRef<string | null>(null);
 
-  // Calculate if user can perform staking (based on 24h cooldown)
-  const canPerformStaking = claimStatus?.canClaim ?? false;
+  // Note: Staking operations are now always available (no 24h constraint)
+  // The 24h cooldown only applies to points claiming, not staking/unstaking
+  const canPerformStaking = true;
 
   // Fetch user data and claim status
   const fetchUserData = useCallback(async () => {
