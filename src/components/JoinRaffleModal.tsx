@@ -60,7 +60,10 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
   // Reset modal state when opened
   useEffect(() => {
     if (isOpen && raffle) {
-      setTicketCount(1);
+      // Reset ticket count to 1 or remaining tickets if less than 1
+      const currentTickets = raffle.user_ticket_count || 0;
+      const remainingTickets = raffle.max_tickets_per_user - currentTickets;
+      setTicketCount(remainingTickets > 0 ? 1 : 0);
       setMessage(null);
       setImageError(false);
       fetchParticipants(true); // Initial load with loading indicator
@@ -342,6 +345,8 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
           }
         }
 
+        // Reset ticket count to 1 after successful purchase
+        setTicketCount(1);
 
         // Refresh detailed entry info if needed
         if (raffle.user_ticket_count && raffle.user_ticket_count > 0) {
@@ -791,8 +796,12 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                     </div>
                   )}
 
-                  {/* Ticket Controls - Only show if max tickets > 1 and raffle is active */}
-                  {raffle.max_tickets_per_user > 1 && raffle.status === 'ACTIVE' && remainingTickets > 0 && (
+                  {/* Ticket Controls - Only show if user can purchase more tickets and raffle is active */}
+                  {raffle.max_tickets_per_user > 1 &&
+                   raffle.status === 'ACTIVE' &&
+                   remainingTickets > 0 &&
+                   isRaffleActive(raffle.end_date) &&
+                   !(raffle.max_participants && (raffle.current_participants || 0) >= raffle.max_participants) && (
                     <div className="space-y-2">
                       <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                         Select number of tickets ({remainingTickets} remaining):
@@ -847,9 +856,11 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                   )}
 
                   <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                    {raffle.user_ticket_count && raffle.user_ticket_count > 0
-                      ? `You can purchase up to ${remainingTickets} more ticket${remainingTickets > 1 ? 's' : ''} for this raffle.`
-                      : `You can purchase up to ${raffle.max_tickets_per_user} ticket${raffle.max_tickets_per_user > 1 ? 's' : ''} for this raffle.`
+                    {remainingTickets <= 0
+                      ? `You have reached the maximum of ${raffle.max_tickets_per_user} ticket${raffle.max_tickets_per_user > 1 ? 's' : ''} for this raffle.`
+                      : raffle.user_ticket_count && raffle.user_ticket_count > 0
+                        ? `You can purchase up to ${remainingTickets} more ticket${remainingTickets > 1 ? 's' : ''} for this raffle.`
+                        : `You can purchase up to ${raffle.max_tickets_per_user} ticket${raffle.max_tickets_per_user > 1 ? 's' : ''} for this raffle.`
                     }
                   </div>
                 </div>

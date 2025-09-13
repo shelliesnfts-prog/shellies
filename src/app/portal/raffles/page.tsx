@@ -68,7 +68,9 @@ export default function RafflesPage() {
 
 
   const handleJoinRaffle = (raffle: Raffle) => {
-    setSelectedRaffle(raffle);
+    // Find the most up-to-date raffle data from our current list
+    const currentRaffle = raffles.find(r => r.id === raffle.id) || raffle;
+    setSelectedRaffle(currentRaffle);
     setIsModalOpen(true);
   };
 
@@ -78,7 +80,9 @@ export default function RafflesPage() {
   };
 
   const handleRaffleSuccess = () => {
+    // Refresh user data and raffle list to get updated ticket counts
     fetchUser();
+    fetchRaffles(currentPage, false);
   };
 
   useEffect(() => {
