@@ -236,6 +236,14 @@ export class NFTService {
   }
 
   /**
+   * Calculate points for holders only (excludes regular user base point)
+   * Used when user has staked NFTs to avoid double-counting
+   */
+  static calculateHolderOnlyPoints(nftCount: number): number {
+    return nftCount * 5; // NFT holders get 5 points per NFT, no base point
+  }
+
+  /**
    * Calculate potential staking points (theoretical - for motivation)
    * Staked NFTs = 10 points per NFT
    */

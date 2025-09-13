@@ -474,10 +474,55 @@ export default function StakingPage() {
   };
 
   // Modal handlers
-  const handleModalSuccess = () => {
+  const handleModalSuccess = async () => {
     // The modal has completed both approval and staking successfully
     setShowApprovalModal(false);
-    // The transaction monitoring will handle the UI updates
+
+    // Trigger the same UI refresh logic as direct staking
+    try {
+      // Clear all relevant caches to force fresh data
+      if (address) {
+        NFTService.clearOwnedTokensCache(address);
+        StakingService.clearCache(address);
+      }
+
+      // Clear selected tokens first
+      setSelectedTokens([]);
+
+      // Show success state temporarily
+      setTransactionState({
+        type: 'stake',
+        status: 'success',
+        message: 'Staking completed successfully! Refreshing data...'
+      });
+
+      // Fetch fresh data with cache busting
+      await fetchUserData(true);
+
+      // Broadcast points update to refresh dashboard
+      if (address) {
+        window.dispatchEvent(new CustomEvent('stakingUpdated', {
+          detail: { walletAddress: address }
+        }));
+      }
+
+      // Clear success message after showing it briefly
+      setTimeout(() => {
+        setTransactionState({ type: null, status: 'idle', message: '' });
+      }, 3000);
+
+    } catch (error) {
+      setTransactionState({
+        type: null,
+        status: 'error',
+        message: 'Staking succeeded but failed to refresh data. Please reload the page.'
+      });
+
+      // Clear error after 5 seconds
+      setTimeout(() => {
+        setTransactionState({ type: null, status: 'idle', message: '' });
+      }, 5000);
+    }
   };
 
   const handleModalClose = () => {

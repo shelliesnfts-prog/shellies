@@ -17,7 +17,10 @@ interface ClaimStatus {
   canClaim: boolean;
   secondsUntilNextClaim: number;
   nftCount: number;
-  potentialPoints: number;
+  stakedNFTCount: number;
+  regularPoints: number;
+  stakingPoints: number;
+  potentialPoints: number; // Combined total of regular + staking points
   currentPoints: number;
   lastClaim: string | null;
 }
@@ -44,6 +47,7 @@ interface PointsContextType {
   // Actions
   executeRegularClaim: () => Promise<ClaimResult>;
   executeStakingClaim: () => Promise<ClaimResult>;
+  executeUnifiedClaim: () => Promise<ClaimResult>;
   refreshUserData: () => Promise<void>;
   updatePoints: (newPoints: number) => void;
   
@@ -210,6 +214,55 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
     }
   }, [session?.address, claiming]);
 
+  // Execute unified claim (both regular and staking points)
+  const executeUnifiedClaim = useCallback(async (): Promise<ClaimResult> => {
+    if (!session?.address || claiming) {
+      return { success: false, error: 'Not ready to claim' };
+    }
+
+    try {
+      setClaiming(true);
+      setError(null);
+
+      const response = await fetch('/api/claim-unified', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        setError(result.error);
+        return result;
+      }
+
+      // Clear local state to force fresh fetch and update display immediately
+      setUser(null);
+      setClaimStatus(null);
+      lastAddressRef.current = null; // Force refetch
+
+      // Immediately fetch fresh data to reflect the unified claim
+      setTimeout(() => {
+        fetchUserData();
+      }, 100);
+
+      // Broadcast points update
+      window.dispatchEvent(new CustomEvent('pointsUpdated', {
+        detail: { newPoints: result.newPoints, walletAddress: session.address }
+      }));
+
+      return result;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to process unified claim';
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
+    } finally {
+      setClaiming(false);
+    }
+  }, [session?.address, claiming, fetchUserData]);
+
   // Manual refresh
   const refreshUserData = useCallback(async () => {
     lastAddressRef.current = null; // Force refetch
@@ -277,6 +330,7 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
     // Actions
     executeRegularClaim,
     executeStakingClaim,
+    executeUnifiedClaim,
     refreshUserData,
     updatePoints,
 

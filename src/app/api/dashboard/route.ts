@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { UserService } from '@/lib/user-service';
 import { NFTService } from '@/lib/nft-service';
+import { StakingService } from '@/lib/staking-service';
 import { createClient } from '@supabase/supabase-js';
 
 // Service client for database operations
@@ -27,10 +28,11 @@ export async function GET(request: NextRequest) {
 
     const walletAddress = session.address as string;
     
-    // Fetch user data and NFT count in parallel (bypass cache to get fresh last_claim data)
-    const [user, nftCount] = await Promise.all([
+    // Fetch user data, NFT count, and staking stats in parallel (bypass cache to get fresh last_claim data)
+    const [user, nftCount, stakingStats] = await Promise.all([
       UserService.getOrCreateUser(walletAddress, true), // bypass cache for fresh data
-      NFTService.getNFTCount(walletAddress)
+      NFTService.getNFTCount(walletAddress),
+      StakingService.getStakingStats(walletAddress)
     ]);
     
     if (!user) {
@@ -53,7 +55,25 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const potentialPoints = NFTService.calculateClaimPoints(nftCount);
+    // Calculate points based on user type (no stacking of base points)
+    const stakedNFTCount = stakingStats.totalStaked;
+    let regularPoints = 0;
+    let stakingPoints = 0;
+    let totalPotentialPoints = 0;
+
+    if (stakedNFTCount > 0) {
+      // User has staked NFTs: only get staking points (10 per staked NFT)
+      stakingPoints = StakingService.calculateDailyPoints(stakedNFTCount);
+      totalPotentialPoints = stakingPoints;
+    } else if (nftCount > 0) {
+      // User has NFTs but no staking: get holder points (5 per NFT)
+      regularPoints = NFTService.calculateClaimPoints(nftCount);
+      totalPotentialPoints = regularPoints;
+    } else {
+      // Regular user with no NFTs: get base point
+      regularPoints = 1;
+      totalPotentialPoints = regularPoints;
+    }
 
     // Return combined data
     return NextResponse.json({
@@ -62,7 +82,10 @@ export async function GET(request: NextRequest) {
         canClaim,
         secondsUntilNextClaim,
         nftCount,
-        potentialPoints,
+        stakedNFTCount,
+        regularPoints,
+        stakingPoints,
+        potentialPoints: totalPotentialPoints, // Combined total
         currentPoints: user.points,
         lastClaim: user.last_claim
       }
