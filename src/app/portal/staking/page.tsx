@@ -14,6 +14,7 @@ import { useDashboard } from '@/hooks/useDashboard';
 import { usePoints } from '@/contexts/PointsContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { StakingPageSkeleton } from '@/components/portal/StakingPageSkeleton';
+import ApprovalStakeModal from '@/components/ApprovalStakeModal';
 
 interface NFTToken {
   tokenId: number;
@@ -150,6 +151,7 @@ export default function StakingPage() {
     tokensNeedingApproval: number[];
   }>({ needed: false, checking: false, tokensNeedingApproval: [] });
   const [viewMode, setViewMode] = useState<'owned' | 'staked'>('owned');
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
 
   // Get global points context early
   const { user, claimStatus, loading: dashboardLoading } = usePoints();
@@ -189,6 +191,8 @@ export default function StakingPage() {
         } else {
           setTransactionState(prev => ({ ...prev, status: 'success', message: 'Transaction confirmed! Refreshing data...' }));
           // Refresh data after successful stake/unstake transaction
+          // Use longer delay for unstake operations to allow explorer API to catch up
+          const delay = transactionState.type === 'unstake' ? 4000 : 2000;
           setTimeout(async () => {
             try {
               // Clear all relevant caches to force fresh data
@@ -198,8 +202,8 @@ export default function StakingPage() {
               // Clear selected tokens first
               setSelectedTokens([]);
               
-              // Fetch fresh data
-              await fetchUserData();
+              // Fetch fresh data with aggressive cache busting after transactions
+              await fetchUserData(true);
               
               
               // Broadcast points update to refresh dashboard
@@ -216,7 +220,7 @@ export default function StakingPage() {
                 message: 'Transaction succeeded but failed to refresh data. Please reload the page.' 
               });
             }
-          }, 2000);
+          }, delay);
         }
       } else {
         setTransactionState(prev => ({ ...prev, status: 'error', message: 'Transaction failed on blockchain' }));
@@ -266,7 +270,7 @@ export default function StakingPage() {
     setLoading(false);
   };
 
-  const fetchUserData = async () => {
+  const fetchUserData = async (bustCache: boolean = false) => {
     if (!address) return;
 
     try {
@@ -275,7 +279,7 @@ export default function StakingPage() {
       // Fetch staking stats and user's owned NFTs in parallel
       const [stats, userNftsWithMetadata] = await Promise.all([
         StakingService.getStakingStats(address),
-        NFTService.getNFTsWithMetadata(address)
+        NFTService.getNFTsWithMetadata(address, bustCache)
       ]);
       
       setStakingStats(stats);
@@ -369,49 +373,9 @@ export default function StakingPage() {
     }
   };
 
-  const handleApproveAll = async () => {
-    if (!address || !stakingContractAddress || !nftContractAddress) {
-      return;
-    }
-    
-    try {
-      setTransactionState({ type: 'approve', status: 'pending', message: 'Requesting approval for all NFTs...' });
-
-      const hash = await writeContractAsync({
-        address: nftContractAddress as `0x${string}`,
-        abi: erc721Abi,
-        functionName: 'setApprovalForAll',
-        args: [stakingContractAddress as `0x${string}`, true],
-      });
-
-      setTransactionState({
-        type: 'approve',
-        status: 'pending',
-        message: 'Approval transaction submitted, waiting for confirmation...',
-        hash
-      });
-
-    } catch (error: any) {
-      
-      let errorMessage = 'Failed to approve NFTs';
-      if (error?.message?.includes('User rejected')) {
-        errorMessage = 'Approval was cancelled by user';
-      } else if (error?.message?.includes('insufficient funds')) {
-        errorMessage = 'Insufficient funds for gas fees';
-      } else {
-        errorMessage = parseContractError(error) || error?.message?.slice(0, 100) || 'Failed to approve NFTs';
-      }
-
-      setTransactionState({ type: 'approve', status: 'error', message: errorMessage });
-      
-      setTimeout(() => {
-        setTransactionState({ type: null, status: 'idle', message: '' });
-      }, 8000);
-    }
-  };
 
   const handleStake = async () => {
-    if (!selectedTokens.length || !address || !stakingContractAddress) {
+    if (!selectedTokens.length || !address || !stakingContractAddress || !nftContractAddress) {
       return;
     }
 
@@ -421,41 +385,62 @@ export default function StakingPage() {
       // Check if user owns these NFTs first
       const ownedTokens = ownedNFTs.filter(nft => !nft.isStaked).map(nft => nft.tokenId);
       const invalidTokens = selectedTokens.filter(id => !ownedTokens.includes(id));
-      
+
       if (invalidTokens.length > 0) {
-        setTransactionState({ 
-          type: 'stake', 
-          status: 'error', 
-          message: `Invalid tokens selected: ${invalidTokens.join(', ')}` 
+        setTransactionState({
+          type: 'stake',
+          status: 'error',
+          message: `Invalid tokens selected: ${invalidTokens.join(', ')}`
         });
         return;
       }
 
       // Check NFT approvals
       setApprovalState({ needed: false, checking: true, tokensNeedingApproval: [] });
-      
+
       const { approved, needApproval } = await checkNFTApprovals(selectedTokens);
-      
+
+      // Clear the checking state
+      setApprovalState({ needed: false, checking: false, tokensNeedingApproval: [] });
+      setTransactionState({ type: null, status: 'idle', message: '' });
+
       if (needApproval.length > 0) {
-        setApprovalState({ 
-          needed: true, 
-          checking: false, 
-          tokensNeedingApproval: needApproval 
-        });
-        setTransactionState({ 
-          type: null, 
-          status: 'error', 
-          message: `Please approve the staking contract to access your NFTs first. Click "Approve All NFTs" below.` 
-        });
+        // Open the approval modal for unified flow
+        setShowApprovalModal(true);
         return;
       }
 
+      // If already approved, proceed directly with staking
+      await executeStaking();
+
+    } catch (error: any) {
+      let errorMessage = 'Failed to check approvals';
+      if (error?.message?.includes('block is out of range')) {
+        errorMessage = 'Blockchain sync issue. Please try again in a moment.';
+      } else {
+        errorMessage = parseContractError(error) || error?.message?.slice(0, 100) || 'Failed to check approvals';
+      }
+
+      setTransactionState({ type: 'stake', status: 'error', message: errorMessage });
       setApprovalState({ needed: false, checking: false, tokensNeedingApproval: [] });
-      
+
+      setTimeout(() => {
+        setTransactionState({ type: null, status: 'idle', message: '' });
+      }, 10000);
+    }
+  };
+
+  // Separate function for just the staking transaction
+  const executeStaking = async () => {
+    if (!selectedTokens.length || !address || !stakingContractAddress) {
+      return;
+    }
+
+    try {
       const tokenIds = selectedTokens.map(id => BigInt(id));
-      
+
       setTransactionState({ type: 'stake', status: 'pending', message: 'Submitting staking transaction...' });
-      
+
       const hash = await writeContractAsync({
         address: stakingContractAddress as `0x${string}`,
         abi: staking_abi,
@@ -471,27 +456,32 @@ export default function StakingPage() {
       });
 
     } catch (error: any) {
-      
       let errorMessage = 'Failed to stake tokens';
-      if (error?.message?.includes('block is out of range')) {
-        errorMessage = 'Blockchain sync issue. Please try again in a moment.';
-      } else if (error?.message?.includes('User rejected')) {
+      if (error?.message?.includes('User rejected')) {
         errorMessage = 'Transaction was cancelled by user';
       } else if (error?.message?.includes('insufficient funds')) {
         errorMessage = 'Insufficient funds for gas fees';
-      } else if (error?.message?.includes('nonce')) {
-        errorMessage = 'Transaction nonce issue. Please try again.';
       } else {
         errorMessage = parseContractError(error) || error?.message?.slice(0, 100) || 'Failed to stake tokens';
       }
 
       setTransactionState({ type: 'stake', status: 'error', message: errorMessage });
-      setApprovalState({ needed: false, checking: false, tokensNeedingApproval: [] });
-      
+
       setTimeout(() => {
         setTransactionState({ type: null, status: 'idle', message: '' });
       }, 10000);
     }
+  };
+
+  // Modal handlers
+  const handleModalSuccess = () => {
+    // The modal has completed both approval and staking successfully
+    setShowApprovalModal(false);
+    // The transaction monitoring will handle the UI updates
+  };
+
+  const handleModalClose = () => {
+    setShowApprovalModal(false);
   };
 
   const handleUnstake = async () => {
@@ -756,50 +746,6 @@ export default function StakingPage() {
               </div>
             )}
 
-            {/* Approval Required Notice */}
-            {approvalState.needed && (
-              <div className={`rounded-xl shadow-sm border p-4 ${
-                isDarkMode ? 'bg-orange-900/20 border-orange-700' : 'bg-orange-50 border-orange-200'
-              }`}>
-                <div className="flex items-start gap-3">
-                  <Shield className="w-5 h-5 text-orange-500 mt-0.5" />
-                  <div className="flex-1">
-                    <p className={`text-sm font-medium mb-2 ${
-                      isDarkMode ? 'text-orange-400' : 'text-orange-800'
-                    }`}>
-                      NFT Approval Required
-                    </p>
-                    <p className={`text-sm mb-3 ${
-                      isDarkMode ? 'text-orange-300' : 'text-orange-700'
-                    }`}>
-                      To stake your NFTs, you need to approve the staking contract to access them. 
-                      This is a one-time approval for all your NFTs.
-                    </p>
-                    <button
-                      onClick={handleApproveAll}
-                      disabled={transactionState.status === 'pending'}
-                      className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 ${
-                        isDarkMode
-                          ? 'bg-orange-600 text-white hover:bg-orange-700 disabled:bg-gray-700'
-                          : 'bg-orange-600 text-white hover:bg-orange-700 disabled:bg-gray-400'
-                      }`}
-                    >
-                      {transactionState.status === 'pending' && transactionState.type === 'approve' ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin inline" />
-                          Approving...
-                        </>
-                      ) : (
-                        <>
-                          <Shield className="w-4 h-4 mr-2 inline" />
-                          Approve All NFTs
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* View Mode Toggle & Actions */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -982,6 +928,18 @@ export default function StakingPage() {
           )}
         </main>
       </div>
+
+      {/* Approval + Stake Modal */}
+      <ApprovalStakeModal
+        isOpen={showApprovalModal}
+        onClose={handleModalClose}
+        selectedTokens={selectedTokens}
+        stakingContractAddress={stakingContractAddress || ''}
+        nftContractAddress={nftContractAddress || ''}
+        isDarkMode={isDarkMode}
+        onSuccess={handleModalSuccess}
+        userAddress={address || ''}
+      />
     </div>
   );
 }

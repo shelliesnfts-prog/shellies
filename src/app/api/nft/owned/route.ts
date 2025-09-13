@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const walletAddress = searchParams.get('address');
+    const bustCache = searchParams.get('bustCache') === 'true';
 
     if (!walletAddress) {
       return NextResponse.json({ error: 'Wallet address is required' }, { status: 400 });
@@ -64,21 +65,40 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch data from Ink Explorer API with cache busting and retry logic
-    const apiUrl = `https://explorer.inkonchain.com/api/v2/addresses/${walletAddress}/nft/collections?type=`;
-    
+    let apiUrl = `https://explorer.inkonchain.com/api/v2/addresses/${walletAddress}/nft/collections?type=`;
+
+    // Add cache-busting parameters when requested (less aggressive to avoid 422 errors)
+    if (bustCache) {
+      const timestamp = Date.now();
+      apiUrl += `&_t=${timestamp}`;
+    }
+
     let response: Response;
     let retryCount = 0;
     const maxRetries = 2;
-    
+    let currentApiUrl = apiUrl;
+    let triedWithoutCacheBust = false;
+
     while (retryCount <= maxRetries) {
       try {
-        response = await fetch(apiUrl, {
-          headers: {
-            'Accept': 'application/json',
-            'User-Agent': 'Shellies-App/1.0',
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          },
+        const headers: Record<string, string> = {
+          'Accept': 'application/json',
+          'User-Agent': 'Shellies-App/1.0',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        };
+
+        // Add more aggressive cache-busting headers when requested
+        if (bustCache) {
+          headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, proxy-revalidate, max-age=0';
+          headers['Pragma'] = 'no-cache';
+          headers['Expires'] = '0';
+          headers['If-Modified-Since'] = 'Thu, 01 Jan 1970 00:00:00 GMT';
+          headers['If-None-Match'] = '*';
+        }
+
+        response = await fetch(currentApiUrl, {
+          headers,
           // Disable Next.js caching for this external API call
           cache: 'no-store',
           // Add a random query param to bypass any CDN caching
@@ -91,18 +111,38 @@ export async function GET(request: NextRequest) {
 
         if (response.status === 429 && retryCount < maxRetries) {
           // Rate limited, wait and retry
-          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+          const delay = bustCache ? 2000 * (retryCount + 1) : 1000 * (retryCount + 1);
+          await new Promise(resolve => setTimeout(resolve, delay));
           retryCount++;
           continue;
         }
 
-        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+        // If we get 422 with cache-busting, try without cache-busting
+        if (response.status === 422 && bustCache && !triedWithoutCacheBust) {
+          console.log('422 error with cache-busting, retrying without cache-busting parameters');
+          currentApiUrl = `https://explorer.inkonchain.com/api/v2/addresses/${walletAddress}/nft/collections?type=`;
+          triedWithoutCacheBust = true;
+          // Don't increment retryCount for this fallback attempt
+          continue;
+        }
+
+        // Log the response body for debugging 422 errors
+        let errorDetails = '';
+        try {
+          const errorBody = await response.text();
+          errorDetails = errorBody ? ` - Response: ${errorBody.substring(0, 200)}` : '';
+        } catch (e) {
+          // Ignore errors reading response body
+        }
+
+        throw new Error(`API request failed: ${response.status} ${response.statusText}${errorDetails}`);
       } catch (error) {
         if (retryCount === maxRetries) {
           throw error;
         }
         retryCount++;
-        await new Promise(resolve => setTimeout(resolve, 500 * retryCount));
+        const delay = bustCache ? 1000 * retryCount : 500 * retryCount;
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
 
@@ -155,9 +195,16 @@ export async function GET(request: NextRequest) {
     
   } catch (error) {
     console.error('Error fetching owned NFTs:', error);
-    
+
+    // For 422 errors or other API failures, return empty array instead of 500 error
+    // This allows the UI to still function, just with empty available NFTs
+    if (error instanceof Error && error.message.includes('422')) {
+      console.log('Returning empty NFT array due to API 422 error');
+      return NextResponse.json({ nfts: [] });
+    }
+
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to fetch NFT data',
         details: error instanceof Error ? error.message : 'Unknown error'
       },

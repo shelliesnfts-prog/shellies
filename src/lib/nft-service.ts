@@ -934,7 +934,7 @@ export class NFTService {
    * Get all NFT data with metadata using our API endpoint
    * This uses a server-side proxy for more reliable data fetching
    */
-  static async getNFTsWithMetadata(walletAddress: string): Promise<Array<{
+  static async getNFTsWithMetadata(walletAddress: string, bustCache: boolean = false): Promise<Array<{
     tokenId: number;
     name?: string;
     image?: string;
@@ -948,8 +948,13 @@ export class NFTService {
       }
 
       // Use our API endpoint instead of direct explorer API call
-      const apiUrl = `/api/nft/owned?address=${encodeURIComponent(walletAddress)}`;
-      
+      let apiUrl = `/api/nft/owned?address=${encodeURIComponent(walletAddress)}`;
+
+      // Add cache-busting parameter if requested
+      if (bustCache) {
+        apiUrl += `&bustCache=true`;
+      }
+
       const response = await fetch(apiUrl, {
         headers: {
           'Accept': 'application/json',
