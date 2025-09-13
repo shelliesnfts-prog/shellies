@@ -704,11 +704,49 @@ export class RaffleContractService {
       }
       
       return { success: true, txHash };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error in admin ERC20 raffle creation:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown blockchain error' 
+
+      // Handle specific error cases with user-friendly messages
+      let errorMessage = 'Unknown blockchain error';
+
+      if (error?.message) {
+        // Check for trading disabled error
+        if (error.message.includes('Trading not enabled') ||
+            error.message.includes('_update::Trading')) {
+          errorMessage = 'Token transfers are currently disabled by the token contract. This token cannot be used for raffles until trading is enabled by the token owner.';
+        }
+        // Check for insufficient allowance (should be prevented by our approval logic)
+        else if (error.message.includes('ERC20InsufficientAllowance') ||
+                 error.message.includes('transfer amount exceeds allowance')) {
+          errorMessage = 'Insufficient token allowance. Please try the approval process again.';
+        }
+        // Check for insufficient balance
+        else if (error.message.includes('ERC20InsufficientBalance') ||
+                 error.message.includes('transfer amount exceeds balance')) {
+          errorMessage = 'Insufficient token balance. You do not have enough tokens to create this raffle.';
+        }
+        // Check for raffle already exists
+        else if (error.message.includes('Raffle already exists')) {
+          errorMessage = 'This raffle ID already exists on the blockchain. Please refresh and try again.';
+        }
+        // Check for admin permission issues
+        else if (error.message.includes('Admin only') ||
+                 error.message.includes('AccessControlUnauthorizedAccount')) {
+          errorMessage = 'Admin permission required. Please ensure your wallet has admin privileges.';
+        }
+        // Generic transaction failed
+        else if (error.message.includes('execution reverted')) {
+          errorMessage = `Transaction failed on blockchain: ${error.message}`;
+        }
+        else {
+          errorMessage = error.message;
+        }
+      }
+
+      return {
+        success: false,
+        error: errorMessage
       };
     }
   }
@@ -788,7 +826,6 @@ export class RaffleContractService {
         return { success: false, error: 'Raffle contract address not configured' };
       }
 
-
       // Ensure proper BigInt conversion for large numbers
       let amountBigInt: bigint;
       try {
@@ -798,13 +835,46 @@ export class RaffleContractService {
         throw new Error(`Invalid amount format for approval: ${amount}`);
       }
 
+      // Step 1: Reset allowance to 0 (required by many ERC20 contracts for security)
+      try {
+        const resetTxHash = await writeContract({
+          address: tokenAddress as `0x${string}`,
+          abi: erc20Abi,
+          functionName: 'approve',
+          args: [this.contractAddress as `0x${string}`, BigInt(0)],
+          gas: BigInt(100000),
+        });
 
+        // Wait for reset transaction to complete
+        const resetReceiptResult = await this.waitForTransactionReceipt(resetTxHash);
+        if (!resetReceiptResult.success) {
+          return {
+            success: false,
+            error: `Failed to reset token allowance: ${resetReceiptResult.error}`
+          };
+        }
+      } catch (resetError: any) {
+        // If reset fails but it's due to "trading not enabled", provide clear error
+        if (resetError?.message?.includes('Trading not enabled') ||
+            resetError?.message?.includes('_update::Trading')) {
+          return {
+            success: false,
+            error: 'Token transfers are currently disabled by the token contract. This token cannot be used for raffles until trading is enabled by the token owner.'
+          };
+        }
+        console.error('Failed to reset allowance:', resetError);
+        return {
+          success: false,
+          error: `Failed to reset allowance: ${resetError?.message || 'Unknown error'}`
+        };
+      }
+
+      // Step 2: Approve the correct amount
       const txHash = await writeContract({
         address: tokenAddress as `0x${string}`,
         abi: erc20Abi,
         functionName: 'approve',
         args: [this.contractAddress as `0x${string}`, amountBigInt],
-        // Add explicit gas limit to prevent estimation issues
         gas: BigInt(100000),
       });
 
@@ -819,11 +889,31 @@ export class RaffleContractService {
       }
       
       return { success: true, txHash };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error in admin ERC20 approval:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown blockchain error' 
+
+      // Handle specific error cases with user-friendly messages
+      let errorMessage = 'Unknown blockchain error';
+
+      if (error?.message) {
+        // Check for trading disabled error
+        if (error.message.includes('Trading not enabled') ||
+            error.message.includes('_update::Trading')) {
+          errorMessage = 'Token transfers are currently disabled by the token contract. This token cannot be used for raffles until trading is enabled by the token owner.';
+        }
+        // Check for insufficient balance
+        else if (error.message.includes('ERC20InsufficientBalance') ||
+                 error.message.includes('transfer amount exceeds balance')) {
+          errorMessage = 'Insufficient token balance. You do not have enough tokens to approve for this raffle.';
+        }
+        else {
+          errorMessage = error.message;
+        }
+      }
+
+      return {
+        success: false,
+        error: errorMessage
       };
     }
   }

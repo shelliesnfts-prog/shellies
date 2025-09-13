@@ -49,9 +49,9 @@ export function useAdminRaffleDeployment() {
       {
         id: 'approve',
         name: deploymentData.prizeTokenType === 'NFT' ? 'Approve NFT' : 'Approve Token',
-        description: deploymentData.prizeTokenType === 'NFT' 
+        description: deploymentData.prizeTokenType === 'NFT'
           ? `Approve NFT #${deploymentData.prizeTokenId} for transfer`
-          : `Approve ${formatTokenAmount(deploymentData.prizeAmount || '0')} tokens for transfer`,
+          : `Reset and approve ${formatTokenAmount(deploymentData.prizeAmount || '0')} tokens for transfer`,
         status: 'pending'
       },
       {
