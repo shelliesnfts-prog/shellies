@@ -185,17 +185,27 @@ export function PortalSidebar({
                 </div>
                 
                 {/* Bottom Row */}
-                <div className="flex items-center">
-                  {userLoading ? (
-                    <div className="flex items-center">
-                      <div className="h-4 bg-white/20 rounded animate-pulse w-8 mr-2"></div>
-                      <div className="h-3 bg-white/20 rounded animate-pulse w-12"></div>
-                    </div>
-                  ) : (
-                    <>
-                      <p className="text-white text-sm font-bold mr-2">{user?.points?.toFixed(1) || '0.0'}</p>
-                      <p className="text-white font-medium text-xs">Point{(user?.points ?? 0) !== 1 ? 's' : ''}</p>
-                    </>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    {userLoading ? (
+                      <div className="flex items-center">
+                        <div className="h-4 bg-white/20 rounded animate-pulse w-8 mr-2"></div>
+                        <div className="h-3 bg-white/20 rounded animate-pulse w-12"></div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-white text-sm font-bold mr-2">{user?.points?.toFixed(1) || '0.0'}</p>
+                        <p className="text-white font-medium text-xs">Point{(user?.points ?? 0) !== 1 ? 's' : ''}</p>
+                      </>
+                    )}
+                  </div>
+                  {!userLoading && (
+                    <button
+                      onClick={() => handleNavigation('/portal/profile')}
+                      className="text-white/70 hover:text-white text-xs font-medium transition-colors duration-200 hover:underline"
+                    >
+                      Claim Daily Points
+                    </button>
                   )}
                 </div>
               </div>
