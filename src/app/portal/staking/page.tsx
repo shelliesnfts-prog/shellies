@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
-import { Trophy, Star, TrendingUp, Loader2, CheckCircle, AlertTriangle, Coins, Lock, Unlock } from 'lucide-react';
+import { Trophy, Star, TrendingUp, Loader2, CheckCircle, AlertTriangle, Coins, Lock, Unlock, Shield } from 'lucide-react';
 import { NFTService } from '@/lib/nft-service';
 import { StakingService } from '@/lib/staking-service';
 import { ImageUtils } from '@/lib/image-utils';
