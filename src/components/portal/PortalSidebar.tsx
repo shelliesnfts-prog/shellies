@@ -161,19 +161,26 @@ export function PortalSidebar({
               {/* Content */}
               <div className="relative z-10 h-full flex flex-col justify-between">
                 {/* Top Row */}
-                <div className="flex items-start justify-between">
-                  <h3 className="text-white text-xs font-bold">
-                    {userLoading ? (
-                      <div className="h-3 bg-white/20 rounded animate-pulse w-12"></div>
-                    ) : (
-                      `$Point${(user?.points ?? 0) !== 1 ? 's' : ''}`
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col">
+                    {/* <h3 className="text-white text-xs font-bold">
+                      {userLoading ? (
+                        <div className="h-3 bg-white/20 rounded animate-pulse w-12"></div>
+                      ) : (
+                        `$Point${(user?.points ?? 0) !== 1 ? 's' : ''}`
+                      )}
+                    </h3> */}
+                    {walletAddress && (
+                      <p className="text-white/70 text-xs mt-1 font-mono">
+                        {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                      </p>
                     )}
-                  </h3>
-                  <button 
+                  </div>
+                  <button
                     onClick={handleLogout}
-                    className="p-2 hover:bg-white/10 rounded-lg transition-colors duration-200"
+                    className="px-2 py-1 hover:bg-white/10 rounded-lg transition-colors duration-200"
                   >
-                    <LogOut className="w-4 h-4 text-white/80 hover:text-white" />
+                    <span className="text-white/80 hover:text-white text-xs font-medium">Logout</span>
                   </button>
                 </div>
                 
