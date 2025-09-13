@@ -25,14 +25,6 @@ interface UserEntry {
   created_at: string;
 }
 
-interface UserData {
-  id: string;
-  wallet_address: string;
-  points: number;
-  nft_count: number;
-  created_at: string;
-  updated_at: string;
-}
 
 interface Participant {
   wallet_address: string;
@@ -49,15 +41,13 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [userEntry, setUserEntry] = useState<UserEntry | null>(null);
   const [loadingEntry, setLoadingEntry] = useState(false);
-  const [userData, setUserData] = useState<UserData | null>(null);
-  const [loadingUser, setLoadingUser] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loadingParticipants, setLoadingParticipants] = useState(false);
 
   // Wagmi hooks for contract interaction
   const { address, isConnected } = useAccount();
   const { writeContractAsync } = useWriteContract();
-  const { refreshUserData } = usePoints();
+  const { user, loading: userLoading, refreshUserData } = usePoints();
 
   // Contract configuration
   const contractAddress = process.env.NEXT_PUBLIC_RAFFLE_CONTRACT_ADDRESS;
@@ -73,7 +63,6 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
       setTicketCount(1);
       setMessage(null);
       setImageError(false);
-      fetchUserData();
       fetchParticipants(true); // Initial load with loading indicator
       // Only fetch detailed entry info if we need points_spent details
       if (raffle.user_ticket_count && raffle.user_ticket_count > 0) {
@@ -107,24 +96,6 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
     };
   }, [isOpen, raffle?.id, raffle?.status]);
 
-  const fetchUserData = async () => {
-    setLoadingUser(true);
-    try {
-      const response = await fetch('/api/user');
-      const data = await response.json();
-
-      if (data && !data.error) {
-        setUserData(data);
-      } else {
-        setUserData(null);
-      }
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-      setUserData(null);
-    } finally {
-      setLoadingUser(false);
-    }
-  };
 
   const fetchUserEntry = async () => {
     if (!raffle) return;
@@ -204,7 +175,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
 
   // Client-side validation function
   const validateRaffleEntry = (): { isValid: boolean; error?: string } => {
-    if (!raffle || !userData) {
+    if (!raffle || !user) {
       return { isValid: false, error: 'Loading raffle data...' };
     }
 
@@ -252,11 +223,11 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
     const remainingTickets = raffle.max_tickets_per_user - currentTickets;
 
     // Check if user has enough points
-    if (userData.points < totalCost) {
-      const shortage = totalCost - userData.points;
+    if (user.points < totalCost) {
+      const shortage = totalCost - user.points;
       return {
         isValid: false,
-        error: `Insufficient points. You need ${totalCost.toFixed(1)} Point${totalCost !== 1 ? 's' : ''} but have ${userData.points.toFixed(1)} Point${userData.points !== 1 ? 's' : ''} (${shortage.toFixed(1)} short)`
+        error: `Insufficient points. You need ${totalCost.toFixed(1)} Point${totalCost !== 1 ? 's' : ''} but have ${user.points.toFixed(1)} Point${user.points !== 1 ? 's' : ''} (${shortage.toFixed(1)} short)`
       };
     }
 
@@ -371,10 +342,6 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
           }
         }
 
-        // Update user points locally
-        if (userData) {
-          userData.points -= raffle.points_per_ticket * ticketCount;
-        }
 
         // Refresh detailed entry info if needed
         if (raffle.user_ticket_count && raffle.user_ticket_count > 0) {
@@ -818,9 +785,9 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                   </div>
 
                   {/* User Points Balance */}
-                  {userData && (
+                  {user && (
                     <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                      Your balance: {userData.points.toFixed(1)} $Point{userData.points !== 1 ? 's' : ''}
+                      Your balance: {user.points.toFixed(1)} $Point{user.points !== 1 ? 's' : ''}
                     </div>
                   )}
 
