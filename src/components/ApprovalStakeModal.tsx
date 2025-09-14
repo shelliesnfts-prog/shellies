@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { useWriteContract } from 'wagmi';
-import { X, Shield, Lock, Loader2, CheckCircle, AlertTriangle, Star, Trophy } from 'lucide-react';
+import { X, Shield, Lock, Loader2, CheckCircle, AlertTriangle, Clock, Calendar, CalendarDays } from 'lucide-react';
 import { erc721Abi } from 'viem';
 import { staking_abi } from '@/lib/staking-abi';
+import { LockPeriod, StakingService } from '@/lib/staking-service';
 import { parseContractError } from '@/lib/errors';
 
 interface ApprovalStakeModalProps {
@@ -21,7 +22,7 @@ interface ApprovalStakeModalProps {
 type StepStatus = 'pending' | 'in-progress' | 'completed' | 'error';
 
 interface Step {
-  id: 'approval' | 'staking';
+  id: 'approval' | 'period-selection' | 'staking';
   title: string;
   description: string;
   status: StepStatus;
@@ -45,6 +46,12 @@ export default function ApprovalStakeModal({
       status: 'pending'
     },
     {
+      id: 'period-selection',
+      title: 'Select Lock Period',
+      description: 'Choose how long to lock your NFTs',
+      status: 'pending'
+    },
+    {
       id: 'staking',
       title: 'Stake NFTs',
       description: 'Lock your NFTs to start earning points',
@@ -52,13 +59,15 @@ export default function ApprovalStakeModal({
     }
   ]);
 
-  const [currentStep, setCurrentStep] = useState<'approval' | 'staking'>('approval');
+  const [currentStep, setCurrentStep] = useState<'approval' | 'period-selection' | 'staking'>('approval');
   const [transactionHashes, setTransactionHashes] = useState<{ approval?: string; staking?: string }>({});
   const [error, setError] = useState<string | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState<LockPeriod | null>(null);
+  const [hasConfirmedPeriod, setHasConfirmedPeriod] = useState(false);
 
   const { writeContractAsync } = useWriteContract();
 
-  const updateStepStatus = (stepId: 'approval' | 'staking', status: StepStatus) => {
+  const updateStepStatus = (stepId: 'approval' | 'period-selection' | 'staking', status: StepStatus) => {
     setSteps(prev => prev.map(step =>
       step.id === stepId ? { ...step, status } : step
     ));
@@ -84,10 +93,11 @@ export default function ApprovalStakeModal({
 
       updateStepStatus('approval', 'completed');
 
-      // Wait additional time to ensure approval is confirmed on-chain before staking
+      // Move to period selection step
       setTimeout(() => {
-        handleStaking();
-      }, 2000);
+        updateStepStatus('period-selection', 'in-progress');
+        setCurrentStep('period-selection');
+      }, 1000);
 
     } catch (error: any) {
       console.error('Approval failed:', error);
@@ -107,6 +117,11 @@ export default function ApprovalStakeModal({
   };
 
   const handleStaking = async () => {
+    if (selectedPeriod === null) {
+      setError('No lock period selected');
+      return;
+    }
+
     try {
       setError(null);
       updateStepStatus('staking', 'in-progress');
@@ -118,7 +133,7 @@ export default function ApprovalStakeModal({
         address: stakingContractAddress as `0x${string}`,
         abi: staking_abi,
         functionName: 'stakeBatch',
-        args: [tokenIds],
+        args: [tokenIds, selectedPeriod],
       });
 
       setTransactionHashes(prev => ({ ...prev, staking: hash }));
@@ -151,6 +166,46 @@ export default function ApprovalStakeModal({
     }
   };
 
+  const handlePeriodSelection = (period: LockPeriod) => {
+    setSelectedPeriod(period);
+  };
+
+  const handleConfirmPeriod = () => {
+    if (selectedPeriod === null) return;
+
+    setHasConfirmedPeriod(true);
+    updateStepStatus('period-selection', 'completed');
+
+    // Move to staking step
+    setTimeout(() => {
+      handleStaking();
+    }, 500);
+  };
+
+  const lockPeriodOptions = [
+    {
+      period: LockPeriod.DAY,
+      label: '1 Day',
+      description: 'Lock for 24 hours',
+      icon: Clock,
+      color: 'blue'
+    },
+    {
+      period: LockPeriod.WEEK,
+      label: '1 Week',
+      description: 'Lock for 7 days',
+      icon: Calendar,
+      color: 'purple'
+    },
+    {
+      period: LockPeriod.MONTH,
+      label: '1 Month',
+      description: 'Lock for 30 days',
+      icon: CalendarDays,
+      color: 'green'
+    }
+  ];
+
   const getStepIcon = (step: Step) => {
     switch (step.status) {
       case 'completed':
@@ -160,11 +215,12 @@ export default function ApprovalStakeModal({
       case 'error':
         return <AlertTriangle className="w-5 h-5 text-red-500" />;
       default:
-        return step.id === 'approval' ?
-          <Shield className="w-5 h-5 text-gray-400" /> :
-          <Lock className="w-5 h-5 text-gray-400" />;
+        if (step.id === 'approval') return <Shield className="w-5 h-5 text-gray-400" />;
+        if (step.id === 'period-selection') return <Clock className="w-5 h-5 text-gray-400" />;
+        return <Lock className="w-5 h-5 text-gray-400" />;
     }
   };
+
 
   const canProceed = () => {
     const approvalStep = steps.find(s => s.id === 'approval');
@@ -227,7 +283,7 @@ export default function ApprovalStakeModal({
           {/* Steps */}
           <div className="space-y-4">
             {steps.map((step, index) => (
-              <div key={step.id} className={`flex items-start space-x-4 p-4 rounded-xl border ${
+              <div key={step.id} className={`rounded-xl border ${
                 step.status === 'in-progress'
                   ? (isDarkMode ? 'bg-blue-900/20 border-blue-700' : 'bg-blue-50 border-blue-200')
                   : step.status === 'completed'
@@ -236,38 +292,125 @@ export default function ApprovalStakeModal({
                   ? (isDarkMode ? 'bg-red-900/20 border-red-700' : 'bg-red-50 border-red-200')
                   : (isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200')
               }`}>
-                <div className="flex-shrink-0 mt-0.5">
-                  {getStepIcon(step)}
-                </div>
-                <div className="flex-grow min-w-0">
-                  <h4 className={`font-medium ${
-                    isDarkMode ? 'text-white' : 'text-gray-900'
-                  }`}>
-                    Step {index + 1}: {step.title}
-                  </h4>
-                  <p className={`text-sm mt-1 ${
-                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                  }`}>
-                    {step.description}
-                  </p>
-                  {step.status === 'in-progress' && (
-                    <p className={`text-xs mt-2 ${
-                      isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                {/* Step Header */}
+                <div className="flex items-start space-x-4 p-4">
+                  <div className="flex-shrink-0 mt-0.5">
+                    {getStepIcon(step)}
+                  </div>
+                  <div className="flex-grow min-w-0">
+                    <h4 className={`font-medium ${
+                      isDarkMode ? 'text-white' : 'text-gray-900'
                     }`}>
-                      Processing... Please check your wallet
-                    </p>
-                  )}
-                  {transactionHashes[step.id] && (
-                    <p className={`text-xs mt-2 ${
-                      isDarkMode ? 'text-gray-500' : 'text-gray-500'
+                      Step {index + 1}: {step.title}
+                    </h4>
+                    <p className={`text-sm mt-1 ${
+                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
                     }`}>
-                      Tx: {transactionHashes[step.id]?.slice(0, 10)}...{transactionHashes[step.id]?.slice(-8)}
+                      {step.description}
                     </p>
-                  )}
+                    {step.status === 'in-progress' && step.id === 'approval' && (
+                      <p className={`text-xs mt-2 ${
+                        isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                      }`}>
+                        Processing... Please check your wallet
+                      </p>
+                    )}
+                    {step.status === 'in-progress' && step.id === 'staking' && (
+                      <p className={`text-xs mt-2 ${
+                        isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                      }`}>
+                        Processing staking transaction...
+                      </p>
+                    )}
+                    {transactionHashes[step.id as keyof typeof transactionHashes] && (
+                      <p className={`text-xs mt-2 ${
+                        isDarkMode ? 'text-gray-500' : 'text-gray-500'
+                      }`}>
+                        Tx: {transactionHashes[step.id as keyof typeof transactionHashes]?.slice(0, 10)}...{transactionHashes[step.id as keyof typeof transactionHashes]?.slice(-8)}
+                      </p>
+                    )}
+                  </div>
                 </div>
+
+                {/* Period Selection Content - Integrated in Step 2 */}
+                {step.id === 'period-selection' && (
+                  <div className="px-4 pb-4 border-t border-gray-200 dark:border-gray-600 mt-3">
+                    <div className="pt-4 space-y-4">
+                      {/* Period Options */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {lockPeriodOptions.map((option) => {
+                          const isSelected = selectedPeriod === option.period;
+                          const isEnabled = step.status === 'in-progress';
+                          const IconComponent = option.icon;
+
+                          return (
+                            <button
+                              key={option.period}
+                              onClick={() => isEnabled ? handlePeriodSelection(option.period) : undefined}
+                              disabled={!isEnabled}
+                              className={`relative p-4 rounded-lg border-2 transition-all duration-200 text-center ${
+                                !isEnabled
+                                  ? (isDarkMode ? 'bg-gray-800 border-gray-600 opacity-40' : 'bg-gray-100 border-gray-300 opacity-40')
+                                  : isSelected
+                                  ? (isDarkMode ? 'bg-blue-900/40 border-blue-500 shadow-lg' : 'bg-blue-50 border-blue-500 shadow-lg')
+                                  : (isDarkMode ? 'bg-gray-700 border-gray-500 hover:border-blue-400' : 'bg-white border-gray-200 hover:border-blue-300')
+                              } ${isEnabled ? 'cursor-pointer hover:scale-105' : 'cursor-not-allowed'}`}
+                            >
+                              <div className={`w-8 h-8 rounded-lg mx-auto mb-2 flex items-center justify-center ${
+                                !isEnabled
+                                  ? (isDarkMode ? 'bg-gray-700' : 'bg-gray-200')
+                                  : (isDarkMode ? 'bg-gray-600' : 'bg-gray-100')
+                              }`}>
+                                <IconComponent className={`w-4 h-4 ${
+                                  !isEnabled
+                                    ? 'text-gray-500'
+                                    : isSelected
+                                    ? 'text-blue-500'
+                                    : (isDarkMode ? 'text-gray-400' : 'text-gray-500')
+                                }`} />
+                              </div>
+                              <h5 className={`font-semibold text-sm mb-1 ${
+                                !isEnabled
+                                  ? 'text-gray-500'
+                                  : (isDarkMode ? 'text-white' : 'text-gray-900')
+                              }`}>
+                                {option.label}
+                              </h5>
+                              <p className={`text-xs ${
+                                !isEnabled
+                                  ? 'text-gray-500'
+                                  : (isDarkMode ? 'text-gray-400' : 'text-gray-600')
+                              }`}>
+                                {option.description}
+                              </p>
+                              {isSelected && isEnabled && (
+                                <div className="absolute top-2 right-2">
+                                  <CheckCircle className="w-4 h-4 text-blue-500" />
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Confirm Button for Period Selection */}
+                      {step.status === 'in-progress' && selectedPeriod !== null && (
+                        <div className="flex justify-center pt-2">
+                          <button
+                            onClick={handleConfirmPeriod}
+                            className="px-6 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white font-medium rounded-lg hover:from-green-600 hover:to-green-700 transition-colors"
+                          >
+                            Confirm {StakingService.getLockPeriodLabel(selectedPeriod)}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
+
 
           {/* Error Message */}
           {error && (

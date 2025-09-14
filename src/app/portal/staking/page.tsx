@@ -5,7 +5,7 @@ import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagm
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
 import { Trophy, Star, TrendingUp, Loader2, CheckCircle, AlertTriangle, Coins, Lock, Unlock, Shield } from 'lucide-react';
 import { NFTService } from '@/lib/nft-service';
-import { StakingService } from '@/lib/staking-service';
+import { StakingService, LockPeriod } from '@/lib/staking-service';
 import { ImageUtils } from '@/lib/image-utils';
 import { staking_abi } from '@/lib/staking-abi';
 import { erc721Abi } from 'viem';
@@ -15,6 +15,8 @@ import { usePoints } from '@/contexts/PointsContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { StakingPageSkeleton } from '@/components/portal/StakingPageSkeleton';
 import ApprovalStakeModal from '@/components/ApprovalStakeModal';
+import StakingPeriodModal from '@/components/StakingPeriodModal';
+import { StakingTimer } from '@/components/StakingTimer';
 
 interface NFTToken {
   tokenId: number;
@@ -29,6 +31,12 @@ interface NFTToken {
     image?: string;
     description?: string;
     attributes?: any[];
+  };
+  stakeInfo?: {
+    lockPeriod: number;
+    lockEndTime: number;
+    canUnstake: boolean;
+    timeRemaining: number;
   };
 }
 
@@ -152,6 +160,7 @@ export default function StakingPage() {
   }>({ needed: false, checking: false, tokensNeedingApproval: [] });
   const [viewMode, setViewMode] = useState<'owned' | 'staked'>('owned');
   const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [showStakingModal, setShowStakingModal] = useState(false);
 
   // Get global points context early
   const { user, claimStatus, loading: dashboardLoading } = usePoints();
@@ -301,12 +310,32 @@ export default function StakingPage() {
       // Fetch metadata for staked NFTs using explorer API (same as available NFTs)
       if (stats.stakedTokenIds.length > 0 && stakingContractAddress) {
         const stakedNftsWithMetadata = await NFTService.getStakedNFTsMetadata(
-          stakingContractAddress, 
+          stakingContractAddress,
           stats.stakedTokenIds
         );
-        
-        // Add staked NFTs to the map
+
+        // Get stake info for each staked NFT
+        const stakeInfoPromises = stats.stakedTokenIds.map(async (tokenId) => {
+          try {
+            const [stakeInfo, unstakeInfo] = await Promise.all([
+              StakingService.getStakeInfo(tokenId),
+              StakingService.canUnstake(tokenId)
+            ]);
+            return { tokenId, stakeInfo, unstakeInfo };
+          } catch (error) {
+            console.error(`Failed to fetch stake info for token ${tokenId}:`, error);
+            return { tokenId, stakeInfo: null, unstakeInfo: { canUnstake: false, timeRemaining: 0 } };
+          }
+        });
+
+        const stakeInfoResults = await Promise.all(stakeInfoPromises);
+        const stakeInfoMap = new Map(
+          stakeInfoResults.map(result => [result.tokenId, { stakeInfo: result.stakeInfo, unstakeInfo: result.unstakeInfo }])
+        );
+
+        // Add staked NFTs to the map with stake info
         for (const nft of stakedNftsWithMetadata) {
+          const stakeData = stakeInfoMap.get(nft.tokenId);
           allTokensMap.set(nft.tokenId, {
             tokenId: nft.tokenId,
             isStaked: true,
@@ -314,7 +343,13 @@ export default function StakingPage() {
             image: nft.image,
             description: nft.description,
             attributes: nft.attributes,
-            metadata: nft.metadata
+            metadata: nft.metadata,
+            stakeInfo: stakeData?.stakeInfo ? {
+              lockPeriod: stakeData.stakeInfo.lockPeriod,
+              lockEndTime: stakeData.stakeInfo.lockEndTime,
+              canUnstake: stakeData.unstakeInfo.canUnstake,
+              timeRemaining: stakeData.unstakeInfo.timeRemaining
+            } : undefined
           });
         }
       }
@@ -410,8 +445,8 @@ export default function StakingPage() {
         return;
       }
 
-      // If already approved, proceed directly with staking
-      await executeStaking();
+      // If already approved, open the staking period selection modal
+      setShowStakingModal(true);
 
     } catch (error: any) {
       let errorMessage = 'Failed to check approvals';
@@ -430,47 +465,60 @@ export default function StakingPage() {
     }
   };
 
-  // Separate function for just the staking transaction
-  const executeStaking = async () => {
-    if (!selectedTokens.length || !address || !stakingContractAddress) {
-      return;
-    }
+  // Modal handlers for the new staking modal
+  const handleStakingModalSuccess = async () => {
+    // The staking modal has completed successfully
+    setShowStakingModal(false);
 
+    // Trigger the same UI refresh logic as other successful transactions
     try {
-      const tokenIds = selectedTokens.map(id => BigInt(id));
-
-      setTransactionState({ type: 'stake', status: 'pending', message: 'Submitting staking transaction...' });
-
-      const hash = await writeContractAsync({
-        address: stakingContractAddress as `0x${string}`,
-        abi: staking_abi,
-        functionName: 'stakeBatch',
-        args: [tokenIds],
-      });
-
-      setTransactionState({
-        type: 'stake',
-        status: 'pending',
-        message: 'Staking transaction submitted, waiting for confirmation...',
-        hash
-      });
-
-    } catch (error: any) {
-      let errorMessage = 'Failed to stake tokens';
-      if (error?.message?.includes('User rejected')) {
-        errorMessage = 'Transaction was cancelled by user';
-      } else if (error?.message?.includes('insufficient funds')) {
-        errorMessage = 'Insufficient funds for gas fees';
-      } else {
-        errorMessage = parseContractError(error) || error?.message?.slice(0, 100) || 'Failed to stake tokens';
+      // Clear all relevant caches to force fresh data
+      if (address) {
+        NFTService.clearOwnedTokensCache(address);
+        StakingService.clearCache(address);
       }
 
-      setTransactionState({ type: 'stake', status: 'error', message: errorMessage });
+      // Clear selected tokens first
+      setSelectedTokens([]);
 
+      // Show success state temporarily
+      setTransactionState({
+        type: 'stake',
+        status: 'success',
+        message: 'Staking completed successfully! Refreshing data...'
+      });
+
+      // Fetch fresh data with cache busting
+      await fetchUserData(true);
+
+      // Broadcast points update to refresh dashboard
+      if (address) {
+        window.dispatchEvent(new CustomEvent('stakingUpdated', {
+          detail: { walletAddress: address }
+        }));
+      }
+
+      // Clear success message after showing it briefly
       setTimeout(() => {
         setTransactionState({ type: null, status: 'idle', message: '' });
-      }, 10000);
+      }, 3000);
+
+    } catch (error) {
+      setTransactionState({
+        type: null,
+        status: 'error',
+        message: 'Staking succeeded but failed to refresh data. Please reload the page.'
+      });
+
+      // Clear error after 5 seconds
+      setTimeout(() => {
+        setTransactionState({ type: null, status: 'idle', message: '' });
+      }, 5000);
     }
+  };
+
+  const handleStakingModalClose = () => {
+    setShowStakingModal(false);
   };
 
   // Modal handlers
@@ -811,7 +859,7 @@ export default function StakingPage() {
                   onClick={() => { setViewMode('staked'); setSelectedTokens([]); }}
                   className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
                     viewMode === 'staked'
-                      ? 'bg-blue-600 text-white shadow-sm'
+                      ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-sm'
                       : (isDarkMode ? 'text-gray-400 hover:text-white hover:bg-gray-700/50' : 'text-gray-600 hover:text-gray-900 hover:bg-white/70')
                   }`}
                 >
@@ -919,14 +967,18 @@ export default function StakingPage() {
                     onClick={() => handleTokenSelection(nft.tokenId, !selectedTokens.includes(nft.tokenId))}
                     className={`group relative rounded-2xl border-2 p-4 cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg ${
                       selectedTokens.includes(nft.tokenId)
-                        ? (isDarkMode ? 'border-blue-500 bg-blue-900/20 shadow-lg shadow-blue-500/20' : 'border-blue-500 bg-blue-50 shadow-lg shadow-blue-500/20')
+                        ? viewMode === 'owned'
+                          ? (isDarkMode ? 'border-blue-500 bg-blue-900/20 shadow-lg shadow-blue-500/20' : 'border-blue-500 bg-blue-50 shadow-lg shadow-blue-500/20')
+                          : (isDarkMode ? 'border-orange-500 bg-orange-900/20 shadow-lg shadow-orange-500/20' : 'border-orange-500 bg-orange-50 shadow-lg shadow-orange-500/20')
                         : (isDarkMode ? 'border-gray-600 bg-gray-800/50 hover:border-gray-500' : 'border-gray-200 bg-white hover:border-gray-300 shadow-sm')
                     }`}
                   >
                     {/* Selection Indicator */}
-                    <div style={{zIndex: 999}} className={`absolute top-2 right-2 w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                    <div style={{zIndex: 50}} className={`absolute top-2 right-2 w-5 h-5 rounded-full border-2 flex items-center justify-center ${
                       selectedTokens.includes(nft.tokenId)
-                        ? 'bg-blue-500 border-blue-500'
+                        ? viewMode === 'owned'
+                          ? 'bg-blue-500 border-blue-500'
+                          : 'bg-orange-500 border-orange-500'
                         : (isDarkMode ? 'border-gray-500' : 'border-gray-300')
                     }`}>
                       {selectedTokens.includes(nft.tokenId) && (
@@ -951,17 +1003,21 @@ export default function StakingPage() {
                       <p className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                         {nft.name || `Shellie #${nft.tokenId}`}
                       </p>
-                      <div className="flex items-center justify-center gap-1 mt-1">
+                      <div className="flex flex-col items-center gap-1 mt-1">
                         {nft.isStaked ? (
-                          <>
-                            <Lock className="w-3 h-3 text-blue-500" />
-                            <span className="text-xs text-blue-500 font-medium">Staked</span>
-                          </>
+                          nft.stakeInfo && (
+                            <StakingTimer
+                              lockPeriod={nft.stakeInfo.lockPeriod as LockPeriod}
+                              initialTimeRemaining={nft.stakeInfo.timeRemaining}
+                              canUnstake={nft.stakeInfo.canUnstake}
+                              isDarkMode={isDarkMode}
+                            />
+                          )
                         ) : (
-                          <>
+                          <div className="flex items-center gap-1">
                             <Star className="w-3 h-3 text-yellow-500" />
                             <span className="text-xs text-yellow-600 font-medium">+10/day</span>
-                          </>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -983,6 +1039,17 @@ export default function StakingPage() {
         nftContractAddress={nftContractAddress || ''}
         isDarkMode={isDarkMode}
         onSuccess={handleModalSuccess}
+        userAddress={address || ''}
+      />
+
+      {/* Staking Period Selection Modal */}
+      <StakingPeriodModal
+        isOpen={showStakingModal}
+        onClose={handleStakingModalClose}
+        selectedTokens={selectedTokens}
+        stakingContractAddress={stakingContractAddress || ''}
+        isDarkMode={isDarkMode}
+        onSuccess={handleStakingModalSuccess}
         userAddress={address || ''}
       />
     </div>
