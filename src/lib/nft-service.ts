@@ -461,6 +461,25 @@ export class NFTService {
   }
 
   /**
+   * Clear NFT count cache (useful after staking/unstaking)
+   */
+  static clearNFTCountCache(walletAddress?: string): void {
+    if (walletAddress) {
+      this.nftCache.delete(walletAddress.toLowerCase());
+    } else {
+      this.nftCache.clear();
+    }
+  }
+
+  /**
+   * Clear all caches for a wallet address (useful after staking/unstaking)
+   */
+  static clearAllCaches(walletAddress?: string): void {
+    this.clearOwnedTokensCache(walletAddress);
+    this.clearNFTCountCache(walletAddress);
+  }
+
+  /**
    * Get cache stats (for debugging)
    */
   static getCacheStats(): { size: number; entries: Array<{ address: string; count: number; age: number }> } {

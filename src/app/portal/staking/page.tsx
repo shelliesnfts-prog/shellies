@@ -205,7 +205,7 @@ export default function StakingPage() {
           setTimeout(async () => {
             try {
               // Clear all relevant caches to force fresh data
-              NFTService.clearOwnedTokensCache(address);
+              NFTService.clearAllCaches(address);
               StakingService.clearCache(address);
               
               // Clear selected tokens first
@@ -474,7 +474,7 @@ export default function StakingPage() {
     try {
       // Clear all relevant caches to force fresh data
       if (address) {
-        NFTService.clearOwnedTokensCache(address);
+        NFTService.clearAllCaches(address);
         StakingService.clearCache(address);
       }
 
@@ -530,7 +530,7 @@ export default function StakingPage() {
     try {
       // Clear all relevant caches to force fresh data
       if (address) {
-        NFTService.clearOwnedTokensCache(address);
+        NFTService.clearAllCaches(address);
         StakingService.clearCache(address);
       }
 

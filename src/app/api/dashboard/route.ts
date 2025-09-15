@@ -57,6 +57,7 @@ export async function GET(request: NextRequest) {
 
     // Calculate points based on user type (no stacking of base points)
     const stakedNFTCount = stakingStats.totalStaked;
+    const availableNFTCount = Math.max(0, nftCount - stakedNFTCount); // Available = Total - Staked
     let regularPoints = 0;
     let stakingPoints = 0;
     let totalPotentialPoints = 0;
@@ -81,7 +82,8 @@ export async function GET(request: NextRequest) {
       claimStatus: {
         canClaim,
         secondsUntilNextClaim,
-        nftCount,
+        nftCount: availableNFTCount, // Return available NFTs (total - staked) for profile display
+        totalNFTCount: nftCount, // Total owned NFTs for reference
         stakedNFTCount,
         regularPoints,
         stakingPoints,

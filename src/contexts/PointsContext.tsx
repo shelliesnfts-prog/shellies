@@ -16,7 +16,8 @@ interface User {
 interface ClaimStatus {
   canClaim: boolean;
   secondsUntilNextClaim: number;
-  nftCount: number;
+  nftCount: number; // Available NFTs (total - staked)
+  totalNFTCount?: number; // Total owned NFTs
   stakedNFTCount: number;
   regularPoints: number;
   stakingPoints: number;
@@ -321,12 +322,47 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
       fetchingRef.current = false;
     };
 
+    // Listen for staking events to clear caches and refresh data
+    const handleStakingUpdate = async (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { walletAddress } = customEvent.detail;
+
+      // Only handle if it's for the current user
+      if (session?.address === walletAddress) {
+        console.log('PointsContext: Staking update detected, clearing caches and refreshing...', {
+          walletAddress
+        });
+
+        // Clear caches to force fresh data fetch
+        try {
+          // Dynamically import NFTService to avoid circular dependencies
+          const { NFTService } = await import('@/lib/nft-service');
+          const { StakingService } = await import('@/lib/staking-service');
+
+          // Clear all relevant caches
+          NFTService.clearAllCaches(walletAddress);
+          StakingService.clearCache(walletAddress);
+
+          // Force refresh of user data
+          lastAddressRef.current = null; // Force refetch
+          await refreshUserData();
+        } catch (error) {
+          console.error('Error handling staking update:', error);
+          // Still try to refresh user data
+          lastAddressRef.current = null;
+          await refreshUserData();
+        }
+      }
+    };
+
     window.addEventListener('pointsUpdated', handlePointsUpdate as EventListener);
     window.addEventListener('accountSwitched', handleAccountSwitch as EventListener);
+    window.addEventListener('stakingUpdated', handleStakingUpdate);
 
     return () => {
       window.removeEventListener('pointsUpdated', handlePointsUpdate as EventListener);
       window.removeEventListener('accountSwitched', handleAccountSwitch as EventListener);
+      window.removeEventListener('stakingUpdated', handleStakingUpdate);
     };
   }, [session?.address, updatePoints, refreshUserData]);
 
