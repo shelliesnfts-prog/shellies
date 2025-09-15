@@ -19,7 +19,8 @@
       "Read(/D:\\my_projects\\shellies_raffles\\shellies_raffles\\src\\components/**)",
       "Read(/D:\\my_projects\\shellies_raffles\\shellies_raffles\\src\\components/**)",
       "Read(/D:\\my_projects\\shellies_raffles\\shellies_raffles\\src\\lib/**)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "WebFetch(domain:www.shellies.xyz)"
     ],
     "deny": [],
     "ask": []

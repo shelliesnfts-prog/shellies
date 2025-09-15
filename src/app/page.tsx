@@ -120,9 +120,9 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gradient-to-br from-[#160f1f] via-[#1a1625] to-[#160f1f]">
       {/* Professional Navigation */}
-      <nav className="fixed top-0 w-full bg-white/95 backdrop-blur-xl border-b border-gray-200/50 z-50 shadow-sm">
+      <nav className="fixed top-0 w-full bg-[#160f1f]/95 backdrop-blur-xl border-b border-purple-500/20 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-3">
@@ -132,8 +132,8 @@ export default function LandingPage() {
                 </div>
               </div>
               <div className="flex flex-col">
-                <span className="text-xl font-bold text-gray-900">Ink Shellies</span>
-                <span className="text-xs text-purple-600 font-medium">Raffle Platform</span>
+                <span className="text-xl shellies-brand" data-text="SHELLIES">SHELLIES</span>
+                <span className="text-xs text-purple-400 font-medium">Raffle Platform</span>
               </div>
             </div>
             
@@ -141,9 +141,9 @@ export default function LandingPage() {
               <button
                 onClick={() => scrollToSection('home')}
                 className={`text-sm font-medium px-4 py-2 rounded-lg transition-all duration-200 ${
-                  activeSection === 'home' 
-                    ? 'text-white bg-purple-600 shadow-md' 
-                    : 'text-gray-700 hover:text-purple-600 hover:bg-gray-50'
+                  activeSection === 'home'
+                    ? 'text-white bg-purple-600 shadow-md'
+                    : 'text-gray-300 hover:text-purple-400 hover:bg-purple-900/20'
                 }`}
               >
                 Home
@@ -151,9 +151,9 @@ export default function LandingPage() {
               <button
                 onClick={() => scrollToSection('about')}
                 className={`text-sm font-medium px-4 py-2 rounded-lg transition-all duration-200 ${
-                  activeSection === 'about' 
-                    ? 'text-white bg-purple-600 shadow-md' 
-                    : 'text-gray-700 hover:text-purple-600 hover:bg-gray-50'
+                  activeSection === 'about'
+                    ? 'text-white bg-purple-600 shadow-md'
+                    : 'text-gray-300 hover:text-purple-400 hover:bg-purple-900/20'
                 }`}
               >
                 About
@@ -168,32 +168,32 @@ export default function LandingPage() {
                 Enter Portal
               </button>
             ) : (
-              <CustomConnectButton size="sm" />
+              <CustomConnectButton size="sm" className="text-sm px-4 py-2" />
             )}
           </div>
         </div>
       </nav>
 
       {/* Professional Hero Section */}
-      <section id="home" className="pt-20 pb-24 min-h-screen flex items-center relative overflow-hidden bg-gradient-to-br from-gray-50 via-white to-purple-50/30">
+      <section id="home" className="pt-20 pb-24 min-h-screen flex items-center relative overflow-hidden">
         {/* Subtle Background Elements */}
-        <div className="absolute inset-0 opacity-20">
-          <div className="absolute top-32 left-16 w-24 h-24 bg-gradient-to-br from-purple-400 to-purple-500 rounded-full blur-2xl floating"></div>
-          <div className="absolute bottom-40 right-20 w-32 h-32 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full blur-3xl floating" style={{animationDelay: '2s'}}></div>
-          <div className="absolute top-1/3 right-1/4 w-16 h-16 bg-gradient-to-br from-purple-300 to-purple-400 rounded-full blur-xl floating" style={{animationDelay: '4s'}}></div>
+        <div className="absolute inset-0 opacity-30">
+          <div className="absolute top-32 left-16 w-24 h-24 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full blur-2xl floating"></div>
+          <div className="absolute bottom-40 right-20 w-32 h-32 bg-gradient-to-br from-purple-600 to-purple-700 rounded-full blur-3xl floating" style={{animationDelay: '2s'}}></div>
+          <div className="absolute top-1/3 right-1/4 w-16 h-16 bg-gradient-to-br from-purple-400 to-purple-500 rounded-full blur-xl floating" style={{animationDelay: '4s'}}></div>
         </div>
         
         <div className="max-w-7xl mx-auto px-6 relative z-10 mt-4">
           <div className="text-center">
             {/* Professional Badge */}
             <motion.div 
-              className="inline-flex items-center px-4 py-2 bg-white/80 backdrop-blur-sm border border-purple-200/50 rounded-full mb-8 shadow-sm"
+              className="inline-flex items-center px-4 py-2 bg-purple-900/30 backdrop-blur-sm border border-purple-400/50 rounded-full mb-8 shadow-sm"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5 }}
             >
-              <div className="w-2 h-2 bg-gradient-to-r from-purple-500 to-purple-600 rounded-full mr-2"></div>
-              <span className="text-purple-700 text-sm font-medium">
+              <div className="w-2 h-2 bg-gradient-to-r from-purple-400 to-purple-500 rounded-full mr-2"></div>
+              <span className="text-purple-200 text-sm font-medium">
                 First PFP Collection on Ink Chain
               </span>
             </motion.div>
@@ -205,11 +205,11 @@ export default function LandingPage() {
               transition={{ duration: 0.6, delay: 0.1 }}
               className="mb-6"
             >
-              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black text-gray-900 mb-4">
-                <span className="text-gradient block">Ink Shellies</span>
+              <h1 className="text-5xl sm:text-6xl lg:text-7xl mb-4">
+                <span className="shellies-brand block" data-text="SHELLIES">SHELLIES</span>
               </h1>
-              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-600">
-                Premium Raffle Platform
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-300">
+                Premium Raffle & Staking Platform
               </h2>
             </motion.div>
 
@@ -220,10 +220,10 @@ export default function LandingPage() {
               transition={{ duration: 0.6, delay: 0.3 }}
               className="mb-12"
             >
-              <p className="text-xl sm:text-2xl text-gray-600 max-w-4xl mx-auto leading-relaxed mb-4">
+              <p className="text-xl sm:text-2xl text-gray-300 max-w-4xl mx-auto leading-relaxed mb-4">
                 Exclusive raffle ecosystem for holders of the first NFT collection on <span className="text-gradient font-semibold">Ink Chain</span>
               </p>
-              <p className="text-lg text-gray-500 max-w-3xl mx-auto">
+              <p className="text-lg text-gray-400 max-w-3xl mx-auto">
                 Stake your Shellies, earn daily rewards, and participate in premium raffles with incredible prizes
               </p>
             </motion.div>
@@ -243,7 +243,7 @@ export default function LandingPage() {
                   Enter Raffle Portal
                 </button>
               ) : (
-                <CustomConnectButton size="lg" />
+                <CustomConnectButton size="sm" className="text-lg px-8 py-4" />
               )}
               <button
                 onClick={() => scrollToSection('about')}
@@ -266,20 +266,24 @@ export default function LandingPage() {
                     <Icons.Shell />
                   </div>
                 </div>
-                <AnimatedCounter end={3333} />
-                <div className="text-gray-600 font-medium mt-2">Unique NFTs</div>
-                <div className="text-sm text-purple-600 font-medium mt-1">In Collection</div>
+                <AnimatedCounter end={2222} />
+                <div className="text-gray-300 font-medium mt-2">Unique NFTs</div>
+                <div className="text-sm text-purple-400 font-medium mt-1">In Collection</div>
               </div>
               
               <div className="text-center modern-card p-8 group hover:scale-105 transition-transform duration-300">
                 <div className="w-16 h-16 icon-gradient rounded-2xl mx-auto mb-4 flex items-center justify-center group-hover:scale-110 transition-transform">
                   <div className="w-8 h-8 text-white">
-                    <Icons.Trophy />
+                    <svg viewBox="0 0 24 24" className="w-full h-full" fill="currentColor">
+                      <path d="M12 2L13.09 8.26L20 9L13.09 9.74L12 16L10.91 9.74L4 9L10.91 8.26L12 2Z"/>
+                      <path d="M19 15L19.91 17.53L23 18L19.91 18.47L19 21L18.09 18.47L15 18L18.09 17.53L19 15Z"/>
+                      <path d="M5 15L5.91 17.53L9 18L5.91 18.47L5 21L4.09 18.47L1 18L4.09 17.53L5 15Z"/>
+                    </svg>
                   </div>
                 </div>
-                <div className="text-4xl font-black text-gradient mb-2">#1</div>
-                <div className="text-gray-600 font-medium mt-2">First Collection</div>
-                <div className="text-sm text-purple-600 font-medium mt-1">On Ink Chain</div>
+                <div className="text-4xl font-black text-gradient mb-2">FREE</div>
+                <div className="text-gray-300 font-medium mt-2">Entry</div>
+                <div className="text-sm text-purple-400 font-medium mt-1">Daily Bonus</div>
               </div>
               
               <div className="text-center modern-card p-8 group hover:scale-105 transition-transform duration-300">
@@ -289,8 +293,8 @@ export default function LandingPage() {
                   </div>
                 </div>
                 <AnimatedCounter end={Infinity} />
-                <div className="text-gray-600 font-medium mt-2">Prize Pool</div>
-                <div className="text-sm text-purple-600 font-medium mt-1">Opportunities</div>
+                <div className="text-gray-300 font-medium mt-2">Prize Pool</div>
+                <div className="text-sm text-purple-400 font-medium mt-1">Opportunities</div>
               </div>
             </motion.div>
             
@@ -301,20 +305,20 @@ export default function LandingPage() {
               animate={{ opacity: 1 }}
               transition={{ duration: 0.6, delay: 1 }}
             >
-              <div className="flex items-center space-x-2 text-gray-500">
-                <div className="w-5 h-5 text-purple-600">
+              <div className="flex items-center space-x-2 text-gray-400">
+                <div className="w-5 h-5 text-purple-400">
                   <Icons.Chain />
                 </div>
                 <span className="text-sm font-medium">Ink Chain Native</span>
               </div>
-              <div className="flex items-center space-x-2 text-gray-500">
-                <div className="w-5 h-5 text-purple-600">
+              <div className="flex items-center space-x-2 text-gray-400">
+                <div className="w-5 h-5 text-purple-400">
                   <Icons.Shield />
                 </div>
                 <span className="text-sm font-medium">Secure & Verified</span>
               </div>
-              <div className="flex items-center space-x-2 text-gray-500">
-                <div className="w-5 h-5 text-purple-600">
+              <div className="flex items-center space-x-2 text-gray-400">
+                <div className="w-5 h-5 text-purple-400">
                   <Icons.Coins />
                 </div>
                 <span className="text-sm font-medium">Premium Rewards</span>
@@ -325,7 +329,7 @@ export default function LandingPage() {
       </section>
 
       {/* Professional About Section */}
-      <section id="about" className="py-24 bg-white relative overflow-hidden">
+      <section id="about" className="py-24 bg-gradient-to-br from-[#1a1625] to-[#160f1f] relative overflow-hidden">
         {/* Subtle Background Pattern */}
         <div className="absolute inset-0 opacity-3">
           <div className="absolute inset-0" style={{
@@ -337,17 +341,17 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6 relative z-10">
           <div className="text-center mb-16">
             <motion.div 
-              className="inline-flex items-center px-4 py-2 bg-purple-50 border border-purple-200/30 rounded-full mb-8"
+              className="inline-flex items-center px-4 py-2 bg-purple-900/30 border border-purple-400/30 rounded-full mb-8"
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5 }}
             >
-              <span className="text-purple-700 text-sm font-medium">Platform Overview</span>
+              <span className="text-purple-200 text-sm font-medium">Platform Overview</span>
             </motion.div>
             
             <motion.h2 
-              className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-6"
+              className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6"
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
@@ -357,7 +361,7 @@ export default function LandingPage() {
             </motion.h2>
             
             <motion.p 
-              className="text-xl text-gray-600 mb-4 max-w-3xl mx-auto"
+              className="text-xl text-gray-300 mb-4 max-w-3xl mx-auto"
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
@@ -367,7 +371,7 @@ export default function LandingPage() {
             </motion.p>
             
             <motion.p 
-              className="text-lg text-gray-500 max-w-2xl mx-auto"
+              className="text-lg text-gray-400 max-w-2xl mx-auto"
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
@@ -391,11 +395,11 @@ export default function LandingPage() {
                   <Icons.Coins />
                 </div>
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-4">Daily Rewards</h3>
-              <p className="text-gray-600 leading-relaxed mb-6">
+              <h3 className="text-xl font-bold text-white mb-4">Daily Rewards</h3>
+              <p className="text-gray-300 leading-relaxed mb-6">
                 Earn points automatically based on your Shellies holdings. More NFTs means higher daily rewards.
               </p>
-              <div className="text-sm text-purple-600 font-medium bg-purple-50 px-3 py-1 rounded-full inline-block">
+              <div className="text-sm text-purple-300 font-medium bg-purple-900/40 px-3 py-1 rounded-full inline-block">
                 Passive Income
               </div>
             </motion.div>
@@ -412,11 +416,11 @@ export default function LandingPage() {
                   <Icons.Dice />
                 </div>
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-4">Premium Raffles</h3>
-              <p className="text-gray-600 leading-relaxed mb-6">
+              <h3 className="text-xl font-bold text-white mb-4">Premium Raffles</h3>
+              <p className="text-gray-300 leading-relaxed mb-6">
                 Enter exclusive raffles using your earned points. Win rare NFTs, tokens, and premium prizes.
               </p>
-              <div className="text-sm text-purple-600 font-medium bg-purple-50 px-3 py-1 rounded-full inline-block">
+              <div className="text-sm text-purple-300 font-medium bg-purple-900/40 px-3 py-1 rounded-full inline-block">
                 High-Value Prizes
               </div>
             </motion.div>
@@ -433,11 +437,11 @@ export default function LandingPage() {
                   <Icons.Trophy />
                 </div>
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-4">Leaderboard</h3>
-              <p className="text-gray-600 leading-relaxed mb-6">
+              <h3 className="text-xl font-bold text-white mb-4">Leaderboard</h3>
+              <p className="text-gray-300 leading-relaxed mb-6">
                 Compete with other holders on the community leaderboard for special bonuses and recognition.
               </p>
-              <div className="text-sm text-purple-600 font-medium bg-purple-50 px-3 py-1 rounded-full inline-block">
+              <div className="text-sm text-purple-300 font-medium bg-purple-900/40 px-3 py-1 rounded-full inline-block">
                 Community Status
               </div>
             </motion.div>
@@ -462,15 +466,15 @@ export default function LandingPage() {
               <CustomConnectButton size="xl" />
             )}
             
-            <p className="text-gray-500 mt-4 text-base">
-              Join <span className="font-medium text-purple-600">3,333 Shellies</span> holders earning daily
+            <p className="text-gray-400 mt-4 text-base">
+              Join <span className="font-medium text-purple-400">2,222 Shellies</span> holders earning daily
             </p>
           </motion.div>
         </div>
       </section>
 
       {/* Professional Footer */}
-      <footer className="py-16 bg-gray-900 text-white">
+      <footer className="py-16 bg-[#0f0a19] text-white">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center">
             <div className="flex items-center justify-center space-x-3 mb-6">
@@ -479,15 +483,15 @@ export default function LandingPage() {
                   <Icons.Shell />
                 </div>
               </div>
-              <span className="text-xl font-bold">Ink Shellies</span>
+              <span className="text-xl shellies-brand" data-text="SHELLIES">SHELLIES</span>
             </div>
             
-            <p className="text-gray-400 text-base mb-2 max-w-2xl mx-auto">
+            <p className="text-gray-300 text-base mb-2 max-w-2xl mx-auto">
               The premier raffle platform for Ink Chain's first NFT collection.
               Built for the community, powered by innovation.
             </p>
             
-            <p className="text-gray-500 text-sm">
+            <p className="text-gray-400 text-sm">
               © 2025 Ink Shellies Platform. All rights reserved.
             </p>
           </div>

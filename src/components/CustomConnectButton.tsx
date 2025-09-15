@@ -61,9 +61,15 @@ export default function CustomConnectButton({ size = 'md', className = '' }: Cus
                   <button
                     onClick={openConnectModal}
                     type="button"
-                    className={`btn-primary ${getSizeClasses()} shadow-lg transform hover:scale-105 transition-all ${className}`}
+                    className={`relative overflow-hidden bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white border border-purple-500/50 rounded-xl ${getSizeClasses()} shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 font-semibold group ${className}`}
                   >
-                    🔗 Connect Wallet
+                    <div className="absolute inset-0 bg-gradient-to-r from-purple-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="relative flex items-center justify-center gap-2">
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M20.5 6c0-2.505-2.015-4.5-4.5-4.5s-4.5 1.995-4.5 4.5c0 2.505 2.015 4.5 4.5 4.5s4.5-1.995 4.5-4.5zM9 12.5c0-2.505-2.015-4.5-4.5-4.5S0 9.995 0 12.5s2.015 4.5 4.5 4.5S9 15.005 9 12.5zM20.5 18.5c0-2.505-2.015-4.5-4.5-4.5s-4.5 1.995-4.5 4.5c0 2.505 2.015 4.5 4.5 4.5s4.5-1.995 4.5-4.5z"/>
+                      </svg>
+                      Connect Wallet
+                    </div>
                   </button>
                 );
               }
