@@ -338,16 +338,34 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
 
         // Update raffle ticket count locally for immediate UI feedback
         if (raffle) {
-          raffle.user_ticket_count = (raffle.user_ticket_count || 0) + ticketCount;
+          const oldUserTicketCount = raffle.user_ticket_count || 0;
+          raffle.user_ticket_count = oldUserTicketCount + ticketCount;
+
+          console.log('🎉 Successfully joined raffle - updating local state:', {
+            raffleId: raffle.id,
+            oldUserTicketCount,
+            ticketsPurchased: ticketCount,
+            newUserTicketCount: raffle.user_ticket_count,
+            maxTicketsPerUser: raffle.max_tickets_per_user
+          });
+
           // Also update participant count if this is the user's first entry
-          if ((raffle.user_ticket_count || 0) === ticketCount) {
+          if (oldUserTicketCount === 0) {
             raffle.current_participants = (raffle.current_participants || 0) + 1;
+            console.log('👤 First entry - updating participant count to:', raffle.current_participants);
           }
         }
 
         // Reset ticket count based on remaining tickets after successful purchase
         const newRemainingTickets = raffle.max_tickets_per_user - (raffle.user_ticket_count || 0);
-        setTicketCount(Math.min(1, newRemainingTickets));
+        const newTicketCount = Math.min(1, newRemainingTickets);
+
+        console.log('🔄 Resetting ticket count after successful purchase:', {
+          newRemainingTickets,
+          newTicketCount
+        });
+
+        setTicketCount(newTicketCount);
 
         // Refresh detailed entry info if needed
         if (raffle.user_ticket_count && raffle.user_ticket_count > 0) {
@@ -403,26 +421,60 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
   };
 
   const handleTicketChange = (newCount: number) => {
-    if (!raffle) return;
-    if (newCount < 1) return;
+    console.log('🔄 handleTicketChange called with:', newCount);
+
+    if (!raffle) {
+      console.log('❌ No raffle available');
+      return;
+    }
+    if (newCount < 1) {
+      console.log('❌ New count less than 1:', newCount);
+      return;
+    }
 
     const currentTickets = raffle.user_ticket_count || 0;
     const remainingTickets = raffle.max_tickets_per_user - currentTickets;
 
-    if (newCount > remainingTickets) return;
-    if (newCount > raffle.max_tickets_per_user) return;
+    console.log('🎫 handleTicketChange validation:', {
+      newCount,
+      currentTickets,
+      maxTicketsPerUser: raffle.max_tickets_per_user,
+      remainingTickets,
+      wouldExceedRemaining: newCount > remainingTickets,
+      wouldExceedMax: newCount > raffle.max_tickets_per_user
+    });
+
+    if (newCount > remainingTickets) {
+      console.log('❌ Blocked: newCount > remainingTickets', newCount, '>', remainingTickets);
+      return;
+    }
+    if (newCount > raffle.max_tickets_per_user) {
+      console.log('❌ Blocked: newCount > max_tickets_per_user', newCount, '>', raffle.max_tickets_per_user);
+      return;
+    }
 
     // Clear any existing validation error when user changes tickets
     if (message?.type === 'error') {
       setMessage(null);
     }
 
+    console.log('✅ Setting ticket count to:', newCount);
     setTicketCount(newCount);
   };
 
   // Calculate remaining tickets dynamically based on current state
   const currentUserTickets = raffle.user_ticket_count || 0;
   const remainingTickets = raffle.max_tickets_per_user - currentUserTickets;
+
+  // DEBUG: Log ticket state for debugging
+  console.log('🎫 JoinRaffleModal Ticket State:', {
+    raffleId: raffle?.id,
+    maxTicketsPerUser: raffle?.max_tickets_per_user,
+    currentUserTickets,
+    remainingTickets,
+    currentTicketCount: ticketCount,
+    userCanSelectMore: ticketCount < remainingTickets
+  });
 
   return (
     <div
@@ -823,7 +875,16 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
 
                         <button
                           type="button"
-                          onClick={() => handleTicketChange(ticketCount + 1)}
+                          onClick={() => {
+                            console.log('➕ Plus button clicked:', {
+                              currentTicketCount: ticketCount,
+                              attemptingToSet: ticketCount + 1,
+                              remainingTickets,
+                              currentUserTickets: raffle.user_ticket_count || 0,
+                              maxTicketsPerUser: raffle.max_tickets_per_user
+                            });
+                            handleTicketChange(ticketCount + 1);
+                          }}
                           disabled={ticketCount >= remainingTickets || remainingTickets <= 0 || isLoading}
                           className={`w-8 h-8 rounded-full border flex items-center justify-center transition-colors duration-200 ${ticketCount >= remainingTickets || remainingTickets <= 0 || isLoading
                             ? isDarkMode
