@@ -202,9 +202,9 @@ export function PortalSidebar({
                   {!userLoading && (
                     <button
                       onClick={() => handleNavigation('/portal/profile')}
-                      className="text-white/70 hover:text-white text-xs font-medium transition-colors duration-200 hover:underline"
+                      className="text-white/90 hover:text-white text-md font-medium transition-colors duration-200 hover:underline"
                     >
-                      Claim Daily Points
+                      Claim
                     </button>
                   )}
                 </div>
