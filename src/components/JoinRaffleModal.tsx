@@ -338,7 +338,11 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
 
         // Update raffle ticket count locally for immediate UI feedback
         if (raffle) {
-          const oldUserTicketCount = raffle.user_ticket_count || 0;
+          // Get current user tickets using same logic as main calculation
+          const userParticipant = participants.find(p => p.wallet_address === address);
+          const oldUserTicketCount = raffle.user_ticket_count || userParticipant?.ticket_count || 0;
+
+          // Update the raffle object to reflect new total
           raffle.user_ticket_count = oldUserTicketCount + ticketCount;
 
           console.log('🎉 Successfully joined raffle - updating local state:', {
@@ -346,7 +350,8 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
             oldUserTicketCount,
             ticketsPurchased: ticketCount,
             newUserTicketCount: raffle.user_ticket_count,
-            maxTicketsPerUser: raffle.max_tickets_per_user
+            maxTicketsPerUser: raffle.max_tickets_per_user,
+            connectedAddress: address
           });
 
           // Also update participant count if this is the user's first entry
@@ -357,10 +362,13 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
         }
 
         // Reset ticket count based on remaining tickets after successful purchase
-        const newRemainingTickets = raffle.max_tickets_per_user - (raffle.user_ticket_count || 0);
+        const userParticipant = participants.find(p => p.wallet_address === address);
+        const updatedUserTickets = raffle.user_ticket_count || userParticipant?.ticket_count || 0;
+        const newRemainingTickets = raffle.max_tickets_per_user - updatedUserTickets;
         const newTicketCount = Math.min(1, newRemainingTickets);
 
         console.log('🔄 Resetting ticket count after successful purchase:', {
+          updatedUserTickets,
           newRemainingTickets,
           newTicketCount
         });
@@ -432,16 +440,21 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
       return;
     }
 
-    const currentTickets = raffle.user_ticket_count || 0;
+    // Use the same logic as the main calculation to get current user tickets
+    const userParticipant = participants.find(p => p.wallet_address === address);
+    const currentTickets = raffle.user_ticket_count || userParticipant?.ticket_count || 0;
     const remainingTickets = raffle.max_tickets_per_user - currentTickets;
 
     console.log('🎫 handleTicketChange validation:', {
       newCount,
+      raffleUserTicketCount: raffle.user_ticket_count,
+      userParticipantTickets: userParticipant?.ticket_count,
       currentTickets,
       maxTicketsPerUser: raffle.max_tickets_per_user,
       remainingTickets,
       wouldExceedRemaining: newCount > remainingTickets,
-      wouldExceedMax: newCount > raffle.max_tickets_per_user
+      wouldExceedMax: newCount > raffle.max_tickets_per_user,
+      connectedAddress: address
     });
 
     if (newCount > remainingTickets) {
@@ -463,17 +476,23 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
   };
 
   // Calculate remaining tickets dynamically based on current state
-  const currentUserTickets = raffle.user_ticket_count || 0;
+  // First try to get user tickets from raffle.user_ticket_count, then fallback to participants data
+  const userParticipant = participants.find(p => p.wallet_address === address);
+  const currentUserTickets = raffle.user_ticket_count || userParticipant?.ticket_count || 0;
   const remainingTickets = raffle.max_tickets_per_user - currentUserTickets;
 
   // DEBUG: Log ticket state for debugging
   console.log('🎫 JoinRaffleModal Ticket State:', {
     raffleId: raffle?.id,
     maxTicketsPerUser: raffle?.max_tickets_per_user,
+    raffleUserTicketCount: raffle.user_ticket_count,
+    userParticipantTickets: userParticipant?.ticket_count,
     currentUserTickets,
     remainingTickets,
     currentTicketCount: ticketCount,
-    userCanSelectMore: ticketCount < remainingTickets
+    userCanSelectMore: ticketCount < remainingTickets,
+    connectedAddress: address,
+    participantsCount: participants.length
   });
 
   return (
