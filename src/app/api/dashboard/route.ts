@@ -27,7 +27,9 @@ export async function GET(request: NextRequest) {
     }
 
     const walletAddress = session.address as string;
-    
+
+    // Staking service no longer uses caching - always fetches fresh data
+
     // Fetch user data, NFT count, and staking stats in parallel (bypass cache to get fresh last_claim data)
     const [user, nftCount, stakingStats] = await Promise.all([
       UserService.getOrCreateUser(walletAddress, true), // bypass cache for fresh data

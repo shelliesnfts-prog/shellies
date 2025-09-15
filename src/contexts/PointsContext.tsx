@@ -50,6 +50,7 @@ interface PointsContextType {
   executeStakingClaim: () => Promise<ClaimResult>;
   executeUnifiedClaim: () => Promise<ClaimResult>;
   refreshUserData: () => Promise<void>;
+  refreshWithFreshData: () => Promise<void>;
   updatePoints: (newPoints: number) => void;
 
   // Utilities
@@ -270,6 +271,24 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
     await fetchUserData();
   }, [fetchUserData]);
 
+  // Force fresh data (clears caches and refreshes)
+  const refreshWithFreshData = useCallback(async () => {
+    if (!session?.address) return;
+
+    try {
+      // Staking service no longer uses caching - always fetches fresh data
+
+      // Force fresh fetch
+      lastAddressRef.current = null;
+      await fetchUserData();
+    } catch (error) {
+      console.error('Error refreshing with fresh data:', error);
+      // Still try to refresh without cache clearing
+      lastAddressRef.current = null;
+      await fetchUserData();
+    }
+  }, [session?.address, fetchUserData]);
+
   // Update points manually (for external updates)
   const updatePoints = useCallback((newPoints: number) => {
     setUser(prev => prev ? { ...prev, points: newPoints } : null);
@@ -333,15 +352,8 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
           walletAddress
         });
 
-        // Clear caches to force fresh data fetch
+        // Staking service no longer uses caching - always fetches fresh data
         try {
-          // Dynamically import NFTService to avoid circular dependencies
-          const { NFTService } = await import('@/lib/nft-service');
-          const { StakingService } = await import('@/lib/staking-service');
-
-          // Clear all relevant caches
-          NFTService.clearAllCaches(walletAddress);
-          StakingService.clearCache(walletAddress);
 
           // Force refresh of user data
           lastAddressRef.current = null; // Force refetch
@@ -390,6 +402,7 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
     executeStakingClaim,
     executeUnifiedClaim,
     refreshUserData,
+    refreshWithFreshData,
     updatePoints,
 
     // Utilities

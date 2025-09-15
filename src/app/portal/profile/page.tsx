@@ -27,7 +27,7 @@ export default function ProfilePage() {
   const { data: session } = useSession();
   const { address } = useAccount();
   const router = useRouter();
-  const { user, claimStatus, loading: userLoading, claiming, executeUnifiedClaim, error: claimError, refreshUserData } = usePoints();
+  const { user, claimStatus, loading: userLoading, claiming, executeUnifiedClaim, error: claimError, refreshUserData, refreshWithFreshData } = usePoints();
 
   const walletAddress = address || session?.address || '';
 
@@ -52,6 +52,13 @@ export default function ProfilePage() {
     router.push('/portal/staking');
   };
 
+  // Force fresh data when profile page is visited
+  useEffect(() => {
+    if (walletAddress) {
+      refreshWithFreshData();
+    }
+  }, [refreshWithFreshData, walletAddress]); // Run when component mounts or wallet changes
+
   // Fetch staking breakdown when wallet address changes
   useEffect(() => {
     const fetchStakingBreakdown = async () => {
@@ -62,6 +69,7 @@ export default function ProfilePage() {
 
       try {
         setLoadingStaking(true);
+        // Staking service no longer uses caching - always fetches fresh data
         const breakdown = await StakingService.getStakingPeriodBreakdown(walletAddress);
         setStakingBreakdown(breakdown);
       } catch (error) {

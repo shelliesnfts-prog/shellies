@@ -25,9 +25,7 @@ export async function GET(request: NextRequest) {
     const contractInfo = await NFTService.getContractInfo();
     console.log('Contract Info:', JSON.stringify(contractInfo, null, 2));
     
-    // Get cache stats
-    const cacheStats = NFTService.getCacheStats();
-    console.log('Cache Stats:', JSON.stringify(cacheStats, null, 2));
+    // NFT service no longer uses caching - always fetches fresh data
     
     // Try to get NFT count with detailed logging
     console.log('Attempting to get NFT count...');
@@ -38,8 +36,8 @@ export async function GET(request: NextRequest) {
       contractAddress: SHELLIES_CONTRACT_ADDRESS,
       userWallet: walletAddress,
       contractInfo,
-      cacheStats,
       nftCount,
+      cachingStatus: 'disabled - always fetches fresh data',
       timestamp: new Date().toISOString()
     });
 
@@ -74,8 +72,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
     
-    // Clear any existing cache for this address
-    NFTService.clearCache(walletAddress);
+    // NFT service no longer uses caching
     
     // Get contract validation
     const validation = await NFTService.validateContract();

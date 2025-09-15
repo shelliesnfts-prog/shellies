@@ -66,28 +66,16 @@ export interface StakeInfo {
 
 export class StakingService {
   private static contractAddress: string = process.env.NEXT_PUBLIC_STAKING_CONTRACT_ADDRESS || '';
-  
-  // Cache for staking data (shorter cache than NFT service due to more frequent changes)
-  private static stakingCache = new Map<string, { tokenIds: number[]; timestamp: number; }>();
-  private static readonly CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
   /**
    * Get staked token IDs for a wallet address
+   * Always fetches fresh data from blockchain
    */
   static async getStakedTokenIds(walletAddress: string): Promise<number[]> {
     try {
-      // Check cache first
-      const cached = this.stakingCache.get(walletAddress.toLowerCase());
-      const now = Date.now();
-      
-      if (cached && (now - cached.timestamp) < this.CACHE_DURATION) {
-        return cached.tokenIds;
-      }
-
       if (!this.contractAddress || !this.isValidAddress(walletAddress)) {
         return [];
       }
-
 
       const stakedTokens = await this.callWithFallback(
         () => publicClient.readContract({
@@ -105,24 +93,10 @@ export class StakingService {
       );
 
       const tokenIds = (stakedTokens as bigint[]).map(id => Number(id));
-      
-      // Cache the result
-      this.stakingCache.set(walletAddress.toLowerCase(), {
-        tokenIds,
-        timestamp: now
-      });
-
       return tokenIds;
 
     } catch (error) {
       console.error(`Error fetching staked tokens for ${walletAddress}:`, error);
-      
-      // Return cached value if available, even if expired
-      const cached = this.stakingCache.get(walletAddress.toLowerCase());
-      if (cached) {
-        return cached.tokenIds;
-      }
-      
       return [];
     }
   }
@@ -283,16 +257,6 @@ export class StakingService {
     }
   }
 
-  /**
-   * Clear cache for a specific wallet (useful after transactions)
-   */
-  static clearCache(walletAddress?: string): void {
-    if (walletAddress) {
-      this.stakingCache.delete(walletAddress.toLowerCase());
-    } else {
-      this.stakingCache.clear();
-    }
-  }
 
   /**
    * Helper method to call primary function and fallback to backup on rate limit

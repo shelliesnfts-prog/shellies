@@ -204,9 +204,7 @@ export default function StakingPage() {
           const delay = transactionState.type === 'unstake' ? 4000 : 2000;
           setTimeout(async () => {
             try {
-              // Clear all relevant caches to force fresh data
-              NFTService.clearAllCaches(address);
-              StakingService.clearCache(address);
+              // Staking service no longer uses caching - always fetches fresh data
               
               // Clear selected tokens first
               setSelectedTokens([]);
@@ -288,7 +286,7 @@ export default function StakingPage() {
       // Fetch staking stats and user's owned NFTs in parallel
       const [stats, userNftsWithMetadata] = await Promise.all([
         StakingService.getStakingStats(address),
-        NFTService.getNFTsWithMetadata(address, bustCache)
+        NFTService.getNFTsWithMetadata(address)
       ]);
       
       setStakingStats(stats);
@@ -474,8 +472,6 @@ export default function StakingPage() {
     try {
       // Clear all relevant caches to force fresh data
       if (address) {
-        NFTService.clearAllCaches(address);
-        StakingService.clearCache(address);
       }
 
       // Clear selected tokens first
@@ -530,8 +526,6 @@ export default function StakingPage() {
     try {
       // Clear all relevant caches to force fresh data
       if (address) {
-        NFTService.clearAllCaches(address);
-        StakingService.clearCache(address);
       }
 
       // Clear selected tokens first

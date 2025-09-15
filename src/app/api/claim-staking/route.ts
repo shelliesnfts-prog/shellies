@@ -64,8 +64,6 @@ export async function POST(request: NextRequest) {
 
     // Step 4: Clear all relevant caches to ensure fresh data on next fetch
     UserService.clearUserCache(walletAddress);
-    NFTService.clearCache(walletAddress);
-    StakingService.clearCache(walletAddress);
 
     // Step 5: Return success with updated user data
     return NextResponse.json({ 

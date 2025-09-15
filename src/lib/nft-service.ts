@@ -133,29 +133,13 @@ const erc721EnumerableAbi = [
 
 export class NFTService {
   private static contractAddress: string = process.env.NEXT_PUBLIC_SHELLIES_CONTRACT_ADDRESS || '';
-  
-  // Cache for NFT counts (2 hour cache for better performance)
-  private static nftCache = new Map<string, { count: number; timestamp: number; }>();
-  private static readonly CACHE_DURATION = 2 * 60 * 60 * 1000; // 2 hours (reduced blockchain calls)
-  
-  // Cache for owned token IDs (shorter cache due to potential transfers/staking)
-  private static ownedTokensCache = new Map<string, { tokenIds: number[]; timestamp: number; method: string; }>();
-  private static readonly OWNED_TOKENS_CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
 
   /**
    * Get NFT count for a wallet address with rate limit handling
-   * Uses caching to prevent excessive RPC calls and tries multiple RPC endpoints
+   * Always fetches fresh data from blockchain
    */
   static async getNFTCount(walletAddress: string): Promise<number> {
     try {
-      // Check cache first
-      const cached = this.nftCache.get(walletAddress.toLowerCase());
-      const now = Date.now();
-      
-      if (cached && (now - cached.timestamp) < this.CACHE_DURATION) {
-        return cached.count;
-      }
-
       // Validate inputs
       if (!this.contractAddress) {
         console.warn('Shellies contract address not configured');
@@ -166,7 +150,6 @@ export class NFTService {
         console.warn(`Invalid wallet address format: ${walletAddress}`);
         return 0;
       }
-
 
       // Try primary client first, then backup client if rate limited
       let balance: bigint;
@@ -180,10 +163,10 @@ export class NFTService {
       } catch (primaryError: any) {
         // Check if it's a rate limit error
         if (primaryError?.message?.includes('429') || primaryError?.message?.includes('Rate limit')) {
-          
+
           // Add delay before trying backup
           await new Promise(resolve => setTimeout(resolve, 1000));
-          
+
           balance = await backupClient.readContract({
             address: this.contractAddress as `0x${string}`,
             abi: erc721Abi,
@@ -196,13 +179,6 @@ export class NFTService {
       }
 
       const nftCount = Number(balance);
-      
-      // Cache the successful result
-      this.nftCache.set(walletAddress.toLowerCase(), {
-        count: nftCount,
-        timestamp: now
-      });
-
       return nftCount;
 
     } catch (error) {
@@ -212,14 +188,8 @@ export class NFTService {
         contractAddress: this.contractAddress
       });
 
-      // Return cached value if available, even if expired
-      const cached = this.nftCache.get(walletAddress.toLowerCase());
-      if (cached) {
-        return cached.count;
-      }
-      
-      // If no cache and error occurred, return 0
-      console.warn(`No cache available, returning 0 for ${walletAddress}`);
+      // If error occurred, return 0
+      console.warn(`Error fetching NFT count, returning 0 for ${walletAddress}`);
       return 0;
     }
   }
@@ -436,65 +406,6 @@ export class NFTService {
     }
   }
 
-  /**
-   * Clear cache for a specific wallet (useful after transactions)
-   */
-  static clearCache(walletAddress?: string): void {
-    if (walletAddress) {
-      this.nftCache.delete(walletAddress.toLowerCase());
-      this.ownedTokensCache.delete(walletAddress.toLowerCase());
-    } else {
-      this.nftCache.clear();
-      this.ownedTokensCache.clear();
-    }
-  }
-
-  /**
-   * Clear only owned tokens cache (useful after staking/unstaking)
-   */
-  static clearOwnedTokensCache(walletAddress?: string): void {
-    if (walletAddress) {
-      this.ownedTokensCache.delete(walletAddress.toLowerCase());
-    } else {
-      this.ownedTokensCache.clear();
-    }
-  }
-
-  /**
-   * Clear NFT count cache (useful after staking/unstaking)
-   */
-  static clearNFTCountCache(walletAddress?: string): void {
-    if (walletAddress) {
-      this.nftCache.delete(walletAddress.toLowerCase());
-    } else {
-      this.nftCache.clear();
-    }
-  }
-
-  /**
-   * Clear all caches for a wallet address (useful after staking/unstaking)
-   */
-  static clearAllCaches(walletAddress?: string): void {
-    this.clearOwnedTokensCache(walletAddress);
-    this.clearNFTCountCache(walletAddress);
-  }
-
-  /**
-   * Get cache stats (for debugging)
-   */
-  static getCacheStats(): { size: number; entries: Array<{ address: string; count: number; age: number }> } {
-    const now = Date.now();
-    const entries = Array.from(this.nftCache.entries()).map(([address, data]) => ({
-      address,
-      count: data.count,
-      age: Math.floor((now - data.timestamp) / 1000) // age in seconds
-    }));
-
-    return {
-      size: this.nftCache.size,
-      entries
-    };
-  }
 
   /**
    * Get all NFT token IDs owned by a wallet address using our API endpoint
@@ -506,13 +417,6 @@ export class NFTService {
         return [];
       }
 
-      // Check cache first
-      const cached = this.ownedTokensCache.get(walletAddress.toLowerCase());
-      const now = Date.now();
-      
-      if (cached && (now - cached.timestamp) < this.OWNED_TOKENS_CACHE_DURATION) {
-        return cached.tokenIds;
-      }
 
       // Use our API endpoint instead of direct explorer API call
       const apiUrl = `/api/nft/owned?address=${encodeURIComponent(walletAddress)}`;
@@ -537,25 +441,12 @@ export class NFTService {
 
       const ownedTokenIds = (data.nfts || []).map((nft: any) => nft.tokenId);
       const sortedTokenIds = ownedTokenIds.sort((a: number, b: number) => a - b);
-      
-      // Cache the result
-      this.ownedTokensCache.set(walletAddress.toLowerCase(), {
-        tokenIds: sortedTokenIds,
-        timestamp: now,
-        method: 'api'
-      });
-      
+
       return sortedTokenIds;
       
     } catch (error) {
       console.error(`Failed to fetch NFTs for ${walletAddress}:`, error);
-      
-      // Return cached value if available, even if expired
-      const cached = this.ownedTokensCache.get(walletAddress.toLowerCase());
-      if (cached) {
-        return cached.tokenIds;
-      }
-      
+
       // Fallback to direct explorer API call
       console.log('Attempting fallback to direct explorer API...');
       return await this.getOwnedTokenIdsFallback(walletAddress);
@@ -567,9 +458,8 @@ export class NFTService {
    */
   private static async getOwnedTokenIdsFallback(walletAddress: string): Promise<number[]> {
     try {
-      const now = Date.now();
       const apiUrl = `https://explorer.inkonchain.com/api/v2/addresses/${walletAddress}/nft/collections?type=`;
-      
+
       const response = await fetch(apiUrl, {
         headers: {
           'Accept': 'application/json',
@@ -583,19 +473,14 @@ export class NFTService {
       }
 
       const data = await response.json();
-      
+
       if (!data.items || !Array.isArray(data.items)) {
-        this.ownedTokensCache.set(walletAddress.toLowerCase(), {
-          tokenIds: [],
-          timestamp: now,
-          method: 'fallback-api'
-        });
         return [];
       }
 
       // Find our Shellies collection and extract token IDs
       const ownedTokenIds: number[] = [];
-      
+
       for (const collection of data.items) {
         if (collection.token?.address_hash?.toLowerCase() === this.contractAddress.toLowerCase()) {
           if (collection.token_instances && Array.isArray(collection.token_instances)) {
@@ -608,16 +493,9 @@ export class NFTService {
           break; // Found our collection, no need to check others
         }
       }
-      
+
       const sortedTokenIds = ownedTokenIds.sort((a, b) => a - b);
-      
-      // Cache the result
-      this.ownedTokensCache.set(walletAddress.toLowerCase(), {
-        tokenIds: sortedTokenIds,
-        timestamp: now,
-        method: 'fallback-api'
-      });
-      
+
       return sortedTokenIds;
       
     } catch (error) {
@@ -961,7 +839,7 @@ export class NFTService {
    * Get all NFT data with metadata using our API endpoint
    * This uses a server-side proxy for more reliable data fetching
    */
-  static async getNFTsWithMetadata(walletAddress: string, bustCache: boolean = false): Promise<Array<{
+  static async getNFTsWithMetadata(walletAddress: string): Promise<Array<{
     tokenId: number;
     name?: string;
     image?: string;
@@ -975,18 +853,13 @@ export class NFTService {
       }
 
       // Use our API endpoint instead of direct explorer API call
-      let apiUrl = `/api/nft/owned?address=${encodeURIComponent(walletAddress)}`;
-
-      // Add cache-busting parameter if requested
-      if (bustCache) {
-        apiUrl += `&bustCache=true`;
-      }
+      const apiUrl = `/api/nft/owned?address=${encodeURIComponent(walletAddress)}`;
 
       const response = await fetch(apiUrl, {
         headers: {
           'Accept': 'application/json',
         },
-        // Disable caching to ensure fresh data after staking operations
+        // Disable caching to ensure fresh data
         cache: 'no-store'
       });
 
