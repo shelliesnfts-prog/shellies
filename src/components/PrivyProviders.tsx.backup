@@ -8,7 +8,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SessionProvider } from 'next-auth/react';
 import { config } from '@/lib/wagmi';
 import { Session } from 'next-auth';
-import { useAccountMonitor } from '@/hooks/useAccountMonitor';
 
 const queryClient = new QueryClient();
 
@@ -18,16 +17,10 @@ const getSiweMessageOptions: GetSiweMessageOptions = () => ({
   uri: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
 });
 
-// Component to handle account monitoring inside the providers
-function AccountMonitorWrapper({ children }: { children: React.ReactNode }) {
-  useAccountMonitor();
-  return <>{children}</>;
-}
-
-export function Web3Providers({
-  children,
-  session
-}: {
+export function Web3Providers({ 
+  children, 
+  session 
+}: { 
   children: React.ReactNode;
   session?: Session | null;
 }) {
@@ -37,9 +30,7 @@ export function Web3Providers({
         <QueryClientProvider client={queryClient}>
           <RainbowKitSiweNextAuthProvider getSiweMessageOptions={getSiweMessageOptions}>
             <RainbowKitProvider>
-              <AccountMonitorWrapper>
-                {children}
-              </AccountMonitorWrapper>
+              {children}
             </RainbowKitProvider>
           </RainbowKitSiweNextAuthProvider>
         </QueryClientProvider>

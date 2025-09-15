@@ -50,7 +50,7 @@ interface PointsContextType {
   executeUnifiedClaim: () => Promise<ClaimResult>;
   refreshUserData: () => Promise<void>;
   updatePoints: (newPoints: number) => void;
-
+  
   // Utilities
   canPerformStaking: boolean; // Based on 24h cooldown
 }
@@ -76,7 +76,7 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
   // Fetch user data and claim status
   const fetchUserData = useCallback(async () => {
     if (fetchingRef.current || status === 'loading') return;
-
+    
     if (!session?.address) {
       setUser(null);
       setClaimStatus(null);
@@ -93,13 +93,13 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
       fetchingRef.current = true;
       setLoading(true);
       setError(null);
-
+      
       const response = await fetch('/api/dashboard');
-
+      
       if (!response.ok) {
         throw new Error('Failed to fetch user data');
       }
-
+      
       const data = await response.json();
       setUser(data.user);
       setClaimStatus(data.claimStatus);
@@ -134,13 +134,13 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
       });
 
       const result = await response.json();
-
+      
       if (!result.success) {
         setError(result.error);
         return result;
       }
 
-      // Clear local state to force fresh fetch and update display immediately
+      // Clear local state to force fresh fetch and update display immediately  
       setUser(null);
       setClaimStatus(null);
       lastAddressRef.current = null; // Force refetch
@@ -151,7 +151,7 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
       }, 100);
 
       // Broadcast points update
-      window.dispatchEvent(new CustomEvent('pointsUpdated', {
+      window.dispatchEvent(new CustomEvent('pointsUpdated', { 
         detail: { newPoints: result.newPoints, walletAddress: session.address }
       }));
 
@@ -183,13 +183,13 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
       });
 
       const result = await response.json();
-
+      
       if (!result.success) {
         setError(result.error);
         return result;
       }
 
-      // Clear local state to force fresh fetch and update display immediately
+      // Clear local state to force fresh fetch and update display immediately  
       setUser(null);
       setClaimStatus(null);
       lastAddressRef.current = null; // Force refetch
@@ -200,7 +200,7 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
       }, 100);
 
       // Broadcast points update
-      window.dispatchEvent(new CustomEvent('pointsUpdated', {
+      window.dispatchEvent(new CustomEvent('pointsUpdated', { 
         detail: { newPoints: result.newPoints, walletAddress: session.address }
       }));
 
@@ -273,10 +273,10 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
   const updatePoints = useCallback((newPoints: number) => {
     setUser(prev => prev ? { ...prev, points: newPoints } : null);
     setClaimStatus(prev => prev ? { ...prev, currentPoints: newPoints } : null);
-
+    
     // Broadcast the update
     if (session?.address) {
-      window.dispatchEvent(new CustomEvent('pointsUpdated', {
+      window.dispatchEvent(new CustomEvent('pointsUpdated', { 
         detail: { newPoints, walletAddress: session.address }
       }));
     }
@@ -287,46 +287,24 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
     fetchUserData();
   }, [fetchUserData]);
 
-  // Listen for external points updates and account switches
+  // Listen for external points updates (backward compatibility)
   useEffect(() => {
     const handlePointsUpdate = (event: CustomEvent) => {
       const { newPoints, walletAddress } = event.detail;
-
+      
       // Only update if it's for the current user
       if (session?.address === walletAddress) {
         updatePoints(newPoints);
-
+        
         // Also refresh full data to ensure consistency
         setTimeout(() => refreshUserData(), 1000);
       }
     };
 
-    // Listen for account switch events to clear stale data
-    const handleAccountSwitch = (event: CustomEvent) => {
-      const { oldAddress, newAddress } = event.detail;
-
-      console.log('PointsContext: Account switch detected, clearing data...', {
-        oldAddress,
-        newAddress
-      });
-
-      // Immediately clear all user state
-      setUser(null);
-      setClaimStatus(null);
-      setError(null);
-      setLoading(true);
-
-      // Reset refs to force fresh fetch
-      lastAddressRef.current = null;
-      fetchingRef.current = false;
-    };
-
     window.addEventListener('pointsUpdated', handlePointsUpdate as EventListener);
-    window.addEventListener('accountSwitched', handleAccountSwitch as EventListener);
-
+    
     return () => {
       window.removeEventListener('pointsUpdated', handlePointsUpdate as EventListener);
-      window.removeEventListener('accountSwitched', handleAccountSwitch as EventListener);
     };
   }, [session?.address, updatePoints, refreshUserData]);
 
