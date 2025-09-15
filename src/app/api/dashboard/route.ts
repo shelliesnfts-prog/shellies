@@ -30,11 +30,12 @@ export async function GET(request: NextRequest) {
 
     // Staking service no longer uses caching - always fetches fresh data
 
-    // Fetch user data, NFT count, and staking stats in parallel (bypass cache to get fresh last_claim data)
-    const [user, nftCount, stakingStats] = await Promise.all([
+    // Fetch user data, NFT count, staking stats, and period breakdown in parallel
+    const [user, nftCount, stakingStats, stakingBreakdown] = await Promise.all([
       UserService.getOrCreateUser(walletAddress, true), // bypass cache for fresh data
       NFTService.getNFTCount(walletAddress),
-      StakingService.getStakingStats(walletAddress)
+      StakingService.getStakingStats(walletAddress),
+      StakingService.getStakingPeriodBreakdown(walletAddress)
     ]);
     
     if (!user) {
@@ -57,21 +58,20 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Calculate points based on user type (no stacking of base points)
+    // Calculate points based on new formula:
+    // available NFTs × 5 + daily staked NFTs × 7 + weekly staked NFTs × 10 + monthly staked NFTs × 20
+    // For regular users (no NFTs): always 1 point
     const stakedNFTCount = stakingStats.totalStaked;
     const availableNFTCount = Math.max(0, nftCount - stakedNFTCount); // Available = Total - Staked
     let regularPoints = 0;
     let stakingPoints = 0;
     let totalPotentialPoints = 0;
 
-    if (stakedNFTCount > 0) {
-      // User has staked NFTs: only get staking points (10 per staked NFT)
-      stakingPoints = StakingService.calculateDailyPoints(stakedNFTCount);
-      totalPotentialPoints = stakingPoints;
-    } else if (nftCount > 0) {
-      // User has NFTs but no staking: get holder points (5 per NFT)
-      regularPoints = NFTService.calculateClaimPoints(nftCount);
-      totalPotentialPoints = regularPoints;
+    if (nftCount > 0) {
+      // User has NFTs: calculate based on available + staked with new formula
+      regularPoints = availableNFTCount * 5; // 5 points per available NFT
+      stakingPoints = StakingService.calculateDailyPointsByPeriod(stakingBreakdown); // New period-based calculation
+      totalPotentialPoints = regularPoints + stakingPoints;
     } else {
       // Regular user with no NFTs: get base point
       regularPoints = 1;

@@ -297,12 +297,23 @@ export default function ProfilePage() {
                                   {claimStatus.canClaim ? 'Available now' : 'Check back later'}
                                 </div>
                               </div>
-                              {/* Show breakdown based on user type */}
+                              {/* Show breakdown based on new calculation */}
                               <div className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                                {(claimStatus.stakedNFTCount ?? 0) > 0 ? (
-                                  `${claimStatus.stakedNFTCount} staked NFTs (${claimStatus.stakingPoints?.toFixed(1)} pts)`
-                                ) : (claimStatus.nftCount ?? 0) > 0 ? (
-                                  `${claimStatus.nftCount} NFTs (${claimStatus.regularPoints?.toFixed(1)} pts)`
+                                {(claimStatus.nftCount + (claimStatus.stakedNFTCount ?? 0)) > 0 ? (
+                                  <>
+                                    {claimStatus.nftCount > 0 && (
+                                      <span>{claimStatus.nftCount} available NFTs (×5 = {(claimStatus.nftCount * 5).toFixed(1)} pts) </span>
+                                    )}
+                                    {(claimStatus.stakedNFTCount ?? 0) > 0 && (
+                                      <span>
+                                        {claimStatus.nftCount > 0 && '+ '}
+                                        {stakingBreakdown.day > 0 && `${stakingBreakdown.day} day-staked (×7) `}
+                                        {stakingBreakdown.week > 0 && `${stakingBreakdown.week} week-staked (×10) `}
+                                        {stakingBreakdown.month > 0 && `${stakingBreakdown.month} month-staked (×20) `}
+                                        (= {claimStatus.stakingPoints?.toFixed(1)} pts)
+                                      </span>
+                                    )}
+                                  </>
                                 ) : (
                                   'Regular user (1.0 pt)'
                                 )}

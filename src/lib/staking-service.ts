@@ -210,10 +210,22 @@ export class StakingService {
   }
 
   /**
-   * Calculate daily points earned from staking
+   * Calculate daily points earned from staking (legacy method)
    */
   static calculateDailyPoints(stakedTokenCount: number): number {
     return stakedTokenCount * 10; // 10 points per staked NFT per day
+  }
+
+  /**
+   * Calculate daily points based on staking period breakdown
+   * New formula: 1 day staking = 7 points, 1 week staking = 10 points, 1 month staking = 20 points
+   */
+  static calculateDailyPointsByPeriod(breakdown: { day: number; week: number; month: number }): number {
+    const dayPoints = breakdown.day * 7;    // 7 points per day-staked NFT
+    const weekPoints = breakdown.week * 10; // 10 points per week-staked NFT
+    const monthPoints = breakdown.month * 20; // 20 points per month-staked NFT
+
+    return dayPoints + weekPoints + monthPoints;
   }
 
   /**
