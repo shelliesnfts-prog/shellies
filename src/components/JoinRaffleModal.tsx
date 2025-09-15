@@ -60,10 +60,10 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
   // Reset modal state when opened
   useEffect(() => {
     if (isOpen && raffle) {
-      // Reset ticket count to 1 or remaining tickets if less than 1
+      // Reset ticket count to 1 or 0 if no remaining tickets
       const currentTickets = raffle.user_ticket_count || 0;
       const remainingTickets = raffle.max_tickets_per_user - currentTickets;
-      setTicketCount(remainingTickets > 0 ? 1 : 0);
+      setTicketCount(remainingTickets > 0 ? Math.min(1, remainingTickets) : 0);
       setMessage(null);
       setImageError(false);
       fetchParticipants(true); // Initial load with loading indicator
@@ -345,8 +345,9 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
           }
         }
 
-        // Reset ticket count to 1 after successful purchase
-        setTicketCount(1);
+        // Reset ticket count based on remaining tickets after successful purchase
+        const newRemainingTickets = raffle.max_tickets_per_user - (raffle.user_ticket_count || 0);
+        setTicketCount(Math.min(1, newRemainingTickets));
 
         // Refresh detailed entry info if needed
         if (raffle.user_ticket_count && raffle.user_ticket_count > 0) {
@@ -419,7 +420,9 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
     setTicketCount(newCount);
   };
 
-  const remainingTickets = raffle.max_tickets_per_user - (raffle.user_ticket_count || 0);
+  // Calculate remaining tickets dynamically based on current state
+  const currentUserTickets = raffle.user_ticket_count || 0;
+  const remainingTickets = raffle.max_tickets_per_user - currentUserTickets;
 
   return (
     <div
@@ -444,23 +447,15 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                 {/* Prize Display - Only for ERC20 Token Raffles */}
                 {raffle.prize_token_type === 'ERC20' && raffle.prize_amount && (
 
-                  <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r ${raffle.status === 'COMPLETED'
-                    ? 'from-yellow-100 to-yellow-200 border border-yellow-300'
-                    : 'from-green-100 to-green-200 border border-green-300'
-                    } shadow-sm`}>
-                    <Trophy className={`w-5 h-5 ${raffle.status === 'COMPLETED' ? 'text-yellow-600' : 'text-green-600'
+                  <div className={`inline-flex items-center gap-2 px-2 py-1 rounded-full ${raffle.status === 'COMPLETED'
+                    ? 'bg-yellow-100 text-yellow-700 border border-yellow-300'
+                    : 'bg-green-100 text-green-700 border border-green-300'
+                    } text-xs font-medium`}>
+                    <Trophy className={`w-3 h-3 ${raffle.status === 'COMPLETED' ? 'text-yellow-600' : 'text-green-600'
                       }`} />
-                    <div className="text-sm">
-                      <span className={`font-bold text-lg ${raffle.status === 'COMPLETED' ? 'text-yellow-700' : 'text-green-700'
-                        }`}>
-                         Win {raffle.prize_amount} Tokens!
-                      </span>
-                      {raffle.status === 'COMPLETED' && raffle.winner && (
-                        <div className="text-xs text-yellow-600 mt-1">
-                          Congratulations to the winner! 🎊
-                        </div>
-                      )}
-                    </div>
+                    <span>
+                      Win {raffle.prize_amount} Tokens{raffle.status === 'COMPLETED' && raffle.winner ? ' 🎊' : '!'}
+                    </span>
                   </div>
 
                 )}
@@ -468,23 +463,15 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                 {/* Prize Display - For NFT Raffles */}
                 {raffle.prize_token_type === 'NFT' && raffle.prize_token_id && (
 
-                  <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r ${raffle.status === 'COMPLETED'
-                    ? 'from-yellow-100 to-yellow-200 border border-yellow-300'
-                    : 'from-purple-100 to-purple-200 border border-purple-300'
-                    } shadow-sm`}>
-                    <Trophy className={`w-5 h-5 ${raffle.status === 'COMPLETED' ? 'text-yellow-600' : 'text-purple-600'
+                  <div className={`inline-flex items-center gap-2 px-2 py-1 rounded-full ${raffle.status === 'COMPLETED'
+                    ? 'bg-yellow-100 text-yellow-700 border border-yellow-300'
+                    : 'bg-purple-100 text-purple-700 border border-purple-300'
+                    } text-xs font-medium`}>
+                    <Trophy className={`w-3 h-3 ${raffle.status === 'COMPLETED' ? 'text-yellow-600' : 'text-purple-600'
                       }`} />
-                    <div className="text-sm">
-                      <span className={`font-bold text-lg ${raffle.status === 'COMPLETED' ? 'text-yellow-700' : 'text-purple-700'
-                        }`}>
-                         Win NFT #{raffle.prize_token_id}!
-                      </span>
-                      {raffle.status === 'COMPLETED' && raffle.winner && (
-                        <div className="text-xs text-yellow-600 mt-1">
-                          Congratulations to the winner! 🎊
-                        </div>
-                      )}
-                    </div>
+                    <span>
+                      Win NFT #{raffle.prize_token_id}{raffle.status === 'COMPLETED' && raffle.winner ? ' 🎊' : '!'}
+                    </span>
                   </div>
 
                 )}
@@ -837,8 +824,8 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                         <button
                           type="button"
                           onClick={() => handleTicketChange(ticketCount + 1)}
-                          disabled={ticketCount >= remainingTickets || isLoading}
-                          className={`w-8 h-8 rounded-full border flex items-center justify-center transition-colors duration-200 ${ticketCount >= remainingTickets || isLoading
+                          disabled={ticketCount >= remainingTickets || remainingTickets <= 0 || isLoading}
+                          className={`w-8 h-8 rounded-full border flex items-center justify-center transition-colors duration-200 ${ticketCount >= remainingTickets || remainingTickets <= 0 || isLoading
                             ? isDarkMode
                               ? 'bg-gray-700 border-gray-600 text-gray-500 cursor-not-allowed'
                               : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
