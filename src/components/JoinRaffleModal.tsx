@@ -114,7 +114,6 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
         setUserEntry(null);
       }
     } catch (error) {
-      console.error('Error fetching user entry:', error);
       setUserEntry(null);
     } finally {
       setLoadingEntry(false);
@@ -161,7 +160,6 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
         }
       }
     } catch (error) {
-      console.error('Error fetching participants:', error);
       // Don't clear participants on error during polling to avoid UI flicker
       if (showLoading) {
         setParticipants([]);
@@ -345,19 +343,10 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
           // Update the raffle object to reflect new total
           raffle.user_ticket_count = oldUserTicketCount + ticketCount;
 
-          console.log('🎉 Successfully joined raffle - updating local state:', {
-            raffleId: raffle.id,
-            oldUserTicketCount,
-            ticketsPurchased: ticketCount,
-            newUserTicketCount: raffle.user_ticket_count,
-            maxTicketsPerUser: raffle.max_tickets_per_user,
-            connectedAddress: address
-          });
 
           // Also update participant count if this is the user's first entry
           if (oldUserTicketCount === 0) {
             raffle.current_participants = (raffle.current_participants || 0) + 1;
-            console.log('👤 First entry - updating participant count to:', raffle.current_participants);
           }
         }
 
@@ -367,11 +356,6 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
         const newRemainingTickets = raffle.max_tickets_per_user - updatedUserTickets;
         const newTicketCount = Math.min(1, newRemainingTickets);
 
-        console.log('🔄 Resetting ticket count after successful purchase:', {
-          updatedUserTickets,
-          newRemainingTickets,
-          newTicketCount
-        });
 
         setTicketCount(newTicketCount);
 
@@ -387,7 +371,6 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
         try {
           await refreshUserData();
           } catch (error) {
-          console.error('Failed to refresh user data after raffle entry:', error);
         }
 
         // Call success callback if provided (this will refresh the main raffle list)
@@ -406,7 +389,6 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
         });
       }
     } catch (error) {
-      console.error('Error in handleJoinRaffle:', error);
 
       // Use the parseContractError function for user-friendly error messages
       const userFriendlyMessage = parseContractError(error);
@@ -429,14 +411,11 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
   };
 
   const handleTicketChange = (newCount: number) => {
-    console.log('🔄 handleTicketChange called with:', newCount);
 
     if (!raffle) {
-      console.log('❌ No raffle available');
       return;
     }
     if (newCount < 1) {
-      console.log('❌ New count less than 1:', newCount);
       return;
     }
 
@@ -445,24 +424,11 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
     const currentTickets = raffle.user_ticket_count || userParticipant?.ticket_count || 0;
     const remainingTickets = raffle.max_tickets_per_user - currentTickets;
 
-    console.log('🎫 handleTicketChange validation:', {
-      newCount,
-      raffleUserTicketCount: raffle.user_ticket_count,
-      userParticipantTickets: userParticipant?.ticket_count,
-      currentTickets,
-      maxTicketsPerUser: raffle.max_tickets_per_user,
-      remainingTickets,
-      wouldExceedRemaining: newCount > remainingTickets,
-      wouldExceedMax: newCount > raffle.max_tickets_per_user,
-      connectedAddress: address
-    });
 
     if (newCount > remainingTickets) {
-      console.log('❌ Blocked: newCount > remainingTickets', newCount, '>', remainingTickets);
       return;
     }
     if (newCount > raffle.max_tickets_per_user) {
-      console.log('❌ Blocked: newCount > max_tickets_per_user', newCount, '>', raffle.max_tickets_per_user);
       return;
     }
 
@@ -471,7 +437,6 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
       setMessage(null);
     }
 
-    console.log('✅ Setting ticket count to:', newCount);
     setTicketCount(newCount);
   };
 
@@ -481,19 +446,6 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
   const currentUserTickets = raffle.user_ticket_count || userParticipant?.ticket_count || 0;
   const remainingTickets = raffle.max_tickets_per_user - currentUserTickets;
 
-  // DEBUG: Log ticket state for debugging
-  console.log('🎫 JoinRaffleModal Ticket State:', {
-    raffleId: raffle?.id,
-    maxTicketsPerUser: raffle?.max_tickets_per_user,
-    raffleUserTicketCount: raffle.user_ticket_count,
-    userParticipantTickets: userParticipant?.ticket_count,
-    currentUserTickets,
-    remainingTickets,
-    currentTicketCount: ticketCount,
-    userCanSelectMore: ticketCount < remainingTickets,
-    connectedAddress: address,
-    participantsCount: participants.length
-  });
 
   return (
     <div
@@ -895,13 +847,6 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                         <button
                           type="button"
                           onClick={() => {
-                            console.log('➕ Plus button clicked:', {
-                              currentTicketCount: ticketCount,
-                              attemptingToSet: ticketCount + 1,
-                              remainingTickets,
-                              currentUserTickets: raffle.user_ticket_count || 0,
-                              maxTicketsPerUser: raffle.max_tickets_per_user
-                            });
                             handleTicketChange(ticketCount + 1);
                           }}
                           disabled={ticketCount >= remainingTickets || remainingTickets <= 0 || isLoading}
