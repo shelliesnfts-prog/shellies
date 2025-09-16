@@ -789,35 +789,63 @@ export class NFTService {
     attributes?: any[];
     metadata?: any;
   }>> {
-    try {
-      const apiUrl = `/api/nft/staked?stakingAddress=${encodeURIComponent(stakingContractAddress)}&tokenIds=${tokenIds.join(',')}`;
-      
-      const response = await fetch(apiUrl + `&_t=${Date.now()}&_r=${Math.random()}`, {
-        headers: {
-          'Accept': 'application/json',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        },
-        cache: 'no-store'
-      });
+    const maxRetries = 3;
+    const retryDelay = 2000; // 2 seconds
 
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const apiUrl = `/api/nft/staked?stakingAddress=${encodeURIComponent(stakingContractAddress)}&tokenIds=${tokenIds.join(',')}`;
+
+        const response = await fetch(apiUrl + `&_t=${Date.now()}&_r=${Math.random()}`, {
+          headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          },
+          cache: 'no-store'
+        });
+
+        if (!response.ok) {
+          throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        const nfts = data.nfts || [];
+
+        // If we got results OR this is the final attempt, return what we have
+        if (nfts.length > 0 || attempt === maxRetries) {
+          return nfts;
+        }
+
+        // If we expected data but got empty results, retry after delay (except on final attempt)
+        if (tokenIds.length > 0 && nfts.length === 0 && attempt < maxRetries) {
+          console.log(`Staked NFTs not found yet, retrying in ${retryDelay}ms (attempt ${attempt + 1}/${maxRetries + 1})...`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          continue;
+        }
+
+        return nfts;
+
+      } catch (error) {
+        console.error(`Failed to fetch staked NFTs metadata (attempt ${attempt + 1}):`, error);
+
+        // If this is the final attempt or a non-retryable error, return empty
+        if (attempt === maxRetries) {
+          return [];
+        }
+
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
       }
-
-      const data = await response.json();
-      
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      return data.nfts || [];
-      
-    } catch (error) {
-      console.error(`Failed to fetch staked NFTs metadata:`, error);
-      return [];
     }
+
+    return [];
   }
 
   /**
