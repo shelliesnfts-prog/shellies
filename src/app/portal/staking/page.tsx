@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useQueryClient } from '@tanstack/react-query';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
 import { Trophy, Star, TrendingUp, Loader2, CheckCircle, AlertTriangle, Coins, Lock, Unlock, Shield } from 'lucide-react';
 import { NFTService } from '@/lib/nft-service';
@@ -168,6 +169,7 @@ export default function StakingPage() {
 
   const { address, isConnected } = useAccount();
   const { writeContractAsync } = useWriteContract();
+  const queryClient = useQueryClient();
   const { data: txReceipt, isLoading: isTxLoading, error: txError } = useWaitForTransactionReceipt({
     hash: transactionState.hash as `0x${string}` | undefined,
   });
@@ -201,30 +203,69 @@ export default function StakingPage() {
           setTransactionState(prev => ({ ...prev, status: 'success', message: 'Transaction confirmed! Refreshing data...' }));
           // Refresh data after successful stake/unstake transaction
           // Use longer delay for unstake operations to allow explorer API to catch up
-          const delay = transactionState.type === 'unstake' ? 4000 : 2000;
+          const delay = transactionState.type === 'unstake' ? 6000 : 4000;
           setTimeout(async () => {
             try {
-              // Staking service no longer uses caching - always fetches fresh data
-              
+              // Clear React Query cache completely
+              queryClient.clear();
+
+              // Immediate local state update for instant UI feedback
+              if (transactionState.type === 'stake') {
+                // Move selected tokens from available to staked immediately
+                setOwnedNFTs(prevNFTs => {
+                  return prevNFTs.map(nft => {
+                    if (selectedTokens.includes(nft.tokenId) && !nft.isStaked) {
+                      return { ...nft, isStaked: true };
+                    }
+                    return nft;
+                  });
+                });
+              } else if (transactionState.type === 'unstake') {
+                // Move selected tokens from staked to available immediately
+                setOwnedNFTs(prevNFTs => {
+                  return prevNFTs.map(nft => {
+                    if (selectedTokens.includes(nft.tokenId) && nft.isStaked) {
+                      return { ...nft, isStaked: false, stakeInfo: undefined };
+                    }
+                    return nft;
+                  });
+                });
+              }
+
               // Clear selected tokens first
               setSelectedTokens([]);
-              
-              // Fetch fresh data with aggressive cache busting after transactions
-              await fetchUserData(true);
-              
-              
+
+              // Fetch fresh data with aggressive cache busting and retry logic
+              let retryCount = 0;
+              const maxRetries = 3;
+
+              while (retryCount < maxRetries) {
+                try {
+                  await fetchUserData(true);
+                  break; // Success, exit retry loop
+                } catch (error) {
+                  retryCount++;
+                  if (retryCount < maxRetries) {
+                    console.warn(`Retry ${retryCount}/${maxRetries} - Failed to fetch data, retrying in 2s...`);
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                  } else {
+                    throw error; // Final attempt failed
+                  }
+                }
+              }
+
               // Broadcast points update to refresh dashboard
-              window.dispatchEvent(new CustomEvent('stakingUpdated', { 
+              window.dispatchEvent(new CustomEvent('stakingUpdated', {
                 detail: { walletAddress: address }
               }));
-              
+
               setTransactionState({ type: null, status: 'idle', message: '' });
               setApprovalState({ needed: false, checking: false, tokensNeedingApproval: [] });
             } catch (error) {
-              setTransactionState({ 
-                type: null, 
-                status: 'error', 
-                message: 'Transaction succeeded but failed to refresh data. Please reload the page.' 
+              setTransactionState({
+                type: null,
+                status: 'error',
+                message: 'Transaction succeeded but failed to refresh data. Please reload the page.'
               });
             }
           }, delay);
@@ -277,7 +318,9 @@ export default function StakingPage() {
     setLoading(false);
   };
 
-  const fetchUserData = async (bustCache: boolean = false) => {
+  const fetchUserDataRef = useRef<(bustCache?: boolean) => Promise<void>>();
+
+  const fetchUserData = useCallback(async (bustCache: boolean = false) => {
     if (!address) return;
 
     try {
@@ -286,7 +329,7 @@ export default function StakingPage() {
       // Fetch staking stats and user's owned NFTs in parallel
       const [stats, userNftsWithMetadata] = await Promise.all([
         StakingService.getStakingStats(address),
-        NFTService.getNFTsWithMetadata(address)
+        NFTService.getNFTsWithMetadata(address, bustCache)
       ]);
       
       setStakingStats(stats);
@@ -366,7 +409,9 @@ export default function StakingPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [address, stakingContractAddress]);
+
+  fetchUserDataRef.current = fetchUserData;
 
   const handleTokenSelection = (tokenId: number, isSelected: boolean) => {
     if (isSelected) {
@@ -470,9 +515,8 @@ export default function StakingPage() {
 
     // Trigger the same UI refresh logic as other successful transactions
     try {
-      // Clear all relevant caches to force fresh data
-      if (address) {
-      }
+      // Clear React Query cache completely
+      queryClient.clear();
 
       // Clear selected tokens first
       setSelectedTokens([]);
@@ -484,8 +528,24 @@ export default function StakingPage() {
         message: 'Staking completed successfully! Refreshing data...'
       });
 
-      // Fetch fresh data with cache busting
-      await fetchUserData(true);
+      // Fetch fresh data with cache busting and retry logic
+      let retryCount = 0;
+      const maxRetries = 3;
+
+      while (retryCount < maxRetries) {
+        try {
+          await fetchUserData(true);
+          break; // Success, exit retry loop
+        } catch (error) {
+          retryCount++;
+          if (retryCount < maxRetries) {
+            console.warn(`Retry ${retryCount}/${maxRetries} - Failed to fetch data, retrying in 2s...`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          } else {
+            throw error; // Final attempt failed
+          }
+        }
+      }
 
       // Broadcast points update to refresh dashboard
       if (address) {
@@ -524,9 +584,8 @@ export default function StakingPage() {
 
     // Trigger the same UI refresh logic as direct staking
     try {
-      // Clear all relevant caches to force fresh data
-      if (address) {
-      }
+      // Clear React Query cache completely
+      queryClient.clear();
 
       // Clear selected tokens first
       setSelectedTokens([]);
@@ -538,8 +597,24 @@ export default function StakingPage() {
         message: 'Staking completed successfully! Refreshing data...'
       });
 
-      // Fetch fresh data with cache busting
-      await fetchUserData(true);
+      // Fetch fresh data with cache busting and retry logic
+      let retryCount = 0;
+      const maxRetries = 3;
+
+      while (retryCount < maxRetries) {
+        try {
+          await fetchUserData(true);
+          break; // Success, exit retry loop
+        } catch (error) {
+          retryCount++;
+          if (retryCount < maxRetries) {
+            console.warn(`Retry ${retryCount}/${maxRetries} - Failed to fetch data, retrying in 2s...`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          } else {
+            throw error; // Final attempt failed
+          }
+        }
+      }
 
       // Broadcast points update to refresh dashboard
       if (address) {

@@ -10,7 +10,18 @@ import { config } from '@/lib/wagmi';
 import { Session } from 'next-auth';
 import { useAccountMonitor } from '@/hooks/useAccountMonitor';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Disable caching for all queries by default
+      staleTime: 0,
+      gcTime: 0, // Previously cacheTime in v4
+      refetchOnWindowFocus: true,
+      refetchOnMount: true,
+      refetchOnReconnect: true,
+    },
+  },
+});
 
 const getSiweMessageOptions: GetSiweMessageOptions = () => ({
   statement: 'Sign in to Shellies Raffles to access your portal and manage your points.',

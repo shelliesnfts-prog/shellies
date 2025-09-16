@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
+// Force dynamic rendering and disable caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const SHELLIES_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_SHELLIES_CONTRACT_ADDRESS?.toLowerCase();
 
 /**
@@ -99,9 +103,7 @@ export async function GET(request: NextRequest) {
 
         response = await fetch(currentApiUrl, {
           headers,
-          // Disable Next.js caching for this external API call
           cache: 'no-store',
-          // Add a random query param to bypass any CDN caching
           next: { revalidate: 0 }
         });
 
