@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useWriteContract } from 'wagmi';
-import { X, Lock, Loader2, CheckCircle, AlertTriangle, Clock, Calendar, CalendarDays } from 'lucide-react';
+import { X, Lock, Loader2, CheckCircle, AlertTriangle, Clock, Calendar, CalendarDays, Star } from 'lucide-react';
 import { staking_abi } from '@/lib/staking-abi';
 import { LockPeriod, StakingService } from '@/lib/staking-service';
 import { parseContractError } from '@/lib/errors';
@@ -42,7 +42,8 @@ export default function StakingPeriodModal({
       description: 'Lock for 24 hours',
       icon: Clock,
       color: 'blue',
-      duration: '1 day'
+      duration: '1 day',
+      points: 7
     },
     {
       period: LockPeriod.WEEK,
@@ -50,7 +51,8 @@ export default function StakingPeriodModal({
       description: 'Lock for 7 days',
       icon: Calendar,
       color: 'purple',
-      duration: '7 days'
+      duration: '7 days',
+      points: 10
     },
     {
       period: LockPeriod.MONTH,
@@ -58,7 +60,8 @@ export default function StakingPeriodModal({
       description: 'Lock for 30 days',
       icon: CalendarDays,
       color: 'green',
-      duration: '30 days'
+      duration: '30 days',
+      points: 20
     }
   ];
 
@@ -227,8 +230,16 @@ export default function StakingPeriodModal({
                         {option.description}
                       </p>
                     </div>
-                    <div className={`text-sm font-medium ${colors.text}`}>
-                      {option.duration}
+                    <div className="flex flex-col items-end text-right">
+                      <div className="flex items-center space-x-1">
+                        <Star className={`w-4 h-4 ${colors.icon}`} />
+                        <span className={`text-xl font-bold ${colors.text}`}>
+                          {option.points}
+                        </span>
+                      </div>
+                      <div className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                        pts/day
+                      </div>
                     </div>
                     {isSelected && (
                       <CheckCircle className={`w-5 h-5 ${colors.icon}`} />
@@ -255,7 +266,7 @@ export default function StakingPeriodModal({
               isDarkMode ? 'text-gray-400' : 'text-gray-600'
             }`}>
               <li>• Your NFTs will be locked for the selected period</li>
-              <li>• You'll earn 10 points per day for each staked NFT</li>
+              <li>• Daily points: 1 Day = 7pts, 1 Week = 10pts, 1 Month = 20pts</li>
               <li>• You cannot unstake until the lock period ends</li>
               <li>• Emergency unstake is only available if enabled by admin</li>
             </ul>

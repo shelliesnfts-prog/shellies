@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useWriteContract } from 'wagmi';
-import { X, Shield, Lock, Loader2, CheckCircle, AlertTriangle, Clock, Calendar, CalendarDays } from 'lucide-react';
+import { X, Shield, Lock, Loader2, CheckCircle, AlertTriangle, Clock, Calendar, CalendarDays, Star } from 'lucide-react';
 import { erc721Abi } from 'viem';
 import { staking_abi } from '@/lib/staking-abi';
 import { LockPeriod, StakingService } from '@/lib/staking-service';
@@ -187,6 +187,7 @@ export default function ApprovalStakeModal({
       period: LockPeriod.DAY,
       label: '1 Day',
       description: 'Lock for 24 hours',
+      points: 7,
       icon: Clock,
       color: 'blue'
     },
@@ -194,6 +195,7 @@ export default function ApprovalStakeModal({
       period: LockPeriod.WEEK,
       label: '1 Week',
       description: 'Lock for 7 days',
+      points: 10,
       icon: Calendar,
       color: 'purple'
     },
@@ -201,6 +203,7 @@ export default function ApprovalStakeModal({
       period: LockPeriod.MONTH,
       label: '1 Month',
       description: 'Lock for 30 days',
+      points: 20,
       icon: CalendarDays,
       color: 'green'
     }
@@ -356,33 +359,58 @@ export default function ApprovalStakeModal({
                                   : (isDarkMode ? 'bg-gray-700 border-gray-500 hover:border-blue-400' : 'bg-white border-gray-200 hover:border-blue-300')
                               } ${isEnabled ? 'cursor-pointer hover:scale-105' : 'cursor-not-allowed'}`}
                             >
-                              <div className={`w-8 h-8 rounded-lg mx-auto mb-2 flex items-center justify-center ${
-                                !isEnabled
-                                  ? (isDarkMode ? 'bg-gray-700' : 'bg-gray-200')
-                                  : (isDarkMode ? 'bg-gray-600' : 'bg-gray-100')
-                              }`}>
-                                <IconComponent className={`w-4 h-4 ${
-                                  !isEnabled
-                                    ? 'text-gray-500'
-                                    : isSelected
-                                    ? 'text-blue-500'
-                                    : (isDarkMode ? 'text-gray-400' : 'text-gray-500')
-                                }`} />
+                              <div className="flex items-start justify-between w-full">
+                                <div className="flex flex-col items-center flex-1">
+                                  <div className={`w-8 h-8 rounded-lg mb-2 flex items-center justify-center ${
+                                    !isEnabled
+                                      ? (isDarkMode ? 'bg-gray-700' : 'bg-gray-200')
+                                      : (isDarkMode ? 'bg-gray-600' : 'bg-gray-100')
+                                  }`}>
+                                    <IconComponent className={`w-4 h-4 ${
+                                      !isEnabled
+                                        ? 'text-gray-500'
+                                        : isSelected
+                                        ? 'text-blue-500'
+                                        : (isDarkMode ? 'text-gray-400' : 'text-gray-500')
+                                    }`} />
+                                  </div>
+                                  <h5 className={`font-semibold text-sm mb-1 text-center ${
+                                    !isEnabled
+                                      ? 'text-gray-500'
+                                      : (isDarkMode ? 'text-white' : 'text-gray-900')
+                                  }`}>
+                                    {option.label}
+                                  </h5>
+                                  <p className={`text-xs text-center ${
+                                    !isEnabled
+                                      ? 'text-gray-500'
+                                      : (isDarkMode ? 'text-gray-400' : 'text-gray-600')
+                                  }`}>
+                                    {option.description}
+                                  </p>
+                                </div>
+                                <div className="flex flex-col items-end ml-2">
+                                  <div className={`text-right ${
+                                    !isEnabled
+                                      ? 'text-gray-500'
+                                      : isSelected
+                                      ? 'text-blue-500'
+                                      : (isDarkMode ? 'text-gray-400' : 'text-gray-600')
+                                  }`}>
+                                    <div className="flex items-center space-x-1">
+                                      <Star className={`w-3 h-3 ${
+                                        !isEnabled
+                                          ? 'text-gray-500'
+                                          : isSelected
+                                          ? 'text-blue-500'
+                                          : (isDarkMode ? 'text-gray-400' : 'text-gray-600')
+                                      }`} />
+                                      <span className="text-lg font-bold">{option.points}</span>
+                                    </div>
+                                    <div className="text-xs leading-tight">pts/day</div>
+                                  </div>
+                                </div>
                               </div>
-                              <h5 className={`font-semibold text-sm mb-1 ${
-                                !isEnabled
-                                  ? 'text-gray-500'
-                                  : (isDarkMode ? 'text-white' : 'text-gray-900')
-                              }`}>
-                                {option.label}
-                              </h5>
-                              <p className={`text-xs ${
-                                !isEnabled
-                                  ? 'text-gray-500'
-                                  : (isDarkMode ? 'text-gray-400' : 'text-gray-600')
-                              }`}>
-                                {option.description}
-                              </p>
                               {isSelected && isEnabled && (
                                 <div className="absolute top-2 right-2">
                                   <CheckCircle className="w-4 h-4 text-blue-500" />
