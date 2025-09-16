@@ -437,14 +437,167 @@ export default function LandingPage() {
               </div>
             </motion.div>
           </div>
-          
-          {/* Professional CTA */}
-          <motion.div 
-            className="text-center"
+
+          {/* Points Mechanism Section */}
+          <motion.div
+            className="mb-16"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5, delay: 0.4 }}
+          >
+            <div className="text-center mb-12">
+              <h3 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+                Points Earning System
+              </h3>
+              <p className="text-lg text-gray-300 max-w-2xl mx-auto">
+                Maximize your daily rewards through different participation levels
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+              {/* Regular Users */}
+              <motion.div
+                className="modern-card p-8 text-center group hover:scale-105 transition-all duration-300"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.1 }}
+              >
+                <div className="w-16 h-16 icon-gradient rounded-2xl mx-auto mb-6 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <div className="w-8 h-8 text-white">
+                    <svg viewBox="0 0 24 24" className="w-full h-full" fill="currentColor">
+                      <path d="M12 12C14.21 12 16 10.21 16 8C16 5.79 14.21 4 12 4C9.79 4 8 5.79 8 8C8 10.21 9.79 12 12 12ZM12 14C9.33 14 4 15.34 4 18V20H20V18C20 15.34 14.67 14 12 14Z"/>
+                    </svg>
+                  </div>
+                </div>
+                <h3 className="text-xl font-bold text-white mb-4">Regular Users</h3>
+                <div className="text-4xl font-bold text-gradient counter-animate mb-2">1</div>
+                <div className="text-gray-300 font-medium">point per day</div>
+                <div className="text-sm text-purple-300 font-medium bg-purple-900/40 px-3 py-1 rounded-full inline-block mt-4">
+                  Base Rate
+                </div>
+              </motion.div>
+
+              {/* NFT Holders */}
+              <motion.div
+                className="modern-card p-8 text-center group hover:scale-105 transition-all duration-300"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+              >
+                <div className="w-16 h-16 rounded-2xl mx-auto mb-6 flex items-center justify-center group-hover:scale-110 transition-transform overflow-hidden">
+                  <img
+                    src="/shellies_icon.jpg"
+                    alt="Shellies Logo"
+                    className="w-full h-full object-cover rounded-2xl"
+                  />
+                </div>
+                <h3 className="text-xl font-bold text-white mb-4">NFT Holders</h3>
+                <div className="text-4xl font-bold text-gradient counter-animate mb-2">5</div>
+                <div className="text-gray-300 font-medium">points per day</div>
+                <div className="text-sm text-purple-300 font-medium bg-purple-900/40 px-3 py-1 rounded-full inline-block mt-4">
+                  Hold Shellies
+                </div>
+              </motion.div>
+
+              {/* Staking Rewards */}
+              <motion.div
+                className="modern-card p-8 text-center group hover:scale-105 transition-all duration-300"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+              >
+                <div className="w-16 h-16 icon-gradient rounded-2xl mx-auto mb-6 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <div className="w-8 h-8 text-white">
+                    <Icons.Shield />
+                  </div>
+                </div>
+                <h3 className="text-xl font-bold text-white mb-4">Staking Rewards</h3>
+                <div className="text-gray-300 leading-relaxed mb-6 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">1 Day:</span>
+                    <span className="font-bold text-gradient">7 pts/day</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">1 Week:</span>
+                    <span className="font-bold text-gradient">10 pts/day</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">1 Month:</span>
+                    <span className="font-bold text-gradient">20 pts/day</span>
+                  </div>
+                </div>
+                <div className="text-sm text-purple-300 font-medium bg-purple-900/40 px-3 py-1 rounded-full inline-block">
+                  Lock Period Bonus
+                </div>
+              </motion.div>
+
+              {/* Maximum Potential */}
+              <motion.div
+                className="modern-card p-8 text-center group hover:scale-105 transition-all duration-300"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.4 }}
+              >
+                <div className="w-16 h-16 icon-gradient rounded-2xl mx-auto mb-6 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <div className="w-8 h-8 text-white">
+                    <svg viewBox="0 0 24 24" className="w-full h-full" fill="currentColor">
+                      <path d="M12 2L13.09 8.26L20 9L13.09 9.74L12 16L10.91 9.74L4 9L10.91 8.26L12 2Z"/>
+                      <path d="M19 15L19.91 17.53L23 18L19.91 18.47L19 21L18.09 18.47L15 18L18.09 17.53L19 15Z"/>
+                      <path d="M5 15L5.91 17.53L9 18L5.91 18.47L5 21L4.09 18.47L1 18L4.09 17.53L5 15Z"/>
+                    </svg>
+                  </div>
+                </div>
+                <h3 className="text-xl font-bold text-white mb-4">Maximum Potential</h3>
+                <div className="text-4xl font-bold text-gradient counter-animate mb-2">25+</div>
+                <div className="text-gray-300 font-medium">points per day</div>
+                <div className="text-sm text-purple-300 font-medium bg-purple-900/40 px-3 py-1 rounded-full inline-block mt-4">
+                  Stake + Hold
+                </div>
+              </motion.div>
+            </div>
+
+            {/* Points Usage Info */}
+            <motion.div
+              className="mt-16 text-center"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.5 }}
+            >
+              <div className="modern-card p-8">
+                <div className="w-16 h-16 icon-gradient rounded-2xl mx-auto mb-6 flex items-center justify-center">
+                  <div className="w-8 h-8 text-white">
+                    <Icons.Dice />
+                  </div>
+                </div>
+                <h3 className="text-xl font-bold text-white mb-4">
+                  Use Your Points for Premium Raffles
+                </h3>
+                <p className="text-gray-300 max-w-3xl mx-auto leading-relaxed mb-6">
+                  Accumulated points can be spent to enter exclusive raffles featuring rare NFTs, tokens,
+                  and other valuable prizes. The more points you earn, the more opportunities you have to win big!
+                </p>
+                <div className="flex flex-wrap justify-center gap-3">
+                  <div className="text-sm text-purple-300 font-medium bg-purple-900/40 px-3 py-1 rounded-full">NFT Prizes</div>
+                  <div className="text-sm text-purple-300 font-medium bg-purple-900/40 px-3 py-1 rounded-full">Token Rewards</div>
+                  <div className="text-sm text-purple-300 font-medium bg-purple-900/40 px-3 py-1 rounded-full">Exclusive Access</div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+
+          {/* Professional CTA */}
+          <motion.div
+            className="text-center"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5, delay: 0.6 }}
           >
             {isConnected && session ? (
               <button
