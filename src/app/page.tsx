@@ -135,7 +135,7 @@ export default function LandingPage() {
               </div>
               <div className="flex flex-col">
                 <span className="text-xl shellies-brand" data-text="SHELLIES">SHELLIES</span>
-                <span className="text-xs text-purple-400 font-medium">Raffle Platform</span>
+                <span className="text-xs text-purple-400 font-medium">Raffle & Staking Platform</span>
               </div>
             </div>
             
