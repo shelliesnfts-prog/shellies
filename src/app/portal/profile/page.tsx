@@ -11,6 +11,7 @@ import { NFTService, SHELLIES_CONTRACT_ADDRESS } from '@/lib/nft-service';
 import { StakingService } from '@/lib/staking-service';
 import { ProfilePageSkeleton } from '@/components/portal/ProfilePageSkeleton';
 import { useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { Trophy, Coins, Gift, TrendingUp, ArrowRight, Sparkles, Target, Zap, Clock, Calendar, CalendarDays } from 'lucide-react';
 
 export default function ProfilePage() {
@@ -27,6 +28,7 @@ export default function ProfilePage() {
   const { data: session } = useSession();
   const { address } = useAccount();
   const router = useRouter();
+  const pathname = usePathname();
   const { user, claimStatus, loading: userLoading, claiming, executeUnifiedClaim, error: claimError, refreshUserData, refreshWithFreshData } = usePoints();
 
   const walletAddress = address || session?.address || '';
@@ -34,6 +36,14 @@ export default function ProfilePage() {
   // Get tier information for motivational display
   const nftCount = claimStatus?.nftCount ?? 0;
   const tierInfo = NFTService.getUserTierInfo(nftCount);
+
+  // Refresh user data when user navigates to profile page
+  useEffect(() => {
+    // Only refresh if we're on the profile page and user is connected
+    if (pathname === '/portal/profile' && walletAddress) {
+      refreshUserData();
+    }
+  }, [pathname, walletAddress]); // Runs when pathname changes or wallet connects
 
   const handleClaimUnified = async () => {
     await executeUnifiedClaim();
