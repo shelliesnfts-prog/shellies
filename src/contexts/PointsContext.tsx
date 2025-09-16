@@ -142,15 +142,9 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
         return result;
       }
 
-      // Clear local state to force fresh fetch and update display immediately
-      setUser(null);
-      setClaimStatus(null);
+      // Immediately fetch fresh data without clearing state to avoid double loading UI
       lastAddressRef.current = null; // Force refetch
-
-      // Immediately fetch fresh data to reflect the claim
-      setTimeout(() => {
-        fetchUserData();
-      }, 100);
+      await fetchUserData();
 
       // Broadcast points update
       window.dispatchEvent(new CustomEvent('pointsUpdated', {
@@ -191,15 +185,9 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
         return result;
       }
 
-      // Clear local state to force fresh fetch and update display immediately
-      setUser(null);
-      setClaimStatus(null);
+      // Immediately fetch fresh data without clearing state to avoid double loading UI
       lastAddressRef.current = null; // Force refetch
-
-      // Immediately fetch fresh data to reflect the staking claim
-      setTimeout(() => {
-        fetchUserData();
-      }, 100);
+      await fetchUserData();
 
       // Broadcast points update
       window.dispatchEvent(new CustomEvent('pointsUpdated', {
@@ -240,15 +228,9 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
         return result;
       }
 
-      // Clear local state to force fresh fetch and update display immediately
-      setUser(null);
-      setClaimStatus(null);
+      // Immediately fetch fresh data without clearing state to avoid double loading UI
       lastAddressRef.current = null; // Force refetch
-
-      // Immediately fetch fresh data to reflect the unified claim
-      setTimeout(() => {
-        fetchUserData();
-      }, 100);
+      await fetchUserData();
 
       // Broadcast points update
       window.dispatchEvent(new CustomEvent('pointsUpdated', {

@@ -20,18 +20,11 @@ export async function POST(request: NextRequest) {
     const walletAddress = session.address as string;
 
     // Step 1: Get NFT counts, staking stats, and period breakdown in parallel
-    console.log(`[CLAIM-UNIFIED] Starting claim for wallet: ${walletAddress}`);
     const [nftCount, stakingStats, stakingBreakdown] = await Promise.all([
       NFTService.getNFTCount(walletAddress),
       StakingService.getStakingStats(walletAddress),
       StakingService.getStakingPeriodBreakdown(walletAddress)
     ]);
-
-    console.log(`[CLAIM-UNIFIED] Data fetched for ${walletAddress}:`, {
-      nftCount,
-      stakingStats,
-      stakingBreakdown
-    });
 
     // Step 2: Calculate total points based on new formula:
     // available NFTs × 5 + daily staked NFTs × 7 + weekly staked NFTs × 10 + monthly staked NFTs × 20
@@ -42,13 +35,6 @@ export async function POST(request: NextRequest) {
     let stakingPoints = 0;
     let totalPointsToAdd = 0;
 
-    console.log(`[CLAIM-UNIFIED] Calculating points for ${walletAddress}:`, {
-      nftCount,
-      stakedNFTCount,
-      availableNFTCount,
-      stakingBreakdown
-    });
-
     const totalOwnedNFTs = nftCount + stakedNFTCount; // Total NFTs = available + staked
 
     if (totalOwnedNFTs > 0) {
@@ -56,20 +42,10 @@ export async function POST(request: NextRequest) {
       regularPoints = availableNFTCount * 5; // 5 points per available NFT
       stakingPoints = StakingService.calculateDailyPointsByPeriod(stakingBreakdown); // New period-based calculation
       totalPointsToAdd = regularPoints + stakingPoints;
-
-      console.log(`[CLAIM-UNIFIED] About to calculate staking points with breakdown:`, stakingBreakdown);
-
-      console.log(`[CLAIM-UNIFIED] Points calculation result:`, {
-        totalOwnedNFTs: `${nftCount} available + ${stakedNFTCount} staked = ${totalOwnedNFTs}`,
-        regularPoints: `${availableNFTCount} × 5 = ${regularPoints}`,
-        stakingPointsBreakdown: `day:${stakingBreakdown.day}×7 + week:${stakingBreakdown.week}×10 + month:${stakingBreakdown.month}×20 = ${stakingPoints}`,
-        totalPointsToAdd
-      });
     } else {
       // Regular user with no NFTs: get base point
       regularPoints = 1;
       totalPointsToAdd = regularPoints;
-      console.log(`[CLAIM-UNIFIED] Regular user with no NFTs, giving base point: ${totalPointsToAdd}`);
     }
 
     if (totalPointsToAdd === 0) {

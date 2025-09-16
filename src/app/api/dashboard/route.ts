@@ -31,19 +31,12 @@ export async function GET(request: NextRequest) {
     // Staking service no longer uses caching - always fetches fresh data
 
     // Fetch user data, NFT count, staking stats, and period breakdown in parallel
-    console.log(`[DASHBOARD] Starting data fetch for wallet: ${walletAddress}`);
     const [user, nftCount, stakingStats, stakingBreakdown] = await Promise.all([
       UserService.getOrCreateUser(walletAddress, true), // bypass cache for fresh data
       NFTService.getNFTCount(walletAddress),
       StakingService.getStakingStats(walletAddress),
       StakingService.getStakingPeriodBreakdown(walletAddress)
     ]);
-
-    console.log(`[DASHBOARD] Data fetched for ${walletAddress}:`, {
-      nftCount,
-      stakingStats,
-      stakingBreakdown
-    });
     
     if (!user) {
       return NextResponse.json({ error: 'Failed to get user data' }, { status: 500 });
@@ -74,13 +67,6 @@ export async function GET(request: NextRequest) {
     let stakingPoints = 0;
     let totalPotentialPoints = 0;
 
-    console.log(`[DASHBOARD] Calculating points for ${walletAddress}:`, {
-      nftCount,
-      stakedNFTCount,
-      availableNFTCount,
-      stakingBreakdown
-    });
-
     const totalOwnedNFTs = nftCount + stakedNFTCount; // Total NFTs = available + staked
 
     if (totalOwnedNFTs > 0) {
@@ -88,20 +74,10 @@ export async function GET(request: NextRequest) {
       regularPoints = availableNFTCount * 5; // 5 points per available NFT
       stakingPoints = StakingService.calculateDailyPointsByPeriod(stakingBreakdown); // New period-based calculation
       totalPotentialPoints = regularPoints + stakingPoints;
-
-      console.log(`[DASHBOARD] About to calculate staking points with breakdown:`, stakingBreakdown);
-
-      console.log(`[DASHBOARD] Points calculation result:`, {
-        totalOwnedNFTs: `${nftCount} available + ${stakedNFTCount} staked = ${totalOwnedNFTs}`,
-        regularPoints: `${availableNFTCount} × 5 = ${regularPoints}`,
-        stakingPoints: `day:${stakingBreakdown.day}×7 + week:${stakingBreakdown.week}×10 + month:${stakingBreakdown.month}×20 = ${stakingPoints}`,
-        totalPotentialPoints
-      });
     } else {
       // Regular user with no NFTs: get base point
       regularPoints = 1;
       totalPotentialPoints = regularPoints;
-      console.log(`[DASHBOARD] Regular user with no NFTs, giving base point: ${totalPotentialPoints}`);
     }
 
     // Return combined data

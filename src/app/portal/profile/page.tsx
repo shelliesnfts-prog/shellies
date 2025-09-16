@@ -52,12 +52,7 @@ export default function ProfilePage() {
     router.push('/portal/staking');
   };
 
-  // Force fresh data when profile page is visited
-  useEffect(() => {
-    if (walletAddress) {
-      refreshWithFreshData();
-    }
-  }, [refreshWithFreshData, walletAddress]); // Run when component mounts or wallet changes
+  // Note: Data fetching is handled automatically by PointsContext
 
   // Fetch staking breakdown when wallet address changes
   useEffect(() => {
