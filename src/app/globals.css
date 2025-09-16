@@ -220,6 +220,12 @@ html {
   50% { box-shadow: 0 0 30px rgba(110, 54, 228, 0.6); }
 }
 
+/* Shine animation for claim button */
+@keyframes shine {
+  0% { transform: translateX(-200%) skewX(-12deg); }
+  100% { transform: translateX(200%) skewX(-12deg); }
+}
+
 /* Typography improvements */
 .heading-xl {
   font-size: clamp(2.5rem, 5vw, 5rem);

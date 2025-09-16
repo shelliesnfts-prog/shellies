@@ -113,11 +113,12 @@ export function PortalSidebar({
         <div className={`p-6 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-100'}`}>
           <div className="flex items-center justify-between">
             {/* Logo */}
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden">
+            <div className="w-10 h-10 flex items-center justify-center overflow-hidden" style={{borderRadius: '50px'}}>
               <img
                 src="/shellies_icon.jpg"
                 alt="Shellies Logo"
-                className="w-full h-full object-cover rounded-lg"
+                className="w-full h-full object-cover"
+                style={{borderRadius: '50px'}}
               />
             </div>
             
@@ -204,9 +205,17 @@ export function PortalSidebar({
                   {!userLoading && (
                     <button
                       onClick={() => handleNavigation('/portal/profile')}
-                      className="px-3 py-2 bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-300 hover:to-orange-400 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 hover:rotate-1"
+                      className="relative px-2 py-1 bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-300 hover:to-orange-400 rounded-md transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 overflow-hidden group"
                     >
-                      <span className="text-white font-bold text-xs drop-shadow-md">Claim</span>
+                      {/* Shining animation overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -skew-x-12 transform translate-x-full group-hover:translate-x-[-200%] transition-transform duration-700 ease-out" />
+                      {/* Continuous shine animation */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 transform animate-pulse"
+                           style={{
+                             animation: 'shine 2s infinite linear',
+                             animationDelay: '0.5s'
+                           }} />
+                      <span className="relative text-white font-bold text-xs drop-shadow-sm">Claim</span>
                     </button>
                   )}
                 </div>
@@ -311,6 +320,13 @@ export function PortalSidebar({
             )}
           </ul>
         </nav>
+
+        {/* Copyright Footer */}
+        <div className={`px-4 py-3 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+          <p className={`text-xs text-center ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+            © 2025 Ink Shellies Platform. All rights reserved.
+          </p>
+        </div>
       </div>
       
       {/* Mobile menu toggle button */}
