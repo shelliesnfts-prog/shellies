@@ -181,10 +181,12 @@ export default function AdminUsersPage() {
           <div className={`p-6 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-100'}`}>
             <div className="flex items-center justify-between">
               {/* Logo */}
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
-              }`}>
-                <Square className={`w-6 h-6 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`} />
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden">
+                <img
+                  src="/shellies_icon.jpg"
+                  alt="Shellies Logo"
+                  className="w-full h-full object-cover rounded-lg"
+                />
               </div>
               
               {/* Control buttons */}

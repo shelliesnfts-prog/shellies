@@ -113,10 +113,12 @@ export function PortalSidebar({
         <div className={`p-6 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-100'}`}>
           <div className="flex items-center justify-between">
             {/* Logo */}
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-              isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
-            }`}>
-              <Square className={`w-6 h-6 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`} />
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden">
+              <img
+                src="/shellies_icon.jpg"
+                alt="Shellies Logo"
+                className="w-full h-full object-cover rounded-lg"
+              />
             </div>
             
             {/* Control buttons */}
@@ -202,9 +204,9 @@ export function PortalSidebar({
                   {!userLoading && (
                     <button
                       onClick={() => handleNavigation('/portal/profile')}
-                      className="text-white/90 hover:text-white text-md font-medium transition-colors duration-200 hover:underline"
+                      className="px-3 py-2 bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-300 hover:to-orange-400 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 hover:rotate-1"
                     >
-                      Claim
+                      <span className="text-white font-bold text-xs drop-shadow-md">Claim</span>
                     </button>
                   )}
                 </div>

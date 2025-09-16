@@ -126,10 +126,12 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 icon-gradient rounded-xl flex items-center justify-center">
-                <div className="w-6 h-6 text-white">
-                  <Icons.Shell />
-                </div>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden">
+                <img
+                  src="/shellies_icon.jpg"
+                  alt="Shellies Logo"
+                  className="w-full h-full object-cover rounded-xl"
+                />
               </div>
               <div className="flex flex-col">
                 <span className="text-xl shellies-brand" data-text="SHELLIES">SHELLIES</span>
@@ -194,7 +196,7 @@ export default function LandingPage() {
             >
               <div className="w-2 h-2 bg-gradient-to-r from-purple-400 to-purple-500 rounded-full mr-2"></div>
               <span className="text-purple-200 text-sm font-medium">
-                First PFP Collection on Ink Chain
+                First Raffle & Staking Platform on Ink Chain
               </span>
             </motion.div>
 
@@ -261,10 +263,12 @@ export default function LandingPage() {
               transition={{ duration: 0.6, delay: 0.7 }}
             >
               <div className="text-center modern-card p-8 group hover:scale-105 transition-transform duration-300">
-                <div className="w-16 h-16 icon-gradient rounded-2xl mx-auto mb-4 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <div className="w-8 h-8 text-white">
-                    <Icons.Shell />
-                  </div>
+                <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center group-hover:scale-110 transition-transform overflow-hidden">
+                  <img
+                    src="/shellies_icon.jpg"
+                    alt="Shellies Logo"
+                    className="w-full h-full object-cover rounded-2xl"
+                  />
                 </div>
                 <AnimatedCounter end={2222} />
                 <div className="text-gray-300 font-medium mt-2">Unique NFTs</div>
@@ -478,10 +482,12 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center">
             <div className="flex items-center justify-center space-x-3 mb-6">
-              <div className="w-8 h-8 icon-gradient rounded-lg flex items-center justify-center">
-                <div className="w-5 h-5 text-white">
-                  <Icons.Shell />
-                </div>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
+                <img
+                  src="/shellies_icon.jpg"
+                  alt="Shellies Logo"
+                  className="w-full h-full object-cover rounded-lg"
+                />
               </div>
               <span className="text-xl shellies-brand" data-text="SHELLIES">SHELLIES</span>
             </div>
