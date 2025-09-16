@@ -67,6 +67,10 @@ export interface StakeInfo {
 export class StakingService {
   private static contractAddress: string = process.env.NEXT_PUBLIC_STAKING_CONTRACT_ADDRESS || '';
 
+  static {
+    console.log('[STAKING-SERVICE] Contract address loaded:', this.contractAddress || 'NOT SET');
+  }
+
   /**
    * Get staked token IDs for a wallet address
    * Always fetches fresh data from blockchain
@@ -74,8 +78,11 @@ export class StakingService {
   static async getStakedTokenIds(walletAddress: string): Promise<number[]> {
     try {
       if (!this.contractAddress || !this.isValidAddress(walletAddress)) {
+        console.log(`[STAKING-SERVICE] getStakedTokenIds - Invalid input: contractAddress=${this.contractAddress}, validAddress=${this.isValidAddress(walletAddress)}`);
         return [];
       }
+
+      console.log(`[STAKING-SERVICE] getStakedTokenIds - Fetching for wallet: ${walletAddress}, contract: ${this.contractAddress}`);
 
       const stakedTokens = await this.callWithFallback(
         () => publicClient.readContract({
@@ -93,10 +100,11 @@ export class StakingService {
       );
 
       const tokenIds = (stakedTokens as bigint[]).map(id => Number(id));
+      console.log(`[STAKING-SERVICE] getStakedTokenIds - Result: ${tokenIds.length} tokens:`, tokenIds);
       return tokenIds;
 
     } catch (error) {
-      console.error(`Error fetching staked tokens for ${walletAddress}:`, error);
+      console.error(`[STAKING-SERVICE] Error fetching staked tokens for ${walletAddress}:`, error);
       return [];
     }
   }
@@ -225,7 +233,14 @@ export class StakingService {
     const weekPoints = breakdown.week * 10; // 10 points per week-staked NFT
     const monthPoints = breakdown.month * 20; // 20 points per month-staked NFT
 
-    return dayPoints + weekPoints + monthPoints;
+    const totalPoints = dayPoints + weekPoints + monthPoints;
+
+    console.log(`[STAKING-SERVICE] calculateDailyPointsByPeriod:`, {
+      breakdown,
+      calculation: `(${breakdown.day} × 7) + (${breakdown.week} × 10) + (${breakdown.month} × 20) = ${dayPoints} + ${weekPoints} + ${monthPoints} = ${totalPoints}`
+    });
+
+    return totalPoints;
   }
 
   /**
@@ -437,7 +452,10 @@ export class StakingService {
     total: number;
   }> {
     try {
+      console.log(`[STAKING-SERVICE] getStakingPeriodBreakdown - Starting for wallet: ${walletAddress}`);
+
       if (!this.contractAddress || !this.isValidAddress(walletAddress)) {
+        console.log(`[STAKING-SERVICE] getStakingPeriodBreakdown - Invalid input: contractAddress=${this.contractAddress}, validAddress=${this.isValidAddress(walletAddress)}`);
         return { day: 0, week: 0, month: 0, total: 0 };
       }
 
@@ -445,6 +463,7 @@ export class StakingService {
       const stakedTokenIds = await this.getStakedTokenIds(walletAddress);
 
       if (stakedTokenIds.length === 0) {
+        console.log(`[STAKING-SERVICE] getStakingPeriodBreakdown - No staked tokens found`);
         return { day: 0, week: 0, month: 0, total: 0 };
       }
 
@@ -486,7 +505,10 @@ export class StakingService {
         total: stakedTokenIds.length
       };
 
-      stakePeriods.forEach((period) => {
+      console.log(`[STAKING-SERVICE] getStakingPeriodBreakdown - Processing ${stakePeriods.length} periods:`, stakePeriods);
+
+      stakePeriods.forEach((period, index) => {
+        console.log(`[STAKING-SERVICE] Token ${stakedTokenIds[index]} has period: ${period} (${this.getLockPeriodLabel(period || 0)})`);
         if (period === LockPeriod.DAY) {
           breakdown.day++;
         } else if (period === LockPeriod.WEEK) {
@@ -496,6 +518,7 @@ export class StakingService {
         }
       });
 
+      console.log(`[STAKING-SERVICE] getStakingPeriodBreakdown - Final breakdown:`, breakdown);
       return breakdown;
 
     } catch (error) {
