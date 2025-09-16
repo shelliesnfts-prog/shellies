@@ -187,19 +187,6 @@ export default function LandingPage() {
         
         <div className="max-w-7xl mx-auto px-6 relative z-10 mt-4">
           <div className="text-center">
-            {/* Professional Badge */}
-            <motion.div 
-              className="inline-flex items-center px-4 py-2 bg-purple-900/30 backdrop-blur-sm border border-purple-400/50 rounded-full mb-8 shadow-sm"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5 }}
-            >
-              <div className="w-2 h-2 bg-gradient-to-r from-purple-400 to-purple-500 rounded-full mr-2"></div>
-              <span className="text-purple-200 text-sm font-medium">
-                First Raffle & Staking Platform on Ink Chain
-              </span>
-            </motion.div>
-
             {/* Clean Main Heading */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -211,7 +198,7 @@ export default function LandingPage() {
                 <span className="shellies-brand block" data-text="SHELLIES">SHELLIES</span>
               </h1>
               <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-300">
-                Premium Raffle & Staking Platform
+                First Raffle & Staking Platform on Ink Chain
               </h2>
             </motion.div>
 
@@ -223,7 +210,7 @@ export default function LandingPage() {
               className="mb-12"
             >
               <p className="text-xl sm:text-2xl text-gray-300 max-w-4xl mx-auto leading-relaxed mb-4">
-                Exclusive raffle ecosystem for holders of the first NFT collection on <span className="text-gradient font-semibold">Ink Chain</span>
+                Exclusive raffle ecosystem for holders of the Shellies NFT collection on <span className="text-gradient font-semibold">Ink Chain</span>
               </p>
               <p className="text-lg text-gray-400 max-w-3xl mx-auto">
                 Stake your Shellies, earn daily rewards, and participate in premium raffles with incredible prizes
@@ -371,7 +358,7 @@ export default function LandingPage() {
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: 0.2 }}
             >
-              Built exclusively for holders of the first NFT collection on <span className="text-gradient font-semibold">Ink Chain</span>
+              Built exclusively for holders of the SHELLIES NFT collection on <span className="text-gradient font-semibold">Ink Chain</span>
             </motion.p>
             
             <motion.p 
@@ -493,7 +480,7 @@ export default function LandingPage() {
             </div>
             
             <p className="text-gray-300 text-base mb-2 max-w-2xl mx-auto">
-              The premier raffle platform for Ink Chain's first NFT collection.
+              The premier raffle platform for Ink Chain's SHELLIES NFT collection.
               Built for the community, powered by innovation.
             </p>
             
