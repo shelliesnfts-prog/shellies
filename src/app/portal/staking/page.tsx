@@ -318,7 +318,7 @@ export default function StakingPage() {
     setLoading(false);
   };
 
-  const fetchUserDataRef = useRef<(bustCache?: boolean) => Promise<void>>();
+  const fetchUserDataRef = useRef<(bustCache?: boolean) => Promise<void>>(async () => {});
 
   const fetchUserData = useCallback(async (bustCache: boolean = false) => {
     if (!address) return;
