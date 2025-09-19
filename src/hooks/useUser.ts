@@ -10,7 +10,6 @@ export function useUser() {
   
   // Prevent multiple simultaneous requests
   const fetchingRef = useRef(false);
-  const lastAddressRef = useRef<string | null>(null);
 
   // Fetch user data with deduplication
   const fetchUser = useCallback(async () => {
@@ -21,7 +20,6 @@ export function useUser() {
       setUser(null);
       setLoading(false);
       setError(null);
-      lastAddressRef.current = null;
       return;
     }
 
@@ -33,7 +31,14 @@ export function useUser() {
       setLoading(true);
       setError(null);
       
-      const response = await fetch('/api/user');
+      const response = await fetch(`/api/user?_t=${Date.now()}&_r=${Math.random()}`, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        cache: 'no-store'
+      });
       
       if (!response.ok) {
         throw new Error('Failed to fetch user data');
@@ -41,12 +46,10 @@ export function useUser() {
       
       const userData = await response.json();
       setUser(userData);
-      lastAddressRef.current = session.address;
     } catch (err) {
       console.error('Error fetching user:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch user data');
       setUser(null);
-      lastAddressRef.current = null;
     } finally {
       setLoading(false);
       fetchingRef.current = false;
@@ -62,7 +65,14 @@ export function useUser() {
       setLoading(true);
       setError(null);
       
-      const response = await fetch('/api/user');
+      const response = await fetch(`/api/user?_t=${Date.now()}&_r=${Math.random()}`, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        cache: 'no-store'
+      });
       
       if (!response.ok) {
         throw new Error('Failed to fetch user data');
@@ -70,12 +80,10 @@ export function useUser() {
       
       const userData = await response.json();
       setUser(userData);
-      lastAddressRef.current = session.address;
     } catch (err) {
       console.error('Error refetching user:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch user data');
       setUser(null);
-      lastAddressRef.current = null;
     } finally {
       setLoading(false);
       fetchingRef.current = false;
@@ -104,7 +112,6 @@ export function useUser() {
 
       const updatedUser = await response.json();
       setUser(updatedUser);
-      lastAddressRef.current = session.address; // Update tracking
       return true;
     } catch (err) {
       console.error('Error claiming daily points:', err);
@@ -135,7 +142,6 @@ export function useUser() {
 
       const updatedUser = await response.json();
       setUser(updatedUser);
-      lastAddressRef.current = session.address; // Update tracking
       return true;
     } catch (err) {
       console.error('Error updating NFT count:', err);

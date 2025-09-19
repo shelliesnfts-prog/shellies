@@ -43,7 +43,6 @@ export function useDashboard() {
   
   // Prevent multiple simultaneous requests
   const fetchingRef = useRef(false);
-  const lastAddressRef = useRef<string | null>(null);
 
   // Fetch combined dashboard data
   const fetchDashboard = useCallback(async () => {
@@ -54,7 +53,6 @@ export function useDashboard() {
       setDashboardData(null);
       setLoading(false);
       setError(null);
-      lastAddressRef.current = null;
       return;
     }
 
@@ -66,7 +64,14 @@ export function useDashboard() {
       setLoading(true);
       setError(null);
       
-      const response = await fetch('/api/dashboard');
+      const response = await fetch(`/api/dashboard?_t=${Date.now()}&_r=${Math.random()}`, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        cache: 'no-store'
+      });
       
       if (!response.ok) {
         throw new Error('Failed to fetch dashboard data');
@@ -74,12 +79,10 @@ export function useDashboard() {
       
       const data = await response.json();
       setDashboardData(data);
-      lastAddressRef.current = session.address;
     } catch (err) {
       console.error('Error fetching dashboard:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch dashboard data');
       setDashboardData(null);
-      lastAddressRef.current = null;
     } finally {
       setLoading(false);
       fetchingRef.current = false;
@@ -112,7 +115,6 @@ export function useDashboard() {
 
       // Clear local state to force fresh fetch and update display immediately
       setDashboardData(null);
-      lastAddressRef.current = null; // Force refetch
 
       // Immediately fetch fresh data to reflect the claim
       setTimeout(() => {
@@ -136,7 +138,6 @@ export function useDashboard() {
 
   // Manual refresh
   const refreshDashboard = useCallback(() => {
-    lastAddressRef.current = null; // Force refetch
     fetchDashboard();
   }, [fetchDashboard]);
 

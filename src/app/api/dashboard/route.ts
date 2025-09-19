@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch user data, NFT count, staking stats, and period breakdown in parallel
     const [user, nftCount, stakingStats, stakingBreakdown] = await Promise.all([
-      UserService.getOrCreateUser(walletAddress, true), // bypass cache for fresh data
+      UserService.getOrCreateUser(walletAddress),
       NFTService.getNFTCount(walletAddress),
       StakingService.getStakingStats(walletAddress),
       StakingService.getStakingPeriodBreakdown(walletAddress)

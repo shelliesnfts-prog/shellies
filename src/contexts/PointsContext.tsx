@@ -69,7 +69,6 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
 
   // Prevent multiple simultaneous requests
   const fetchingRef = useRef(false);
-  const lastAddressRef = useRef<string | null>(null);
 
   // Note: Staking operations are now always available (no 24h constraint)
   // The 24h cooldown only applies to points claiming, not staking/unstaking
@@ -84,7 +83,6 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
       setClaimStatus(null);
       setLoading(false);
       setError(null);
-      lastAddressRef.current = null;
       return;
     }
 
@@ -96,7 +94,14 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       setError(null);
 
-      const response = await fetch('/api/dashboard');
+      const response = await fetch(`/api/dashboard?_t=${Date.now()}&_r=${Math.random()}`, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        cache: 'no-store'
+      });
 
       if (!response.ok) {
         throw new Error('Failed to fetch user data');
@@ -105,13 +110,11 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
       const data = await response.json();
       setUser(data.user);
       setClaimStatus(data.claimStatus);
-      lastAddressRef.current = session.address;
     } catch (err) {
       console.error('Error fetching user data:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch user data');
       setUser(null);
       setClaimStatus(null);
-      lastAddressRef.current = null;
     } finally {
       setLoading(false);
       fetchingRef.current = false;
@@ -143,7 +146,6 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Immediately fetch fresh data without clearing state to avoid double loading UI
-      lastAddressRef.current = null; // Force refetch
       await fetchUserData();
 
       // Broadcast points update
@@ -186,7 +188,6 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Immediately fetch fresh data without clearing state to avoid double loading UI
-      lastAddressRef.current = null; // Force refetch
       await fetchUserData();
 
       // Broadcast points update
@@ -229,7 +230,6 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Immediately fetch fresh data without clearing state to avoid double loading UI
-      lastAddressRef.current = null; // Force refetch
       await fetchUserData();
 
       // Broadcast points update
@@ -249,7 +249,6 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
 
   // Manual refresh
   const refreshUserData = useCallback(async () => {
-    lastAddressRef.current = null; // Force refetch
     await fetchUserData();
   }, [fetchUserData]);
 
@@ -261,12 +260,10 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
       // Staking service no longer uses caching - always fetches fresh data
 
       // Force fresh fetch
-      lastAddressRef.current = null;
       await fetchUserData();
     } catch (error) {
       console.error('Error refreshing with fresh data:', error);
       // Still try to refresh without cache clearing
-      lastAddressRef.current = null;
       await fetchUserData();
     }
   }, [session?.address, fetchUserData]);
@@ -319,7 +316,6 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
 
       // Reset refs to force fresh fetch
-      lastAddressRef.current = null;
       fetchingRef.current = false;
     };
 
@@ -338,12 +334,10 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
         try {
 
           // Force refresh of user data
-          lastAddressRef.current = null; // Force refetch
           await refreshUserData();
         } catch (error) {
           console.error('Error handling staking update:', error);
           // Still try to refresh user data
-          lastAddressRef.current = null;
           await refreshUserData();
         }
       }

@@ -1,26 +1,11 @@
 import { supabase, supabaseAdmin, User } from './supabase';
 
 export class UserService {
-  // Simple cache for user data (5 minute cache)
-  private static userCache = new Map<string, { user: User; timestamp: number }>();
-  private static readonly USER_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
-  // Get or create user by wallet address (with optional caching)
-  static async getOrCreateUser(walletAddress: string, bypassCache: boolean = false): Promise<User | null> {
+  // Get or create user by wallet address (always fresh data)
+  static async getOrCreateUser(walletAddress: string): Promise<User | null> {
     try {
-      // Check cache first (unless bypassing)
-      if (!bypassCache) {
-        const cached = this.userCache.get(walletAddress.toLowerCase());
-        const now = Date.now();
-        
-        if (cached && (now - cached.timestamp) < this.USER_CACHE_DURATION) {
-          return cached.user;
-        }
-      }
-
       // Use admin client to bypass RLS for server-side operations
       const client = supabaseAdmin || supabase;
-      const now = Date.now();
       
       // First try to get existing user
       const { data: existingUser, error: fetchError } = await client
@@ -30,13 +15,6 @@ export class UserService {
         .single();
 
       if (existingUser) {
-        // Cache the result only if not bypassing cache
-        if (!bypassCache) {
-          this.userCache.set(walletAddress.toLowerCase(), {
-            user: existingUser,
-            timestamp: now
-          });
-        }
         return existingUser;
       }
 
@@ -56,14 +34,6 @@ export class UserService {
         if (createError) {
           console.error('Error creating user:', createError);
           return null;
-        }
-
-        // Cache the new user only if not bypassing cache
-        if (newUser && !bypassCache) {
-          this.userCache.set(walletAddress.toLowerCase(), {
-            user: newUser,
-            timestamp: now
-          });
         }
 
         return newUser;
@@ -91,8 +61,6 @@ export class UserService {
         return false;
       }
 
-      // Clear cache when points are updated
-      this.userCache.delete(walletAddress.toLowerCase());
 
       return true;
     } catch (error) {
@@ -128,8 +96,6 @@ export class UserService {
         return false;
       }
 
-      // Clear cache when points are updated
-      this.userCache.delete(walletAddress.toLowerCase());
 
       return true;
     } catch (error) {
@@ -188,12 +154,4 @@ export class UserService {
     }
   }
 
-  // Clear user cache (useful after points changes)
-  static clearUserCache(walletAddress?: string): void {
-    if (walletAddress) {
-      this.userCache.delete(walletAddress.toLowerCase());
-    } else {
-      this.userCache.clear();
-    }
-  }
 }
