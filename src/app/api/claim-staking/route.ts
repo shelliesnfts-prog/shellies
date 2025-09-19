@@ -62,10 +62,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Step 4: Clear all relevant caches to ensure fresh data on next fetch
-    UserService.clearUserCache(walletAddress);
-
-    // Step 5: Return success with updated user data
+    // Step 4: Return success with updated user data
     return NextResponse.json({ 
       success: true,
       message: result.message,
