@@ -34,10 +34,18 @@ export async function GET(request: NextRequest) {
     } else if (status === 'finished') {
       raffleQuery = raffleQuery.in('status', ['COMPLETED', 'CANCELLED']);
     }
-    
-    raffleQuery = raffleQuery
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+
+    // Order by status first for 'all' view (ACTIVE first, then others), then by created_at
+    if (status === 'all') {
+      raffleQuery = raffleQuery
+        .order('status', { ascending: true }) // ACTIVE comes before COMPLETED/CANCELLED alphabetically
+        .order('created_at', { ascending: false });
+    } else {
+      raffleQuery = raffleQuery
+        .order('created_at', { ascending: false });
+    }
+
+    raffleQuery = raffleQuery.range(offset, offset + limit - 1);
 
     const { data: raffles, error: rafflesError, count: totalCount } = await raffleQuery;
 

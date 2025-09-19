@@ -25,9 +25,10 @@ interface RaffleCardProps {
   raffle: Raffle;
   isDarkMode: boolean;
   onJoinClick: () => void;
+  isMuted?: boolean;
 }
 
-export function RaffleCard({ raffle, isDarkMode, onJoinClick }: RaffleCardProps) {
+export function RaffleCard({ raffle, isDarkMode, onJoinClick, isMuted = false }: RaffleCardProps) {
   const [imageError, setImageError] = useState(false);
   const timeRemaining = useLiveCountdown(raffle.end_date);
   
@@ -44,8 +45,10 @@ export function RaffleCard({ raffle, isDarkMode, onJoinClick }: RaffleCardProps)
   
   return (
     <div className={`group rounded-2xl shadow-sm border overflow-hidden hover:shadow-lg transition-all duration-300 hover:-translate-y-1 ${
-      isDarkMode 
-        ? 'bg-gray-800 border-gray-700 hover:border-gray-600' 
+      isMuted ? 'opacity-60' : ''
+    } ${
+      isDarkMode
+        ? 'bg-gray-800 border-gray-700 hover:border-gray-600'
         : 'bg-white border-gray-100 hover:border-gray-200'
     }`}>
       {/* Image Section */}

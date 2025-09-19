@@ -11,7 +11,7 @@ import { useDashboard } from '@/hooks/useDashboard';
 import { useTheme } from '@/contexts/ThemeContext';
 
 export default function RafflesPage() {
-  const [raffleView, setRaffleView] = useState('active');
+  const [raffleView, setRaffleView] = useState('all');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [raffles, setRaffles] = useState<Raffle[]>([]);
   const [rafflesLoading, setRafflesLoading] = useState(false);
@@ -116,10 +116,20 @@ export default function RafflesPage() {
 
             {/* Tab Navigation */}
             <div className={`flex rounded-lg p-0.5 w-fit border ${
-              isDarkMode 
-                ? 'bg-gray-800 border-gray-600' 
+              isDarkMode
+                ? 'bg-gray-800 border-gray-600'
                 : 'bg-gray-50 border-gray-200'
             }`}>
+              <button
+                onClick={() => setRaffleView('all')}
+                className={`px-3 py-1.5 rounded-md font-medium text-xs transition-all duration-300 ${
+                  raffleView === 'all'
+                    ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-md shadow-purple-600/25'
+                    : `${isDarkMode ? 'text-gray-300 hover:text-purple-400 hover:bg-gray-700' : 'text-gray-600 hover:text-purple-600 hover:bg-gray-100'}`
+                }`}
+              >
+                All
+              </button>
               <button
                 onClick={() => setRaffleView('active')}
                 className={`px-3 py-1.5 rounded-md font-medium text-xs transition-all duration-300 ${
@@ -152,20 +162,28 @@ export default function RafflesPage() {
                   No raffles found
                 </h3>
                 <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                  {raffleView === 'active' ? 'No active raffles at the moment' : 'No finished raffles to show'}
+                  {raffleView === 'active' ? 'No active raffles at the moment' :
+                   raffleView === 'finished' ? 'No finished raffles to show' :
+                   'No raffles found'}
                 </p>
               </div>
             ) : (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                  {raffles.map((raffle) => (
-                    <RaffleCard 
-                      key={raffle.id} 
-                      raffle={raffle} 
-                      isDarkMode={isDarkMode}
-                      onJoinClick={() => handleJoinRaffle(raffle)}
-                    />
-                  ))}
+                  {raffles.map((raffle) => {
+                    const isFinished = raffle.status === 'COMPLETED' || raffle.status === 'CANCELLED';
+                    const shouldMute = raffleView === 'all' && isFinished;
+
+                    return (
+                      <RaffleCard
+                        key={raffle.id}
+                        raffle={raffle}
+                        isDarkMode={isDarkMode}
+                        onJoinClick={() => handleJoinRaffle(raffle)}
+                        isMuted={shouldMute}
+                      />
+                    );
+                  })}
                 </div>
                 
                 {/* Load More Skeleton */}
