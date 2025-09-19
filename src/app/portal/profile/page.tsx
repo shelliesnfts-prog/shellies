@@ -12,7 +12,7 @@ import { StakingService } from '@/lib/staking-service';
 import { ProfilePageSkeleton } from '@/components/portal/ProfilePageSkeleton';
 import { useRouter } from 'next/navigation';
 import { usePathname } from 'next/navigation';
-import { Trophy, Coins, Gift, TrendingUp, ArrowRight, Sparkles, Target, Zap, Clock, Calendar, CalendarDays } from 'lucide-react';
+import { Trophy, Coins, Gift, TrendingUp, ArrowRight, Sparkles, Target, Zap, Clock, Calendar, CalendarDays, ExternalLink, Layers } from 'lucide-react';
 
 export default function ProfilePage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -51,11 +51,9 @@ export default function ProfilePage() {
 
 
   const handleOpenNFTCollection = () => {
-    if (SHELLIES_CONTRACT_ADDRESS) {
-      // Open Shellies NFT collection in Ink blockchain explorer in a new tab
-      const explorerUrl = `https://explorer.inkonchain.com/address/${SHELLIES_CONTRACT_ADDRESS}`;
-      window.open(explorerUrl, '_blank', 'noopener,noreferrer');
-    }
+    // Open Shellies NFT collection in Ink blockchain explorer in a new tab
+    const explorerUrl = 'https://explorer.inkonchain.com/address/0x1c9838cdC00fA39d953a54c755b95605Ed5Ea49c';
+    window.open(explorerUrl, '_blank', 'noopener,noreferrer');
   };
 
   const handleNavigateToStaking = () => {
@@ -344,6 +342,80 @@ export default function ProfilePage() {
                 </div>
               </div>
 
+              {/* Navigation Actions */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                {/* Staking Page Link */}
+                <div
+                  onClick={handleNavigateToStaking}
+                  className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-xl hover:-translate-y-2 cursor-pointer ${isDarkMode
+                      ? 'bg-gradient-to-br from-blue-900/40 to-blue-800/40 border-blue-700/50 hover:border-blue-500'
+                      : 'bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200 hover:border-blue-400'
+                    }`}>
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-400/20 to-transparent rounded-full -translate-y-16 translate-x-16 group-hover:scale-150 transition-transform duration-500" />
+                  <div className="relative p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-blue-500/20' : 'bg-blue-200/60'
+                        } group-hover:scale-110 transition-transform duration-300`}>
+                        <Layers className="w-6 h-6 text-blue-600" />
+                      </div>
+                      <ArrowRight className={`w-5 h-5 ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}
+                        group-hover:translate-x-1 transition-transform duration-300`} />
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        Start Staking
+                      </h3>
+                      <p className={`text-sm ${isDarkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+                        Stake your NFTs and earn up to 20x rewards! Lock your Shellies for higher multipliers.
+                      </p>
+                      <div className={`inline-flex items-center space-x-1 text-xs font-medium px-3 py-1 rounded-full ${isDarkMode
+                          ? 'bg-blue-500/20 text-blue-300'
+                          : 'bg-blue-200/60 text-blue-700'
+                        }`}>
+                        <Sparkles className="w-3 h-3" />
+                        <span>Boost Your Earnings</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* NFT Explorer Link */}
+                <div
+                  onClick={handleOpenNFTCollection}
+                  className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-xl hover:-translate-y-2 cursor-pointer ${isDarkMode
+                      ? 'bg-gradient-to-br from-purple-900/40 to-pink-800/40 border-purple-700/50 hover:border-purple-500'
+                      : 'bg-gradient-to-br from-purple-50 to-pink-100/50 border-purple-200 hover:border-purple-400'
+                    }`}>
+                  <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-400/20 to-transparent rounded-full -translate-y-16 translate-x-16 group-hover:scale-150 transition-transform duration-500" />
+                  <div className="relative p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-purple-500/20' : 'bg-purple-200/60'
+                        } group-hover:scale-110 transition-transform duration-300`}>
+                        <ExternalLink className="w-6 h-6 text-purple-600" />
+                      </div>
+                      <ArrowRight className={`w-5 h-5 ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}
+                        group-hover:translate-x-1 transition-transform duration-300`} />
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        Explore Collection
+                      </h3>
+                      <p className={`text-sm ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
+                        View the complete Shellies NFT collection on Ink blockchain explorer and track activity.
+                      </p>
+                      <div className={`inline-flex items-center space-x-1 text-xs font-medium px-3 py-1 rounded-full ${isDarkMode
+                          ? 'bg-purple-500/20 text-purple-300'
+                          : 'bg-purple-200/60 text-purple-700'
+                        }`}>
+                        <Target className="w-3 h-3" />
+                        <span>View on Explorer</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               {/* Error Display */}
               {claimError && (

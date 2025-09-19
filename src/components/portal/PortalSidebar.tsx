@@ -227,28 +227,28 @@ export function PortalSidebar({
         {/* Navigation Section */}
         <nav className="flex-1 px-4 py-6 overflow-y-auto">
           <ul className="space-y-1">
-            {/* Raffles */}
+            {/* Profile */}
             <li>
               <button
-                onClick={() => handleNavigation('/portal/raffles')}
+                onClick={() => handleNavigation('/portal/profile')}
                 className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
-                  isActive('/portal/raffles')
-                    ? 'bg-purple-100 text-gray-900' 
+                  isActive('/portal/profile')
+                    ? 'bg-purple-100 text-gray-900'
                     : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                 }`}
               >
-                <Gift className="w-5 h-5 mr-3" />
-                <span className="font-medium text-sm">Raffles</span>
+                <User className="w-5 h-5 mr-3" />
+                <span className="font-medium text-sm">Profile</span>
               </button>
             </li>
-            
+
             {/* Staking */}
             <li>
               <button
                 onClick={() => handleNavigation('/portal/staking')}
                 className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
                   isActive('/portal/staking')
-                    ? 'bg-purple-100 text-gray-900' 
+                    ? 'bg-purple-100 text-gray-900'
                     : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                 }`}
               >
@@ -256,29 +256,29 @@ export function PortalSidebar({
                 <span className="font-medium text-sm">Staking</span>
               </button>
             </li>
-            
-            {/* Trade */}
+
+            {/* Raffles */}
             <li>
               <button
-                onClick={() => handleNavigation('/portal/trade')}
+                onClick={() => handleNavigation('/portal/raffles')}
                 className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
-                  isActive('/portal/trade')
-                    ? 'bg-purple-100 text-gray-900' 
+                  isActive('/portal/raffles')
+                    ? 'bg-purple-100 text-gray-900'
                     : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                 }`}
               >
-                <TrendingUp className="w-5 h-5 mr-3" />
-                <span className="font-medium text-sm">Trade</span>
+                <Gift className="w-5 h-5 mr-3" />
+                <span className="font-medium text-sm">Raffles</span>
               </button>
             </li>
-            
+
             {/* Leaderboard */}
             <li>
               <button
                 onClick={() => handleNavigation('/portal/leaderboard')}
                 className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
                   isActive('/portal/leaderboard')
-                    ? 'bg-purple-100 text-gray-900' 
+                    ? 'bg-purple-100 text-gray-900'
                     : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                 }`}
               >
@@ -286,19 +286,19 @@ export function PortalSidebar({
                 <span className="font-medium text-sm">Leaderboard</span>
               </button>
             </li>
-            
-            {/* Profile */}
+
+            {/* Trade */}
             <li>
               <button
-                onClick={() => handleNavigation('/portal/profile')}
+                onClick={() => handleNavigation('/portal/trade')}
                 className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
-                  isActive('/portal/profile')
-                    ? 'bg-purple-100 text-gray-900' 
+                  isActive('/portal/trade')
+                    ? 'bg-purple-100 text-gray-900'
                     : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                 }`}
               >
-                <User className="w-5 h-5 mr-3" />
-                <span className="font-medium text-sm">Profile</span>
+                <TrendingUp className="w-5 h-5 mr-3" />
+                <span className="font-medium text-sm">Trade</span>
               </button>
             </li>
             
