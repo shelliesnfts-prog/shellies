@@ -179,6 +179,7 @@ export class NFTService {
       }
 
       const nftCount = Number(balance);
+      console.log("balanceOf ", walletAddress, nftCount);
       return nftCount;
 
     } catch (error) {
