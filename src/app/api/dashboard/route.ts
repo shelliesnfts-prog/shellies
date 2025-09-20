@@ -30,10 +30,10 @@ export async function GET(request: NextRequest) {
 
     // Staking service no longer uses caching - always fetches fresh data
 
-    // Fetch user data, NFT count, staking stats, and period breakdown in parallel
-    const [user, nftCount, stakingStats, stakingBreakdown] = await Promise.all([
+    // Fetch user data, staking stats, and period breakdown in parallel
+    // NFT count is now handled client-side for real-time data
+    const [user, stakingStats, stakingBreakdown] = await Promise.all([
       UserService.getOrCreateUser(walletAddress),
-      NFTService.getNFTCount(walletAddress),
       StakingService.getStakingStats(walletAddress),
       StakingService.getStakingPeriodBreakdown(walletAddress)
     ]);
@@ -58,40 +58,18 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Calculate points based on new formula:
-    // available NFTs × 5 + daily staked NFTs × 7 + weekly staked NFTs × 10 + monthly staked NFTs × 20
-    // For regular users (no NFTs): always 1 point
+    // Calculate staking points only (NFT-based points calculated client-side)
     const stakedNFTCount = stakingStats.totalStaked;
-    const availableNFTCount = Math.max(0, nftCount - stakedNFTCount); // Available = Total - Staked
-    let regularPoints = 0;
-    let stakingPoints = 0;
-    let totalPotentialPoints = 0;
+    const stakingPoints = StakingService.calculateDailyPointsByPeriod(stakingBreakdown);
 
-    const totalOwnedNFTs = nftCount + stakedNFTCount; // Total NFTs = available + staked
-
-    if (totalOwnedNFTs > 0) {
-      // User has NFTs: calculate based on available + staked with new formula
-      regularPoints = availableNFTCount * 5; // 5 points per available NFT
-      stakingPoints = StakingService.calculateDailyPointsByPeriod(stakingBreakdown); // New period-based calculation
-      totalPotentialPoints = regularPoints + stakingPoints;
-    } else {
-      // Regular user with no NFTs: get base point
-      regularPoints = 1;
-      totalPotentialPoints = regularPoints;
-    }
-
-    // Return combined data
+    // Return combined data (NFT count handled client-side)
     return NextResponse.json({
       user,
       claimStatus: {
         canClaim,
         secondsUntilNextClaim,
-        nftCount: availableNFTCount, // Return available NFTs (total - staked) for profile display
-        totalNFTCount: nftCount, // Total owned NFTs for reference
         stakedNFTCount,
-        regularPoints,
         stakingPoints,
-        potentialPoints: totalPotentialPoints, // Combined total
         currentPoints: user.points,
         lastClaim: user.last_claim
       }

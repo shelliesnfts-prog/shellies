@@ -23,6 +23,8 @@ export default function ProfilePage() {
     total: 0
   });
   const [loadingStaking, setLoadingStaking] = useState(false);
+  const [nftCount, setNftCount] = useState(0);
+  const [loadingNftCount, setLoadingNftCount] = useState(false);
 
   const { isDarkMode } = useTheme();
   const { data: session } = useSession();
@@ -34,8 +36,30 @@ export default function ProfilePage() {
   const walletAddress = address || session?.address || '';
 
   // Get tier information for motivational display
-  const nftCount = claimStatus?.nftCount ?? 0;
   const tierInfo = NFTService.getUserTierInfo(nftCount);
+
+  // Fetch NFT count directly from blockchain (real-time, no cache)
+  useEffect(() => {
+    const fetchNftCount = async () => {
+      if (!walletAddress) {
+        setNftCount(0);
+        return;
+      }
+
+      try {
+        setLoadingNftCount(true);
+        const count = await NFTService.getNFTCount(walletAddress);
+        setNftCount(count);
+      } catch (error) {
+        console.error('Failed to fetch NFT count:', error);
+        setNftCount(0);
+      } finally {
+        setLoadingNftCount(false);
+      }
+    };
+
+    fetchNftCount();
+  }, [walletAddress]);
 
   // Refresh user data when user navigates to profile page
   useEffect(() => {
@@ -141,11 +165,11 @@ export default function ProfilePage() {
                       <h3 className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                         NFT Holdings
                       </h3>
-                      {userLoading ? (
+                      {loadingNftCount ? (
                         <div className={`h-8 rounded animate-pulse w-12 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
                       ) : (
                         <p className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                          {claimStatus?.nftCount ?? 0}
+                          {nftCount}
                         </p>
                       )}
                       <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>Shellies NFTs</p>
@@ -289,31 +313,31 @@ export default function ProfilePage() {
                             <div className="space-y-2">
                               <div className="flex items-center justify-between">
                                 <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                                  Total: {claimStatus.potentialPoints.toFixed(1)} points
+                                  Total: {((nftCount * 5) + (claimStatus?.stakingPoints || 0) || (nftCount === 0 ? 1 : 0)).toFixed(1)} points
                                 </span>
-                                <div className={`flex items-center space-x-1 text-xs ${claimStatus.canClaim
+                                <div className={`flex items-center space-x-1 text-xs ${claimStatus?.canClaim
                                     ? 'text-green-600'
                                     : isDarkMode ? 'text-gray-400' : 'text-gray-500'
                                   }`}>
-                                  <div className={`w-1.5 h-1.5 rounded-full mr-2 ${claimStatus.canClaim ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
+                                  <div className={`w-1.5 h-1.5 rounded-full mr-2 ${claimStatus?.canClaim ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
                                     }`} />
-                                  {claimStatus.canClaim ? 'Available now' : 'Check back later'}
+                                  {claimStatus?.canClaim ? 'Available now' : 'Check back later'}
                                 </div>
                               </div>
-                              {/* Show breakdown based on new calculation */}
+                              {/* Show breakdown based on real-time NFT count */}
                               <div className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                                {(claimStatus.nftCount + (claimStatus.stakedNFTCount ?? 0)) > 0 ? (
+                                {(nftCount + (claimStatus?.stakedNFTCount ?? 0)) > 0 ? (
                                   <>
-                                    {claimStatus.nftCount > 0 && (
-                                      <span>{claimStatus.nftCount} available NFTs (×5 = {(claimStatus.nftCount * 5).toFixed(1)} pts) </span>
+                                    {nftCount > 0 && (
+                                      <span>{nftCount} available NFTs (×5 = {(nftCount * 5).toFixed(1)} pts) </span>
                                     )}
-                                    {(claimStatus.stakedNFTCount ?? 0) > 0 && (
+                                    {(claimStatus?.stakedNFTCount ?? 0) > 0 && (
                                       <span>
-                                        {claimStatus.nftCount > 0 && '+ '}
+                                        {nftCount > 0 && '+ '}
                                         {stakingBreakdown.day > 0 && `${stakingBreakdown.day} day-staked (×7) `}
                                         {stakingBreakdown.week > 0 && `${stakingBreakdown.week} week-staked (×10) `}
                                         {stakingBreakdown.month > 0 && `${stakingBreakdown.month} month-staked (×20) `}
-                                        (= {claimStatus.stakingPoints?.toFixed(1)} pts)
+                                        (= {claimStatus?.stakingPoints?.toFixed(1)} pts)
                                       </span>
                                     )}
                                   </>
@@ -325,8 +349,8 @@ export default function ProfilePage() {
                             <ClaimButtonWithCountdown
                               canClaim={claimStatus.canClaim}
                               secondsUntilNextClaim={claimStatus.secondsUntilNextClaim}
-                              nftCount={claimStatus.nftCount + (claimStatus.stakedNFTCount ?? 0)}
-                              potentialPoints={claimStatus.potentialPoints}
+                              nftCount={nftCount + (claimStatus?.stakedNFTCount ?? 0)}
+                              potentialPoints={(nftCount * 5) + (claimStatus?.stakingPoints || 0) || (nftCount === 0 ? 1 : 0)}
                               onClaim={handleClaimUnified}
                               claiming={claiming}
                             />

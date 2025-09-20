@@ -16,12 +16,8 @@ interface User {
 interface ClaimStatus {
   canClaim: boolean;
   secondsUntilNextClaim: number;
-  nftCount: number; // Available NFTs (total - staked)
-  totalNFTCount?: number; // Total owned NFTs
   stakedNFTCount: number;
-  regularPoints: number;
   stakingPoints: number;
-  potentialPoints: number; // Combined total of regular + staking points
   currentPoints: number;
   lastClaim: string | null;
 }
