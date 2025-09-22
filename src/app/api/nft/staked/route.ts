@@ -63,99 +63,92 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ nfts: [] });
     }
 
-    // Fetch data from Ink Explorer API for the staking contract
-    const apiUrl = `https://explorer.inkonchain.com/api/v2/addresses/${stakingAddress}/nft/collections?type=`;
-    
-    let response: Response;
-    let retryCount = 0;
-    const maxRetries = 2;
-    
-    while (retryCount <= maxRetries) {
-      try {
-        response = await fetch(apiUrl, {
-          headers: {
-            'Accept': 'application/json',
-            'User-Agent': 'Shellies-App/1.0',
-            'Cache-Control': 'no-cache, no-store, must-revalidate, proxy-revalidate, max-age=0',
-            'Pragma': 'no-cache',
-            'Expires': '0',
-            'If-Modified-Since': 'Thu, 01 Jan 1970 00:00:00 GMT',
-            'If-None-Match': '*'
-          },
-          cache: 'no-store',
-          next: { revalidate: 0 }
-        });
+    // Fetch each NFT directly using the token instance API
+    const nfts: Array<{
+      tokenId: number;
+      name?: string;
+      image?: string;
+      description?: string;
+      attributes?: any[];
+      metadata?: any;
+    }> = [];
 
-        if (response.ok) {
-          break;
-        }
+    // Fetch each token ID individually
+    for (const tokenId of requestedTokenIds) {
+      const apiUrl = `https://explorer.inkonchain.com/api/v2/tokens/${SHELLIES_CONTRACT_ADDRESS}/instances/${tokenId}`;
 
-        if (response.status === 429 && retryCount < maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
-          retryCount++;
-          continue;
-        }
+      let response: Response;
+      let retryCount = 0;
+      const maxRetries = 2;
 
-        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
-      } catch (error) {
-        if (retryCount === maxRetries) {
-          throw error;
-        }
-        retryCount++;
-        await new Promise(resolve => setTimeout(resolve, 500 * retryCount));
-      }
-    }
+      while (retryCount <= maxRetries) {
+        try {
+          response = await fetch(apiUrl, {
+            headers: {
+              'Accept': 'application/json',
+              'User-Agent': 'Shellies-App/1.0',
+              'Cache-Control': 'no-cache, no-store, must-revalidate, proxy-revalidate, max-age=0',
+              'Pragma': 'no-cache',
+              'Expires': '0',
+              'If-Modified-Since': 'Thu, 01 Jan 1970 00:00:00 GMT',
+              'If-None-Match': '*'
+            },
+            cache: 'no-store',
+            next: { revalidate: 0 }
+          });
 
-    const data = await response!.json();
-    
-    if (!data.items || !Array.isArray(data.items)) {
-      return NextResponse.json({ nfts: [] });
-    }
-
-    // Find our Shellies collection and extract requested NFTs
-    for (const collection of data.items) {
-      const collectionAddress = collection.token?.address_hash?.toLowerCase();
-      if (collectionAddress === SHELLIES_CONTRACT_ADDRESS) {
-        const nfts: Array<{
-          tokenId: number;
-          name?: string;
-          image?: string;
-          description?: string;
-          attributes?: any[];
-          metadata?: any;
-        }> = [];
-        
-        if (collection.token_instances && Array.isArray(collection.token_instances)) {
-          for (const instance of collection.token_instances) {
-            if (instance.id) {
-              const tokenId = parseInt(instance.id, 10);
-              
-              // Only include NFTs that were requested
-              if (requestedTokenIds.includes(tokenId)) {
-                const rawImage = instance.image_url || instance.metadata?.image;
-                const nftData = {
-                  tokenId,
-                  name: instance.metadata?.name || `Shellie #${tokenId}`,
-                  image: validateImageUrl(rawImage),
-                  description: instance.metadata?.description,
-                  attributes: instance.metadata?.attributes || [],
-                  metadata: instance.metadata
-                };
-                
-                nfts.push(nftData);
-              }
-            }
+          if (response.ok) {
+            break;
           }
+
+          if (response.status === 429 && retryCount < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+            retryCount++;
+            continue;
+          }
+
+          // If 404, the token doesn't exist - skip it
+          if (response.status === 404) {
+            console.warn(`Token ${tokenId} not found, skipping`);
+            break;
+          }
+
+          throw new Error(`API request failed for token ${tokenId}: ${response.status} ${response.statusText}`);
+        } catch (error) {
+          if (retryCount === maxRetries) {
+            console.error(`Failed to fetch token ${tokenId} after ${maxRetries} retries:`, error);
+            break; // Skip this token and continue with others
+          }
+          retryCount++;
+          await new Promise(resolve => setTimeout(resolve, 500 * retryCount));
         }
-        
-        // Sort by token ID and return
-        const sortedNfts = nfts.sort((a, b) => a.tokenId - b.tokenId);
-        return NextResponse.json({ nfts: sortedNfts });
+      }
+
+      // If we successfully got a response, process the data
+      if (response!.ok) {
+        try {
+          const tokenData = await response!.json();
+
+          const rawImage = tokenData.image_url || tokenData.metadata?.image;
+          const nftData = {
+            tokenId,
+            name: tokenData.metadata?.name || `Shellie #${tokenId}`,
+            image: validateImageUrl(rawImage),
+            description: tokenData.metadata?.description,
+            attributes: tokenData.metadata?.attributes || [],
+            metadata: tokenData.metadata
+          };
+
+          nfts.push(nftData);
+        } catch (error) {
+          console.error(`Failed to parse response for token ${tokenId}:`, error);
+        }
       }
     }
-    
-    // Collection not found, return empty array
-    return NextResponse.json({ nfts: [] });
+
+    // Sort by token ID and return
+    const sortedNfts = nfts.sort((a, b) => a.tokenId - b.tokenId);
+    return NextResponse.json({ nfts: sortedNfts });
     
   } catch (error) {
     console.error('Error fetching staked NFTs:', error);
