@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { Trophy, ImageOff, Copy } from 'lucide-react';
 import { Raffle } from '@/lib/supabase';
 import { getTimeRemaining } from '@/lib/dateUtils';
-import { formatTokenDisplay } from '@/lib/token-utils';
+import { formatTokenDisplay, formatNumberWithSpaces } from '@/lib/token-utils';
 
 function useLiveCountdown(endDate: string) {
   const [timeRemaining, setTimeRemaining] = useState(() => getTimeRemaining(endDate));
@@ -103,7 +103,7 @@ export function RaffleCard({ raffle, isDarkMode, onJoinClick, isMuted = false }:
             <div className="flex items-center gap-1.5 mb-1">
               <Trophy className="w-4 h-4 text-green-500" />
               <span className="text-sm font-bold text-green-600">
-                Win {raffle.prize_amount} Tokens! 🎉
+                Win {formatNumberWithSpaces(raffle.prize_amount || 0)} Tokens! 🎉
               </span>
             </div>
           )}

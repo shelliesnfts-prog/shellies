@@ -63,23 +63,44 @@ export function isValidTokenAmount(tokenAmount: string): boolean {
  * @returns Formatted token amount for display
  */
 export function formatTokenDisplay(
-  weiAmount: string | bigint, 
-  decimals: number = 18, 
+  weiAmount: string | bigint,
+  decimals: number = 18,
   displayDecimals: number = 4
 ): string {
   try {
     const formatted = formatUnits(BigInt(weiAmount), decimals);
     const num = parseFloat(formatted);
-    
+
     // If it's a whole number, don't show decimals
     if (num % 1 === 0) {
       return num.toLocaleString();
     }
-    
+
     // Otherwise, format with specified decimal places
     return parseFloat(formatted).toFixed(displayDecimals).replace(/\.?0+$/, '');
   } catch (error) {
     console.error('Error formatting token display:', error);
+    return '0';
+  }
+}
+
+/**
+ * Formats a number with space separators for thousands
+ * @param amount - The number to format (as number or string)
+ * @returns Formatted number with spaces as thousand separators (e.g., "200 000")
+ */
+export function formatNumberWithSpaces(amount: number | string): string {
+  try {
+    const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+
+    if (isNaN(num)) {
+      return '0';
+    }
+
+    // Convert to string and add spaces every 3 digits from the right
+    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  } catch (error) {
+    console.error('Error formatting number with spaces:', error);
     return '0';
   }
 }

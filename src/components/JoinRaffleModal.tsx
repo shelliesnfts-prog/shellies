@@ -8,7 +8,7 @@ import { getTimeRemaining, isRaffleActive } from '@/lib/dateUtils';
 import { RaffleContractService } from '@/lib/raffle-contract';
 import { raffle_abi } from '@/lib/raffle-abi';
 import { parseContractError } from '@/lib/errors';
-import { formatTokenDisplay } from '@/lib/token-utils';
+import { formatTokenDisplay, formatNumberWithSpaces } from '@/lib/token-utils';
 import { usePoints } from '@/contexts/PointsContext';
 
 interface JoinRaffleModalProps {
@@ -465,7 +465,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                   {raffle.status === 'COMPLETED' || raffle.status === 'CANCELLED' ? 'View Raffle' : 'Join Raffle'}: {raffle.title}
                 </h2>
                 <div className="inline-flex items-center px-2 py-1 rounded-full bg-purple-100 text-purple-700 text-xs font-medium">
-                  {raffle.points_per_ticket.toFixed(1)} Points per ticket
+                  {formatNumberWithSpaces(raffle.points_per_ticket.toFixed(1))} Points per ticket
                 </div>
                 {/* Prize Display - Only for ERC20 Token Raffles */}
                 {raffle.prize_token_type === 'ERC20' && raffle.prize_amount && (
@@ -477,7 +477,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                     <Trophy className={`w-3 h-3 ${raffle.status === 'COMPLETED' ? 'text-yellow-600' : 'text-green-600'
                       }`} />
                     <span>
-                      Win {raffle.prize_amount} Tokens{raffle.status === 'COMPLETED' && raffle.winner ? ' 🎊' : '!'}
+                      Win {formatNumberWithSpaces(raffle.prize_amount || 0)} Tokens{raffle.status === 'COMPLETED' && raffle.winner ? ' 🎊' : '!'}
                     </span>
                   </div>
 
@@ -493,7 +493,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                     <Trophy className={`w-3 h-3 ${raffle.status === 'COMPLETED' ? 'text-yellow-600' : 'text-purple-600'
                       }`} />
                     <span>
-                      Win NFT #{raffle.prize_token_id}{raffle.status === 'COMPLETED' && raffle.winner ? ' 🎊' : '!'}
+                      Win NFT #{formatNumberWithSpaces(raffle.prize_token_id || 0)}{raffle.status === 'COMPLETED' && raffle.winner ? ' 🎊' : '!'}
                     </span>
                   </div>
 
@@ -623,7 +623,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                               </div>
                               <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
                                 }`}>
-                                {participant.ticket_count} ticket{participant.ticket_count > 1 ? 's' : ''} • {participant.points_spent.toFixed(1)} points
+                                {formatNumberWithSpaces(participant.ticket_count)} ticket{participant.ticket_count > 1 ? 's' : ''} • {formatNumberWithSpaces(participant.points_spent.toFixed(1))} points
                               </div>
                             </div>
                             <div className="flex-shrink-0 ml-2">
@@ -709,7 +709,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                     </span>
                   </div>
                   <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {raffle.points_per_ticket.toFixed(1)} Point{raffle.points_per_ticket !== 1 ? 's' : ''}
+                    {formatNumberWithSpaces(raffle.points_per_ticket.toFixed(1))} Point{raffle.points_per_ticket !== 1 ? 's' : ''}
                   </span>
                 </div>
 
@@ -722,7 +722,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                     </span>
                   </div>
                   <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {raffle.max_tickets_per_user}
+                    {formatNumberWithSpaces(raffle.max_tickets_per_user)}
                   </span>
                 </div>
 
@@ -736,7 +736,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                       </span>
                     </div>
                     <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                      {raffle.current_participants || 0} / {raffle.max_participants}
+                      {formatNumberWithSpaces(raffle.current_participants || 0)} / {formatNumberWithSpaces(raffle.max_participants)}
                     </span>
                   </div>
                 )}
@@ -755,12 +755,12 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                     </span>
                   </div>
                   <div className={`text-sm ${isDarkMode ? 'text-purple-200' : 'text-purple-700'}`}>
-                    You have <span className="font-semibold">{raffle.user_ticket_count || 0}</span> ticket{(raffle.user_ticket_count || 0) > 1 ? 's' : ''} in this raffle
+                    You have <span className="font-semibold">{formatNumberWithSpaces(raffle.user_ticket_count || 0)}</span> ticket{(raffle.user_ticket_count || 0) > 1 ? 's' : ''} in this raffle
                     {userEntry && !loadingEntry && (
                       <>
                         <br />
                         <span className="text-xs opacity-75">
-                          Points spent: {userEntry.points_spent.toFixed(1)} Point{userEntry.points_spent !== 1 ? 's' : ''}
+                          Points spent: {formatNumberWithSpaces(userEntry.points_spent.toFixed(1))} Point{userEntry.points_spent !== 1 ? 's' : ''}
                         </span>
                       </>
                     )}
@@ -794,13 +794,13 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                 }`}>
                 <div className="space-y-4">
                   <div className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                    Required Points: {(raffle.points_per_ticket * ticketCount).toFixed(1)} $Point{(raffle.points_per_ticket * ticketCount) !== 1 ? 's' : ''}
+                    Required Points: {formatNumberWithSpaces((raffle.points_per_ticket * ticketCount).toFixed(1))} $Point{(raffle.points_per_ticket * ticketCount) !== 1 ? 's' : ''}
                   </div>
 
                   {/* User Points Balance */}
                   {user && (
                     <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                      Your balance: {user.points.toFixed(1)} $Point{user.points !== 1 ? 's' : ''}
+                      Your balance: {formatNumberWithSpaces(user.points.toFixed(1))} $Point{user.points !== 1 ? 's' : ''}
                     </div>
                   )}
 
@@ -812,7 +812,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                    !(raffle.max_participants && (raffle.current_participants || 0) >= raffle.max_participants) && (
                     <div className="space-y-2">
                       <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                        Select number of tickets ({remainingTickets} remaining):
+                        Select number of tickets ({formatNumberWithSpaces(remainingTickets)} remaining):
                       </div>
                       <div className="flex items-center space-x-2">
                         <button
@@ -867,10 +867,10 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
 
                   <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                     {remainingTickets <= 0
-                      ? `You have reached the maximum of ${raffle.max_tickets_per_user} ticket${raffle.max_tickets_per_user > 1 ? 's' : ''} for this raffle.`
+                      ? `You have reached the maximum of ${formatNumberWithSpaces(raffle.max_tickets_per_user)} ticket${raffle.max_tickets_per_user > 1 ? 's' : ''} for this raffle.`
                       : raffle.user_ticket_count && raffle.user_ticket_count > 0
-                        ? `You can purchase up to ${remainingTickets} more ticket${remainingTickets > 1 ? 's' : ''} for this raffle.`
-                        : `You can purchase up to ${raffle.max_tickets_per_user} ticket${raffle.max_tickets_per_user > 1 ? 's' : ''} for this raffle.`
+                        ? `You can purchase up to ${formatNumberWithSpaces(remainingTickets)} more ticket${remainingTickets > 1 ? 's' : ''} for this raffle.`
+                        : `You can purchase up to ${formatNumberWithSpaces(raffle.max_tickets_per_user)} ticket${raffle.max_tickets_per_user > 1 ? 's' : ''} for this raffle.`
                     }
                   </div>
                 </div>
