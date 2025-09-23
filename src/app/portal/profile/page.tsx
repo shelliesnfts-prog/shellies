@@ -76,7 +76,7 @@ export default function ProfilePage() {
 
   const handleOpenNFTCollection = () => {
     // Open Shellies NFT collection in Ink blockchain explorer in a new tab
-    const explorerUrl = 'https://explorer.inkonchain.com/address/0x1c9838cdC00fA39d953a54c755b95605Ed5Ea49c';
+    const explorerUrl = 'https://www.netprotocol.app/app/bazaar/ink/0x1c9838cdC00fA39d953a54c755b95605Ed5Ea49c?tab=listings&s=09';
     window.open(explorerUrl, '_blank', 'noopener,noreferrer');
   };
 
