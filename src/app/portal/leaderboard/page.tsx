@@ -18,8 +18,7 @@ export default function LeaderboardPage() {
   const [currentLimit, setCurrentLimit] = useState(10);
   const [stakingStats, setStakingStats] = useState({
     totalNFTsStaked: 0,
-    totalStakers: 0,
-    nftsStakedByPeriod: { day: 0, week: 0, month: 0 }
+    totalStakers: 0
   });
   const [statsLoading, setStatsLoading] = useState(true);
 
