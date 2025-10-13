@@ -6,7 +6,8 @@ import { useAccount } from 'wagmi';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LeaderboardPageSkeleton } from '@/components/portal/LeaderboardPageSkeleton';
-import { Trophy, Medal, Award, Crown, Star, ChevronDown, Users, TrendingUp } from 'lucide-react';
+import { Trophy, Medal, Award, Crown, Star, ChevronDown, Users, TrendingUp, Lock, Calendar, Clock } from 'lucide-react';
+import { StakingService } from '@/lib/staking-service';
 
 export default function LeaderboardPage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -15,6 +16,12 @@ export default function LeaderboardPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [currentLimit, setCurrentLimit] = useState(10);
+  const [stakingStats, setStakingStats] = useState({
+    totalNFTsStaked: 0,
+    totalStakers: 0,
+    nftsStakedByPeriod: { day: 0, week: 0, month: 0 }
+  });
+  const [statsLoading, setStatsLoading] = useState(true);
 
   const { isDarkMode } = useTheme();
   const { data: session } = useSession();
@@ -67,9 +74,38 @@ export default function LeaderboardPage() {
     fetchLeaderboard(newLimit, false);
   };
 
+  const fetchStakingStats = async () => {
+    try {
+      // Only show loading skeleton on initial fetch, not on subsequent refreshes
+      if (stakingStats.totalNFTsStaked === 0) {
+        setStatsLoading(true);
+      }
+      const stats = await StakingService.getGlobalStakingStats();
+      setStakingStats(stats);
+    } catch (error) {
+      console.error('Error fetching staking stats:', error);
+      // Don't spam errors if fetch fails, just keep showing old data
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchLeaderboard();
   }, [walletAddress]);
+
+  useEffect(() => {
+    // Initial fetch
+    fetchStakingStats();
+
+    // Set up interval to refresh every 30 seconds (reduced from 5 to avoid rate limiting)
+    const intervalId = setInterval(() => {
+      fetchStakingStats();
+    }, 30000);
+
+    // Cleanup interval on unmount
+    return () => clearInterval(intervalId);
+  }, []);
 
   const getRankIcon = (index: number, isCurrentUser: boolean = false) => {
     if (index === 0) return <Crown className="w-5 h-5 text-yellow-500" />;
@@ -134,6 +170,88 @@ export default function LeaderboardPage() {
                   <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                     {leaderboard.length} Players
                   </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Staking Stats Cards */}
+            <div className="space-y-4">
+              {/* First Row: Total NFTs Staked / Total Staked Members */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Total NFTs Staked */}
+                <div className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-lg hover:-translate-y-1 ${
+                  isDarkMode
+                    ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 hover:border-blue-500'
+                    : 'bg-gradient-to-br from-white to-blue-50/30 border-blue-200/60 hover:border-blue-300 shadow-sm'
+                }`}>
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  <div className="relative p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className={`p-2.5 rounded-xl ${
+                        isDarkMode ? 'bg-blue-500/20' : 'bg-blue-100'
+                      }`}>
+                        <Lock className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div className={`text-xs font-medium px-2 py-1 rounded-full ${
+                        isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-blue-50 text-blue-700'
+                      }`}>
+                        Global
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Total NFTs Staked
+                      </h3>
+                      {statsLoading ? (
+                        <div className={`h-9 rounded animate-pulse w-16 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
+                      ) : (
+                        <p className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {stakingStats.totalNFTsStaked}
+                        </p>
+                      )}
+                      <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                        NFTs locked in staking
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Total Staked Members */}
+                <div className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-lg hover:-translate-y-1 ${
+                  isDarkMode
+                    ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 hover:border-purple-500'
+                    : 'bg-gradient-to-br from-white to-purple-50/30 border-purple-200/60 hover:border-purple-300 shadow-sm'
+                }`}>
+                  <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  <div className="relative p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className={`p-2.5 rounded-xl ${
+                        isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
+                      }`}>
+                        <Users className="w-5 h-5 text-purple-600" />
+                      </div>
+                      <div className={`text-xs font-medium px-2 py-1 rounded-full ${
+                        isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-purple-50 text-purple-700'
+                      }`}>
+                        Community
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Total Staked Members
+                      </h3>
+                      {statsLoading ? (
+                        <div className={`h-9 rounded animate-pulse w-16 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
+                      ) : (
+                        <p className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {stakingStats.totalStakers}
+                        </p>
+                      )}
+                      <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                        Active stakers
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

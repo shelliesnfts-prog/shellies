@@ -503,6 +503,58 @@ export class StakingService {
       return { day: 0, week: 0, month: 0, total: 0 };
     }
   }
+
+  /**
+   * Get global staking statistics across all stakers
+   * Simplified version - only gets total NFTs staked and total stakers
+   * @returns Object with total NFTs staked and total stakers
+   */
+  static async getGlobalStakingStats(): Promise<{
+    totalNFTsStaked: number;
+    totalStakers: number;
+  }> {
+    try {
+      if (!this.contractAddress) {
+        return {
+          totalNFTsStaked: 0,
+          totalStakers: 0
+        };
+      }
+
+      // Get total stakers count and NFTs owned by staking contract in parallel
+      // Use the same API endpoint that staking page uses
+      const apiUrl = `/api/nft/total?address=${encodeURIComponent(this.contractAddress)}&_t=${Date.now()}`;
+
+      const [totalStakers, nftTotalResponse] = await Promise.all([
+        this.getTotalStakers(),
+        fetch(apiUrl, {
+          headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+          },
+          cache: 'no-store'
+        })
+      ]);
+      if (!nftTotalResponse.ok) {
+        throw new Error(`API request failed: ${nftTotalResponse.status}`);
+      }
+
+      const totalData = await nftTotalResponse.json();
+      const stakedNFTs = totalData.total || 0;
+      console.log("===> totalData ", totalData.total);
+      return {
+        totalNFTsStaked: stakedNFTs,
+        totalStakers: totalStakers
+      };
+
+    } catch (error) {
+      console.error('Error fetching global staking stats:', error);
+      return {
+        totalNFTsStaked: 0,
+        totalStakers: 0
+      };
+    }
+  }
 }
 
 // Export contract address for use in other components
