@@ -164,16 +164,7 @@ export default function LeaderboardPage() {
                   Top Shellies holders competing for the highest points
                 </p>
               </div>
-              <div className="flex items-center space-x-2">
-                <div className={`flex items-center space-x-2 px-3 py-2 rounded-xl ${
-                  isDarkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'
-                }`}>
-                  <Users className="w-4 h-4 text-purple-600" />
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    {leaderboard.length} Players
-                  </span>
-                </div>
-              </div>
+            
             </div>
 
             {/* Staking Stats Cards */}
@@ -398,7 +389,7 @@ export default function LeaderboardPage() {
                         <Users className={`w-8 h-8 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`} />
                       </div>
                       <p className={`text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                        No players yet
+                        No Data yet
                       </p>
                       <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
                         Be the first to connect and claim points!
@@ -432,7 +423,7 @@ export default function LeaderboardPage() {
                     ) : (
                       <>
                         <ChevronDown className="w-4 h-4" />
-                        <span>Load More Players</span>
+                        <span>Load More</span>
                       </>
                     )}
                   </button>
