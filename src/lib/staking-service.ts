@@ -506,18 +506,20 @@ export class StakingService {
 
   /**
    * Get global staking statistics across all stakers
-   * Simplified version - only gets total NFTs staked and total stakers
-   * @returns Object with total NFTs staked and total stakers
+   * Also fetches token holders count from the API
+   * @returns Object with total NFTs staked, total stakers, and token holders count
    */
   static async getGlobalStakingStats(): Promise<{
     totalNFTsStaked: number;
     totalStakers: number;
+    tokenHoldersCount: number;
   }> {
     try {
       if (!this.contractAddress) {
         return {
           totalNFTsStaked: 0,
-          totalStakers: 0
+          totalStakers: 0,
+          tokenHoldersCount: 0
         };
       }
 
@@ -541,17 +543,20 @@ export class StakingService {
 
       const totalData = await nftTotalResponse.json();
       const stakedNFTs = totalData.total || 0;
-      console.log("===> totalData ", totalData.total);
+      const tokenHoldersCount = totalData.tokenHoldersCount || 0;
+
       return {
         totalNFTsStaked: stakedNFTs,
-        totalStakers: totalStakers
+        totalStakers: totalStakers,
+        tokenHoldersCount: tokenHoldersCount
       };
 
     } catch (error) {
       console.error('Error fetching global staking stats:', error);
       return {
         totalNFTsStaked: 0,
-        totalStakers: 0
+        totalStakers: 0,
+        tokenHoldersCount: 0
       };
     }
   }

@@ -30,6 +30,37 @@ export function LeaderboardPageSkeleton({ isDarkMode, count = 10 }: LeaderboardP
         </div>
       </div>
 
+      {/* Stats Cards Skeleton */}
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map((index) => (
+            <div key={index} className={`rounded-2xl border p-5 ${
+              isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+            }`}>
+              <div className="flex items-center justify-between mb-4">
+                <div className={`w-10 h-10 rounded-xl animate-pulse ${
+                  isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
+                }`} />
+                <div className={`h-6 w-16 rounded-full animate-pulse ${
+                  isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
+                }`} />
+              </div>
+              <div className="space-y-1">
+                <div className={`h-3 w-24 rounded animate-pulse ${
+                  isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
+                }`} />
+                <div className={`h-8 w-16 rounded animate-pulse ${
+                  isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
+                }`} />
+                <div className={`h-3 w-20 rounded animate-pulse ${
+                  isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
+                }`} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Leaderboard Container Skeleton */}
       <div className={`rounded-2xl shadow-xl border-2 overflow-hidden ${
         isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'

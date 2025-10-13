@@ -134,15 +134,42 @@ export async function GET(request: NextRequest) {
     }
 
     // Find our Shellies collection and extract all data
+    let totalNFTs = 0;
     for (const collection of data.items) {
       const collectionAddress = collection.token?.address_hash?.toLowerCase();
       if (collectionAddress === SHELLIES_CONTRACT_ADDRESS) {
-        return NextResponse.json({ total: collection.amount });
+        totalNFTs = collection.amount;
+        break;
       }
     }
-    
-    // Collection not found, return empty array
-    return NextResponse.json({ total: 0 });
+
+    // Fetch token counters to get token holders count
+    let tokenHoldersCount = 0;
+    try {
+      const countersUrl = `https://explorer.inkonchain.com/api/v2/tokens/${SHELLIES_CONTRACT_ADDRESS}/counters`;
+      const countersResponse = await fetch(countersUrl, {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'Shellies-App/1.0',
+          'Cache-Control': 'no-cache'
+        },
+        cache: 'no-store',
+        next: { revalidate: 0 }
+      });
+
+      if (countersResponse.ok) {
+        const countersData = await countersResponse.json();
+        tokenHoldersCount = parseInt(countersData.token_holders_count || '0', 10);
+      }
+    } catch (error) {
+      console.error('Error fetching token counters:', error);
+      // Continue with tokenHoldersCount = 0 if fetch fails
+    }
+
+    return NextResponse.json({
+      total: totalNFTs,
+      tokenHoldersCount: tokenHoldersCount
+    });
     
   } catch (error) {
     console.error('Error fetching total nfts:', error);
@@ -151,7 +178,7 @@ export async function GET(request: NextRequest) {
     // This allows the UI to still function, just with empty available NFTs
     if (error instanceof Error && error.message.includes('422')) {
       console.log('Returning 0 as total nfts due to API 422 error');
-      return NextResponse.json({ total: 0 });
+      return NextResponse.json({ total: 0, tokenHoldersCount: 0 });
     }
 
     return NextResponse.json(
