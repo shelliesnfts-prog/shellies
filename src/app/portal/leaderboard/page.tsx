@@ -15,7 +15,7 @@ export default function LeaderboardPage() {
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
-  const [currentLimit, setCurrentLimit] = useState(10);
+  const [cursor, setCursor] = useState<number | null>(null);
   const [stakingStats, setStakingStats] = useState({
     totalNFTsStaked: 0,
     totalStakers: 0,
@@ -24,20 +24,24 @@ export default function LeaderboardPage() {
   const [statsLoading, setStatsLoading] = useState(true);
 
   const TOTAL_NFT_SUPPLY = 2222;
+  const PAGE_SIZE = 50;
 
   const { isDarkMode } = useTheme();
   const { data: session } = useSession();
   const { address } = useAccount();
   const walletAddress = address || session?.address || '';
 
-  const fetchLeaderboard = async (limit = 10, append = false) => {
+  const fetchLeaderboard = async (cursorValue: number | null = null, append = false) => {
     try {
       if (!append) setLeaderboardLoading(true);
       else setLoadingMore(true);
       
-      const params = new URLSearchParams({ limit: limit.toString() });
+      const params = new URLSearchParams({ limit: PAGE_SIZE.toString() });
       if (walletAddress) {
         params.append('userWallet', walletAddress);
+      }
+      if (cursorValue !== null) {
+        params.append('cursor', cursorValue.toString());
       }
       
       const response = await fetch(`/api/leaderboard?${params.toString()}`);
@@ -59,8 +63,14 @@ export default function LeaderboardPage() {
           setLeaderboard(processedData);
         }
         
-        // Check if there are more entries
-        setHasMore(data.length === limit);
+        // Update cursor to the last user's points for next pagination
+        if (processedData.length > 0) {
+          const lastUser = processedData[processedData.length - 1];
+          setCursor(lastUser.points);
+        }
+        
+        // Check if there are more entries (if we got less than PAGE_SIZE, no more data)
+        setHasMore(data.length === PAGE_SIZE);
       }
     } catch (error) {
       console.error('Error fetching leaderboard:', error);
@@ -71,9 +81,9 @@ export default function LeaderboardPage() {
   };
 
   const loadMore = () => {
-    const newLimit = currentLimit + 10;
-    setCurrentLimit(newLimit);
-    fetchLeaderboard(newLimit, false);
+    if (cursor !== null) {
+      fetchLeaderboard(cursor, true);
+    }
   };
 
   const fetchStakingStats = async () => {

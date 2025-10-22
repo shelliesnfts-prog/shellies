@@ -6,7 +6,7 @@ export class UserService {
     try {
       // Use admin client to bypass RLS for server-side operations
       const client = supabaseAdmin || supabase;
-      
+
       // First try to get existing user
       const { data: existingUser, error: fetchError } = await client
         .from('shellies_raffle_users')
@@ -107,39 +107,52 @@ export class UserService {
   // Check if user can claim daily points (24 hours since last claim)
   static canClaimDaily(lastClaim: string | null): boolean {
     if (!lastClaim) return true;
-    
+
     const lastClaimDate = new Date(lastClaim);
     const now = new Date();
     const hoursSinceLastClaim = (now.getTime() - lastClaimDate.getTime()) / (1000 * 60 * 60);
-    
+
     return hoursSinceLastClaim >= 24;
   }
 
-  // Get leaderboard with optional user wallet to get their rank
-  static async getLeaderboard(limit: number = 10, userWallet?: string): Promise<(User & { originalRank?: number })[]> {
+  // Get leaderboard with cursor-based pagination
+  static async getLeaderboard(
+    limit: number = 10,
+    userWallet?: string,
+    cursor?: number
+  ): Promise<(User & { originalRank?: number })[]> {
     try {
       const client = supabaseAdmin || supabase;
-      const { data, error } = await client
+
+      // Build query - only select wallet_address and points
+      let query = client
         .from('shellies_raffle_users')
-        .select('*')
+        .select('wallet_address, points')
         .order('points', { ascending: false })
+        .order('wallet_address', { ascending: true }) // Secondary sort for consistency
         .limit(limit);
+
+      // Apply cursor if provided (get users with points less than cursor)
+      if (cursor !== undefined) {
+        query = query.lt('points', cursor);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error fetching leaderboard:', error);
         return [];
       }
 
-      let result = data || [];
+      let result: any[] = data || [];
 
-      // If userWallet is provided, find their actual rank in the full leaderboard
+      // If userWallet is provided, mark the current user
       if (userWallet && result.length > 0) {
         const userIndex = result.findIndex(
           user => user.wallet_address.toLowerCase() === userWallet.toLowerCase()
         );
-        
+
         if (userIndex >= 0) {
-          // Add the original rank to the user's data
           result[userIndex] = {
             ...result[userIndex],
             originalRank: userIndex + 1
