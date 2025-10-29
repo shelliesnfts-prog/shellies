@@ -370,7 +370,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
         // Refresh global user points state
         try {
           await refreshUserData();
-          } catch (error) {
+        } catch (error) {
         }
 
         // Call success callback if provided (this will refresh the main raffle list)
@@ -537,11 +537,20 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                 <div className="mt-4">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                      Participants {!loadingParticipants && `(${participants.length})`}
+                      Participants {!loadingParticipants && (
+                        <span className="text-purple-600">({participants.length})</span>
+                      )}
                     </h3>
-                    {loadingParticipants && (
-                      <div className="animate-spin w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full"></div>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {!loadingParticipants && participants.length > 0 && (
+                        <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                          Tickets sold <span className="text-purple-600">({participants.reduce((sum, p) => sum + p.ticket_count, 0)})</span>
+                        </span>
+                      )}
+                      {loadingParticipants && (
+                        <div className="animate-spin w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full"></div>
+                      )}
+                    </div>
                   </div>
                   <div className={`max-h-48 overflow-y-auto rounded-lg border ${isDarkMode ? 'border-gray-600 bg-gray-700/30' : 'border-gray-200 bg-gray-50'
                     } p-3 space-y-2`}>
@@ -806,64 +815,64 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
 
                   {/* Ticket Controls - Only show if user can purchase more tickets and raffle is active */}
                   {raffle.max_tickets_per_user > 1 &&
-                   raffle.status === 'ACTIVE' &&
-                   remainingTickets > 0 &&
-                   isRaffleActive(raffle.end_date) &&
-                   !(raffle.max_participants && (raffle.current_participants || 0) >= raffle.max_participants) && (
-                    <div className="space-y-2">
-                      <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                        Select number of tickets ({formatNumberWithSpaces(remainingTickets)} remaining):
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          type="button"
-                          onClick={() => handleTicketChange(ticketCount - 1)}
-                          disabled={ticketCount <= 1 || isLoading}
-                          className={`w-8 h-8 rounded-full border flex items-center justify-center transition-colors duration-200 ${ticketCount <= 1 || isLoading
-                            ? isDarkMode
-                              ? 'bg-gray-700 border-gray-600 text-gray-500 cursor-not-allowed'
-                              : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
-                            : isDarkMode
-                              ? 'bg-gray-600 border-gray-500 text-white hover:bg-gray-500'
-                              : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                            }`}
-                        >
-                          <Minus className="w-3 h-3" />
-                        </button>
+                    raffle.status === 'ACTIVE' &&
+                    remainingTickets > 0 &&
+                    isRaffleActive(raffle.end_date) &&
+                    !(raffle.max_participants && (raffle.current_participants || 0) >= raffle.max_participants) && (
+                      <div className="space-y-2">
+                        <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                          Select number of tickets ({formatNumberWithSpaces(remainingTickets)} remaining):
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            type="button"
+                            onClick={() => handleTicketChange(ticketCount - 1)}
+                            disabled={ticketCount <= 1 || isLoading}
+                            className={`w-8 h-8 rounded-full border flex items-center justify-center transition-colors duration-200 ${ticketCount <= 1 || isLoading
+                              ? isDarkMode
+                                ? 'bg-gray-700 border-gray-600 text-gray-500 cursor-not-allowed'
+                                : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                              : isDarkMode
+                                ? 'bg-gray-600 border-gray-500 text-white hover:bg-gray-500'
+                                : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                              }`}
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
 
-                        <input
-                          type="number"
-                          min="1"
-                          max={remainingTickets}
-                          value={ticketCount}
-                          onChange={(e) => handleTicketChange(parseInt(e.target.value) || 1)}
-                          disabled={isLoading}
-                          className={`w-14 h-8 text-center border rounded-full font-medium text-sm ${isDarkMode
-                            ? 'bg-gray-700 border-gray-500 text-white focus:border-purple-400'
-                            : 'bg-white border-gray-300 text-gray-900 focus:border-purple-500'
-                            } focus:outline-none focus:ring-2 focus:ring-purple-500/20 disabled:opacity-50`}
-                        />
+                          <input
+                            type="number"
+                            min="1"
+                            max={remainingTickets}
+                            value={ticketCount}
+                            onChange={(e) => handleTicketChange(parseInt(e.target.value) || 1)}
+                            disabled={isLoading}
+                            className={`w-14 h-8 text-center border rounded-full font-medium text-sm ${isDarkMode
+                              ? 'bg-gray-700 border-gray-500 text-white focus:border-purple-400'
+                              : 'bg-white border-gray-300 text-gray-900 focus:border-purple-500'
+                              } focus:outline-none focus:ring-2 focus:ring-purple-500/20 disabled:opacity-50`}
+                          />
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleTicketChange(ticketCount + 1);
-                          }}
-                          disabled={ticketCount >= remainingTickets || remainingTickets <= 0 || isLoading}
-                          className={`w-8 h-8 rounded-full border flex items-center justify-center transition-colors duration-200 ${ticketCount >= remainingTickets || remainingTickets <= 0 || isLoading
-                            ? isDarkMode
-                              ? 'bg-gray-700 border-gray-600 text-gray-500 cursor-not-allowed'
-                              : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
-                            : isDarkMode
-                              ? 'bg-gray-600 border-gray-500 text-white hover:bg-gray-500'
-                              : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                            }`}
-                        >
-                          <Plus className="w-3 h-3" />
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleTicketChange(ticketCount + 1);
+                            }}
+                            disabled={ticketCount >= remainingTickets || remainingTickets <= 0 || isLoading}
+                            className={`w-8 h-8 rounded-full border flex items-center justify-center transition-colors duration-200 ${ticketCount >= remainingTickets || remainingTickets <= 0 || isLoading
+                              ? isDarkMode
+                                ? 'bg-gray-700 border-gray-600 text-gray-500 cursor-not-allowed'
+                                : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                              : isDarkMode
+                                ? 'bg-gray-600 border-gray-500 text-white hover:bg-gray-500'
+                                : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                              }`}
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
                   <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                     {remainingTickets <= 0

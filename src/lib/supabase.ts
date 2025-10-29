@@ -42,6 +42,7 @@ export interface Raffle {
   created_at: string;
   user_ticket_count?: number;
   current_participants?: number;
+  total_tickets_sold?: number;  // Total tickets sold across all participants
   winner?: string | null;  // Winner's wallet address from blockchain
   prize_token_address?: string;
   prize_token_type?: 'NFT' | 'ERC20';

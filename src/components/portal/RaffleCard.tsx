@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { Trophy, ImageOff, Copy } from 'lucide-react';
+import { Trophy, ImageOff } from 'lucide-react';
 import { Raffle } from '@/lib/supabase';
 import { getTimeRemaining } from '@/lib/dateUtils';
-import { formatTokenDisplay, formatNumberWithSpaces } from '@/lib/token-utils';
+import { formatNumberWithSpaces } from '@/lib/token-utils';
 
 function useLiveCountdown(endDate: string) {
   const [timeRemaining, setTimeRemaining] = useState(() => getTimeRemaining(endDate));
@@ -31,26 +31,16 @@ interface RaffleCardProps {
 export function RaffleCard({ raffle, isDarkMode, onJoinClick, isMuted = false }: RaffleCardProps) {
   const [imageError, setImageError] = useState(false);
   const timeRemaining = useLiveCountdown(raffle.end_date);
-  
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch (err) {
-      console.error('Failed to copy: ', err);
-    }
-  };
-  
+
   const isRaffleEnded = raffle.status === 'COMPLETED' || raffle.status === 'CANCELLED';
   const isRaffleActive = raffle.status === 'ACTIVE';
-  
+
   return (
-    <div className={`group rounded-2xl shadow-sm border overflow-hidden hover:shadow-lg transition-all duration-300 hover:-translate-y-1 ${
-      isMuted ? 'opacity-60' : ''
-    } ${
-      isDarkMode
+    <div className={`group rounded-2xl shadow-sm border overflow-hidden hover:shadow-lg transition-all duration-300 hover:-translate-y-1 ${isMuted ? 'opacity-60' : ''
+      } ${isDarkMode
         ? 'bg-gray-800 border-gray-700 hover:border-gray-600'
         : 'bg-white border-gray-100 hover:border-gray-200'
-    }`}>
+      }`}>
       {/* Image Section */}
       <div className="relative overflow-hidden">
         {/* Points Badge - Reduced opacity */}
@@ -64,8 +54,8 @@ export function RaffleCard({ raffle, isDarkMode, onJoinClick, isMuted = false }:
             </div>
           ) : raffle.image_url.startsWith('blob:') ? (
             <>
-              <img 
-                src={raffle.image_url} 
+              <img
+                src={raffle.image_url}
                 alt={raffle.title}
                 className="w-full h-48 object-cover transition-transform duration-500 group-hover:scale-105"
                 onError={() => setImageError(true)}
@@ -76,7 +66,7 @@ export function RaffleCard({ raffle, isDarkMode, onJoinClick, isMuted = false }:
           ) : (
             <>
               <Image
-                src={raffle.image_url} 
+                src={raffle.image_url}
                 alt={raffle.title}
                 width={400}
                 height={192}
@@ -89,15 +79,14 @@ export function RaffleCard({ raffle, isDarkMode, onJoinClick, isMuted = false }:
           )}
         </div>
       </div>
-      
+
       {/* Content Section */}
       <div className="p-4 space-y-3">
         {/* Title and Description */}
         <div className="space-y-1">
-          <h3 className={`text-base font-semibold group-hover:text-purple-700 transition-colors duration-300 line-clamp-1 ${
-            isDarkMode ? 'text-gray-100' : 'text-gray-900'
-          }`}>{raffle.title}</h3>
-          
+          <h3 className={`text-base font-semibold group-hover:text-purple-700 transition-colors duration-300 line-clamp-1 ${isDarkMode ? 'text-gray-100' : 'text-gray-900'
+            }`}>{raffle.title}</h3>
+
           {/* Prize Display - Prominent for Token Raffles */}
           {raffle.prize_token_type === 'ERC20' && raffle.prize_amount && (
             <div className="flex items-center gap-1.5 mb-1">
@@ -107,7 +96,7 @@ export function RaffleCard({ raffle, isDarkMode, onJoinClick, isMuted = false }:
               </span>
             </div>
           )}
-          
+
           {/* Prize Display - For NFT Raffles */}
           {raffle.prize_token_type === 'NFT' && raffle.prize_token_id && (
             <div className="flex items-center gap-1.5 mb-1">
@@ -117,71 +106,55 @@ export function RaffleCard({ raffle, isDarkMode, onJoinClick, isMuted = false }:
               </span>
             </div>
           )}
-          
-          <p className={`text-xs leading-relaxed line-clamp-2 ${
-            isDarkMode ? 'text-gray-300' : 'text-gray-600'
-          }`}>{raffle.description}</p>
+
+          <p className={`text-xs leading-relaxed line-clamp-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'
+            }`}>{raffle.description}</p>
         </div>
-        
+
         {/* Bottom Row: Status/Winner + Join Button */}
         <div className="flex items-center justify-between pt-1">
-          <div className={`flex-1 mr-2 ${
-            isDarkMode ? 'text-gray-400' : 'text-gray-500'
-          }`}>
+          <div className={`flex-1 mr-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+            }`}>
             {/* Status indicator */}
             <div className="flex items-center space-x-1.5 mb-1">
               <div className={`w-1.5 h-1.5 rounded-full ${isRaffleEnded ? 'bg-red-400' : isRaffleActive ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`}></div>
               <span className="text-xs font-medium">
-                {raffle.status === 'COMPLETED' ? 'Completed' : 
-                 raffle.status === 'CANCELLED' ? 'Cancelled' :
-                 raffle.status === 'ACTIVE' ? timeRemaining :
-                 'Not Active'}
+                {raffle.status === 'COMPLETED' ? 'Completed' :
+                  raffle.status === 'CANCELLED' ? 'Cancelled' :
+                    raffle.status === 'ACTIVE' ? timeRemaining :
+                      'Not Active'}
               </span>
             </div>
-            
-            {/* Winner information for completed raffles */}
-            {raffle.status === 'COMPLETED' && raffle.winner && (
-              <div className="flex items-center space-x-1">
-                <Trophy className="w-3 h-3 text-yellow-500" />
-                <span className="text-xs font-medium text-yellow-600">
-                  Winner: {raffle.winner.slice(0, 6)}...{raffle.winner.slice(-4)}
-                </span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (raffle.winner) {
-                      copyToClipboard(raffle.winner);
-                    }
-                  }}
-                  className="ml-1 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
-                  title="Copy winner address"
-                >
-                  <Copy className="w-3 h-3 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" />
-                </button>
-              </div>
-            )}
-            {raffle.status === 'COMPLETED' && !raffle.winner && (
-              <div className="flex items-center space-x-1">
-                <div className={`w-3 h-3 rounded-full ${isDarkMode ? 'bg-gray-500' : 'bg-gray-400'}`} />
-                <span className="text-xs font-medium">
-                  No participants
+
+            {/* Participants and tickets information */}
+            <div className="flex items-center gap-3 text-xs">
+              <div>
+                <span className="font-bold text-purple-600 text-sm">{raffle.current_participants || 0}</span>
+                <span className={`ml-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  participant{(raffle.current_participants || 0) !== 1 ? 's' : ''}
                 </span>
               </div>
-            )}
+              <div className={`w-px h-3 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-300'}`}></div>
+              <div>
+                <span className="font-bold text-purple-600 text-sm">{raffle.total_tickets_sold || 0}</span>
+                <span className={`ml-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  ticket{(raffle.total_tickets_sold || 0) !== 1 ? 's' : ''} sold
+                </span>
+              </div>
+            </div>
           </div>
-          
-          <button 
-            className={`px-4 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 hover:shadow-md active:scale-95 ${
-              isRaffleEnded
-                ? 'bg-gray-500 hover:bg-gray-600 text-white'
-                : 'bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50 disabled:cursor-not-allowed'
-            }`}
+
+          <button
+            className={`px-4 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 hover:shadow-md active:scale-95 ${isRaffleEnded
+              ? 'bg-gray-500 hover:bg-gray-600 text-white'
+              : 'bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50 disabled:cursor-not-allowed'
+              }`}
             disabled={!isRaffleActive && !isRaffleEnded}
             onClick={onJoinClick}
           >
             {raffle.status === 'COMPLETED' || raffle.status === 'CANCELLED' ? 'View' :
-             raffle.status === 'ACTIVE' ? 'Join' :
-             'Not Active'}
+              raffle.status === 'ACTIVE' ? 'Join' :
+                'Not Active'}
           </button>
         </div>
       </div>
