@@ -402,6 +402,44 @@ export class RaffleContractService {
   }
 
   /**
+   * Get raffle prize info from OLD contract (backward compatibility for raffles 98-108)
+   * Old contract address: 0xE757e8Aa82b7AD9f1ef8D4fE657d90341885c0De
+   */
+  static async getRafflePrizeInfoFromOldContract(raffleId: string): Promise<{
+    prizeToken: string;
+    prizeTokenId: string;
+    isNFT: boolean;
+    state: number;
+    winner: string;
+  } | null> {
+    try {
+      const oldContractAddress = '0xE757e8Aa82b7AD9f1ef8D4fE657d90341885c0De';
+
+      const result = await publicClient.readContract({
+        address: oldContractAddress as `0x${string}`,
+        abi: raffleContractAbi,
+        functionName: 'getRaffleInfo',
+        args: [BigInt(raffleId)],
+      });
+
+      const [prizeToken, prizeTokenId, state, isNFT, winner] = result as [
+        string, bigint, number, boolean, string
+      ];
+
+      return {
+        prizeToken,
+        prizeTokenId: prizeTokenId.toString(),
+        isNFT,
+        state,
+        winner,
+      };
+    } catch (error) {
+      console.error('Error getting raffle prize info from old contract:', error);
+      return null;
+    }
+  }
+
+  /**
    * Check if raffle prize is deposited on contract
    */
   static async rafflePrizeDeposited(raffleId: string): Promise<boolean> {
