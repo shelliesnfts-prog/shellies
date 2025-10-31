@@ -7,6 +7,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { usePoints } from '@/contexts/PointsContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { ClaimButtonWithCountdown } from '@/components/ClaimCountdown';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { 
   Trophy, 
   Coins, 
@@ -164,28 +165,61 @@ export function PortalSidebar({
               
               {/* Content */}
               <div className="relative z-10 h-full flex flex-col justify-between">
-                {/* Top Row */}
+                {/* Top Row - Wallet Connection */}
                 <div className="flex items-center justify-between">
-                  <div className="flex flex-col">
-                    {/* <h3 className="text-white text-xs font-bold">
-                      {userLoading ? (
-                        <div className="h-3 bg-white/20 rounded animate-pulse w-12"></div>
-                      ) : (
-                        `$Point${(user?.points ?? 0) !== 1 ? 's' : ''}`
-                      )}
-                    </h3> */}
-                    {walletAddress && (
-                      <p className="text-white/70 text-xs mt-1 font-mono">
-                        {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
-                      </p>
-                    )}
-                  </div>
-                  <button
-                    onClick={handleLogout}
-                    className="px-2 py-1 hover:bg-white/10 rounded-lg transition-colors duration-200"
-                  >
-                    <span className="text-white/80 hover:text-white text-xs font-medium">Logout</span>
-                  </button>
+                  <ConnectButton.Custom>
+                    {({
+                      account,
+                      chain,
+                      openAccountModal,
+                      openChainModal,
+                      openConnectModal,
+                      mounted,
+                    }) => {
+                      const ready = mounted;
+                      const connected = ready && account && chain;
+
+                      return (
+                        <div className="flex items-center justify-between w-full">
+                          {!connected ? (
+                            <button
+                              onClick={openConnectModal}
+                              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg transition-colors duration-200"
+                            >
+                              <span className="text-white text-xs font-medium">Connect Wallet</span>
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                onClick={openAccountModal}
+                                className="flex flex-col hover:bg-white/10 rounded-lg px-2 py-1 transition-colors duration-200"
+                              >
+                                <p className="text-white/70 text-xs font-mono">
+                                  {account.displayName}
+                                </p>
+                              </button>
+                              
+                              {chain.unsupported ? (
+                                <button
+                                  onClick={openChainModal}
+                                  className="px-2 py-1 bg-red-500/90 hover:bg-red-600 rounded-lg transition-colors duration-200"
+                                >
+                                  <span className="text-white text-xs font-medium">Wrong Network</span>
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={handleLogout}
+                                  className="px-2 py-1 hover:bg-white/10 rounded-lg transition-colors duration-200"
+                                >
+                                  <span className="text-white/80 hover:text-white text-xs font-medium">Logout</span>
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      );
+                    }}
+                  </ConnectButton.Custom>
                 </div>
                 
                 {/* Bottom Row */}

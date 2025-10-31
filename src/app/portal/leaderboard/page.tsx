@@ -376,7 +376,7 @@ export default function LeaderboardPage() {
                           </div>
                           
                           {/* Stats */}
-                          <div className="flex items-center">
+                          <div className="flex items-center gap-6">
                             <div className="text-center">
                               <p className={`text-xl font-bold ${
                                 isCurrentUser ? 'text-purple-600' : 'text-blue-600'
@@ -385,6 +385,16 @@ export default function LeaderboardPage() {
                               </p>
                               <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
                                 Points
+                              </p>
+                            </div>
+                            <div className="text-center">
+                              <p className={`text-xl font-bold ${
+                                isCurrentUser ? 'text-yellow-600' : 'text-yellow-500'
+                              }`}>
+                                {user.game_score || 0}
+                              </p>
+                              <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                                Game Score
                               </p>
                             </div>
                           </div>

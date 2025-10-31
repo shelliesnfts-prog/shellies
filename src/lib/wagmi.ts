@@ -1,6 +1,20 @@
 import { getDefaultConfig } from '@rainbow-me/rainbowkit';
-import { mainnet, polygon } from 'wagmi/chains';
 import { defineChain } from 'viem';
+import { http } from 'viem';
+import type { Config } from 'wagmi';
+
+// Polyfill localStorage for SSR to prevent WalletConnect errors
+if (typeof window === 'undefined') {
+  // @ts-ignore
+  global.localStorage = {
+    getItem: () => null,
+    setItem: () => { },
+    removeItem: () => { },
+    clear: () => { },
+    key: () => null,
+    length: 0,
+  };
+}
 
 // Define Ink chain configuration (mainnet)
 const inkChain = defineChain({
@@ -31,9 +45,29 @@ const inkChain = defineChain({
   testnet: false,
 });
 
-export const config = getDefaultConfig({
-  appName: 'Shellies Raffles',
-  projectId: process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || 'placeholder-project-id',
-  chains: [inkChain, mainnet, polygon],
-  ssr: true,
-});
+// Create config once to avoid multiple initializations
+let _config: Config | undefined;
+
+export const getConfig = (): Config => {
+  if (!_config) {
+    _config = getDefaultConfig({
+      appName: 'Shellies Raffles',
+      projectId: process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || 'placeholder-project-id',
+      // Only include Ink chain - this makes all other chains show as "unsupported"
+      chains: [inkChain],
+      transports: {
+        [inkChain.id]: http(),
+      },
+      ssr: true,
+      // Enable multiInjectedProviderDiscovery for better wallet detection
+      multiInjectedProviderDiscovery: true,
+    });
+  }
+  return _config;
+};
+
+// Export the Ink chain for use in components
+export { inkChain };
+
+// Export config - only create on client side
+export const config = typeof window !== 'undefined' ? getConfig() : {} as Config;

@@ -124,10 +124,10 @@ export class UserService {
     try {
       const client = supabaseAdmin || supabase;
 
-      // Build query - only select wallet_address and points
+      // Build query - select wallet_address, points, and game_score
       let query = client
         .from('shellies_raffle_users')
-        .select('wallet_address, points')
+        .select('wallet_address, points, game_score')
         .order('points', { ascending: false })
         .order('wallet_address', { ascending: true }) // Secondary sort for consistency
         .limit(limit);

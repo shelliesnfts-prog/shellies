@@ -2,6 +2,9 @@ import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { SiweMessage } from 'siwe';
 
+// Ink chain ID
+const INK_CHAIN_ID = 57073;
+
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
@@ -21,22 +24,37 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         try {
           if (!credentials?.message || !credentials?.signature) {
+            console.error('Missing credentials');
             return null;
           }
 
           const siwe = new SiweMessage(credentials.message);
+          
+          // Verify the signature
           const fields = await siwe.verify({
             signature: credentials.signature,
           });
 
-          if (fields.success) {
-            return {
-              id: siwe.address,
-              address: siwe.address,
-              chainId: siwe.chainId,
-            };
+          if (!fields.success) {
+            console.error('SIWE verification failed');
+            return null;
           }
-          return null;
+
+          // Log chain mismatch but still allow authentication
+          // RainbowKit will handle prompting the user to switch networks
+          if (siwe.chainId !== INK_CHAIN_ID) {
+            console.warn('User authenticated on wrong chain:', {
+              provided: siwe.chainId,
+              expected: INK_CHAIN_ID,
+              address: siwe.address
+            });
+          }
+
+          return {
+            id: siwe.address,
+            address: siwe.address,
+            chainId: siwe.chainId,
+          };
         } catch (error) {
           console.error('SIWE verification failed:', error);
           return null;
