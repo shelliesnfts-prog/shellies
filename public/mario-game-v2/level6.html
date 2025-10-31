@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta name="viewport" content="width=1280" />
+  <title>Shellies - Level 6 Test</title>
+  <link rel="stylesheet" type="text/css" href="css/style.css">
+  <link rel="stylesheet" type="text/css" href="css/reset.css">
+</head>
+
+<body>
+
+  <!-- main game -->
+  <div class="main-wrapper">
+    <canvas class="game-screen"></canvas>
+  </div>
+
+  <script src="js/View.js"></script>
+  <script src="js/GameUI.js"></script>
+
+  <script src="js/mainGame/GameSound.js"></script>
+  <script src="js/mainGame/Element.js"></script>
+  <script src="js/mainGame/PowerUp.js"></script>
+  <script src="js/mainGame/Enemy.js"></script>
+  <script src="js/mainGame/Bullet.js"></script>
+  <script src="js/mainGame/Mario.js"></script>
+  <script src="js/mainGame/Score.js"></script>
+  <script src="js/mainGame/MarioGame.js"></script>
+
+  <script src="js/levelEditor/Storage.js"></script>
+  <script src="js/levelEditor/Editor.js"></script>
+  <script src="js/levelEditor/CreatedLevels.js"></script>
+
+  <script src="js/MarioMaker.js"></script>
+  <script src="js/Preloader.js"></script>
+
+  <!-- Level 6 specific initialization -->
+  <script>
+    // Override the preloader to start with Level 6 directly
+    window.addEventListener('load', function() {
+      // Wait for all scripts to load properly
+      setTimeout(function() {
+        try {
+          var marioMakerInstance = MarioMaker.getInstance();
+          
+          // Load original map data
+          var originalMap = marioMakerInstance.loadMainGameMap();
+          
+          // Initialize and start the game from Level 6
+          marioMakerInstance.init();
+          marioMakerInstance.startGame(originalMap, 6); // Start at level 6
+          
+        } catch (error) {
+          console.error('Error starting Level 6:', error);
+          // Fallback: try standard initialization
+          if (typeof Preloader !== 'undefined') {
+            Preloader.preload();
+          }
+        }
+      }, 100);
+    });
+  </script>
+
+</body>
+
+</html>

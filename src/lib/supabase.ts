@@ -24,6 +24,7 @@ export interface User {
   wallet_address: string;
   points: number; // Now supports decimal values (e.g., 0.1 for regular users)
   nft_count: number;
+  game_score?: number;
   last_claim?: string;
   created_at: string;
   updated_at: string;

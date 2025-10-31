@@ -23,7 +23,8 @@ import {
   Settings,
   HelpCircle,
   Bell,
-  Shield
+  Shield,
+  Gamepad2
 } from 'lucide-react';
 
 interface PortalSidebarProps {
@@ -269,6 +270,21 @@ export function PortalSidebar({
               >
                 <Gift className="w-5 h-5 mr-3" />
                 <span className="font-medium text-sm">Raffles</span>
+              </button>
+            </li>
+
+            {/* Game */}
+            <li>
+              <button
+                onClick={() => handleNavigation('/portal/game')}
+                className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
+                  isActive('/portal/game')
+                    ? 'bg-purple-100 text-gray-900'
+                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                }`}
+              >
+                <Gamepad2 className="w-5 h-5 mr-3" />
+                <span className="font-medium text-sm">Game</span>
               </button>
             </li>
 
