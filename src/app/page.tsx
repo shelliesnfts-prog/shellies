@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAccount } from 'wagmi';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { motion, useScroll, useTransform } from 'framer-motion';
 import CustomConnectButton from '@/components/CustomConnectButton';
 
 // Professional Icons Component
@@ -103,9 +103,20 @@ function AnimatedCounter({ end, duration = 1500 }: { end: number; duration?: num
 
 export default function LandingPage() {
   const [activeSection, setActiveSection] = useState('home');
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const { isConnected } = useAccount();
   const { data: session } = useSession();
   const router = useRouter();
+  const { scrollYProgress } = useScroll();
+  const y = useTransform(scrollYProgress, [0, 1], ['0%', '50%']);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      setMousePosition({ x: e.clientX, y: e.clientY });
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
 
   const scrollToSection = (sectionId: string) => {
     setActiveSection(sectionId);
@@ -120,249 +131,386 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#160f1f] via-[#1a1625] to-[#160f1f]">
-      {/* Professional Navigation */}
-      <nav className="fixed top-0 w-full bg-[#160f1f]/95 backdrop-blur-xl border-b border-purple-500/20 z-50 shadow-sm">
+    <div className="min-h-screen bg-[#0a0118] relative overflow-hidden">
+      {/* Futuristic Background Effects */}
+      <div className="fixed inset-0 z-0">
+        {/* Animated Grid */}
+        <div className="absolute inset-0 bg-grid-pattern opacity-20"></div>
+        
+        {/* Dynamic Gradient Orbs */}
+        <motion.div 
+          className="absolute top-0 left-1/4 w-96 h-96 bg-purple-600/30 rounded-full blur-3xl"
+          animate={{
+            scale: [1, 1.2, 1],
+            opacity: [0.3, 0.5, 0.3],
+          }}
+          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div 
+          className="absolute bottom-0 right-1/4 w-96 h-96 bg-pink-600/30 rounded-full blur-3xl"
+          animate={{
+            scale: [1.2, 1, 1.2],
+            opacity: [0.3, 0.5, 0.3],
+          }}
+          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div 
+          className="absolute top-1/2 left-1/2 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl"
+          animate={{
+            scale: [1, 1.3, 1],
+            opacity: [0.2, 0.4, 0.2],
+          }}
+          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+        />
+        
+        {/* Mouse Follow Glow */}
+        <div 
+          className="absolute w-96 h-96 bg-purple-500/20 rounded-full blur-3xl pointer-events-none transition-all duration-300"
+          style={{
+            left: mousePosition.x - 192,
+            top: mousePosition.y - 192,
+          }}
+        />
+      </div>
+
+      {/* Futuristic Navigation */}
+      <nav className="fixed top-0 w-full bg-black/40 backdrop-blur-2xl border-b border-purple-500/30 z-50 shadow-2xl shadow-purple-900/20">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden">
+          <div className="flex justify-between items-center py-5">
+            <motion.div 
+              className="flex items-center space-x-3"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center overflow-hidden relative group">
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 opacity-0 group-hover:opacity-100 transition-opacity blur-xl"></div>
                 <img
                   src="/shellies_icon.jpg"
                   alt="Shellies Logo"
-                  className="w-full h-full object-cover rounded-xl"
+                  className="w-full h-full object-cover rounded-2xl relative z-10 group-hover:scale-110 transition-transform"
                 />
               </div>
               <div className="flex flex-col">
-                <span className="text-xl shellies-brand" data-text="SHELLIES">SHELLIES</span>
-                <span className="text-xs text-purple-400 font-medium">Raffle & Staking Platform</span>
+                <span className="text-2xl shellies-brand tracking-wider" data-text="SHELLIES">SHELLIES</span>
+                <span className="text-xs text-purple-300 font-semibold tracking-wide">RAFFLE & STAKING PLATFORM</span>
               </div>
-            </div>
+            </motion.div>
             
-            <div className="hidden md:flex items-center space-x-4">
+            <div className="hidden md:flex items-center space-x-2">
               <button
                 onClick={() => scrollToSection('home')}
-                className={`text-sm font-medium px-4 py-2 rounded-lg transition-all duration-200 ${
+                className={`text-sm font-bold px-5 py-2.5 rounded-xl transition-all duration-300 relative overflow-hidden group ${
                   activeSection === 'home'
-                    ? 'text-white bg-purple-600 shadow-md'
-                    : 'text-gray-300 hover:text-purple-400 hover:bg-purple-900/20'
+                    ? 'text-white bg-gradient-to-r from-purple-600 to-pink-600 shadow-lg shadow-purple-500/50'
+                    : 'text-gray-300 hover:text-white'
                 }`}
               >
-                Home
+                {activeSection !== 'home' && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 to-pink-600/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                )}
+                <span className="relative z-10">Home</span>
               </button>
               <button
                 onClick={() => scrollToSection('about')}
-                className={`text-sm font-medium px-4 py-2 rounded-lg transition-all duration-200 ${
+                className={`text-sm font-bold px-5 py-2.5 rounded-xl transition-all duration-300 relative overflow-hidden group ${
                   activeSection === 'about'
-                    ? 'text-white bg-purple-600 shadow-md'
-                    : 'text-gray-300 hover:text-purple-400 hover:bg-purple-900/20'
+                    ? 'text-white bg-gradient-to-r from-purple-600 to-pink-600 shadow-lg shadow-purple-500/50'
+                    : 'text-gray-300 hover:text-white'
                 }`}
               >
-                About
+                {activeSection !== 'about' && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 to-pink-600/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                )}
+                <span className="relative z-10">About</span>
               </button>
             </div>
             
             {isConnected && session ? (
-              <button
+              <motion.button
                 onClick={handleEnterPortal}
-                className="btn-primary px-6 py-2.5 text-sm font-medium shadow-lg"
+                className="relative px-8 py-3 text-sm font-bold text-white rounded-xl overflow-hidden group"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
-                Enter Portal
-              </button>
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 bg-[length:200%_100%] animate-gradient"></div>
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 blur-xl"></div>
+                <span className="relative z-10 tracking-wide">ENTER PORTAL</span>
+              </motion.button>
             ) : (
-              <CustomConnectButton size="sm" className="text-sm px-4 py-2" />
+              <CustomConnectButton size="sm" className="text-sm px-6 py-3" />
             )}
           </div>
         </div>
       </nav>
 
-      {/* Professional Hero Section */}
-      <section id="home" className="pt-20 pb-24 min-h-screen flex items-center relative overflow-hidden">
-        {/* Subtle Background Elements */}
-        <div className="absolute inset-0 opacity-30">
-          <div className="absolute top-32 left-16 w-24 h-24 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full blur-2xl floating"></div>
-          <div className="absolute bottom-40 right-20 w-32 h-32 bg-gradient-to-br from-purple-600 to-purple-700 rounded-full blur-3xl floating" style={{animationDelay: '2s'}}></div>
-          <div className="absolute top-1/3 right-1/4 w-16 h-16 bg-gradient-to-br from-purple-400 to-purple-500 rounded-full blur-xl floating" style={{animationDelay: '4s'}}></div>
+      {/* Futuristic Hero Section */}
+      <section id="home" className="pt-32 pb-32 min-h-screen flex items-center relative overflow-hidden">
+        {/* Geometric Shapes */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-20 left-10 w-32 h-32 border-2 border-purple-500 rotate-45 animate-spin-slow"></div>
+          <div className="absolute bottom-20 right-10 w-40 h-40 border-2 border-pink-500 rounded-full animate-pulse-slow"></div>
+          <div className="absolute top-1/2 left-1/3 w-24 h-24 border-2 border-blue-500 animate-float"></div>
         </div>
         
-        <div className="max-w-7xl mx-auto px-6 relative z-10 mt-4">
+        <div className="max-w-7xl mx-auto px-6 relative z-10">
           <div className="text-center">
-            {/* Clean Main Heading */}
+            {/* Futuristic Main Heading */}
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.1 }}
-              className="mb-6"
+              transition={{ duration: 0.8, delay: 0.2 }}
+              className="mb-8"
             >
-              <h1 className="text-5xl sm:text-6xl lg:text-7xl mb-4">
-                <span className="shellies-brand block" data-text="SHELLIES">SHELLIES</span>
+              {/* Glitch Effect Badge */}
+              <motion.div 
+                className="inline-flex items-center gap-2 px-6 py-3 mb-8 rounded-full bg-gradient-to-r from-purple-900/50 to-pink-900/50 border border-purple-500/50 backdrop-blur-xl"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5 }}
+              >
+                <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+                <span className="text-sm font-bold text-purple-200 tracking-wider">LIVE ON INK CHAIN</span>
+              </motion.div>
+
+              <h1 className="text-6xl sm:text-7xl lg:text-8xl mb-6 relative">
+                <span className="shellies-brand block relative" data-text="SHELLIES">
+                  SHELLIES
+                  <div className="absolute inset-0 blur-2xl bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 opacity-50 animate-pulse-slow"></div>
+                </span>
               </h1>
-              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-300">
+              <motion.h2 
+                className="text-3xl sm:text-4xl lg:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-200 via-pink-200 to-purple-200"
+                animate={{ backgroundPosition: ['0%', '100%', '0%'] }}
+                transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
+              >
                 First Raffle & Staking Platform on Ink Chain
-              </h2>
+              </motion.h2>
             </motion.div>
 
-            {/* Professional Description */}
+            {/* Futuristic Description */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.3 }}
-              className="mb-12"
+              transition={{ duration: 0.8, delay: 0.4 }}
+              className="mb-14"
             >
-              <p className="text-xl sm:text-2xl text-gray-300 max-w-4xl mx-auto leading-relaxed mb-4">
-                Exclusive raffle ecosystem for holders of the Shellies NFT collection on <span className="text-gradient font-semibold">Ink Chain</span>
+              <p className="text-xl sm:text-2xl text-gray-200 max-w-4xl mx-auto leading-relaxed mb-6 font-medium">
+                Exclusive raffle ecosystem for holders of the Shellies NFT collection on{' '}
+                <span className="relative inline-block">
+                  <span className="text-gradient font-bold">Ink Chain</span>
+                  <span className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-pink-500 blur-sm"></span>
+                </span>
               </p>
-              <p className="text-lg text-gray-400 max-w-3xl mx-auto">
+              <p className="text-lg sm:text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
                 Stake your Shellies, earn daily rewards, and participate in premium raffles with incredible prizes
               </p>
             </motion.div>
 
-            {/* Professional CTA Buttons */}
+            {/* Futuristic CTA Buttons */}
             <motion.div 
-              className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16"
+              className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-20"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.5 }}
+              transition={{ duration: 0.8, delay: 0.6 }}
             >
               {isConnected && session ? (
-                <button
+                <motion.button
                   onClick={handleEnterPortal}
-                  className="btn-primary text-lg px-8 py-4 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all font-semibold"
+                  className="relative group px-10 py-5 text-lg font-black rounded-2xl overflow-hidden"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                 >
-                  Enter Raffle Portal
-                </button>
+                  <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 bg-[length:200%_100%] animate-gradient"></div>
+                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute inset-0 bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 blur-2xl"></div>
+                  </div>
+                  <span className="relative z-10 flex items-center gap-3 tracking-wide">
+                    <span>ENTER RAFFLE PORTAL</span>
+                    <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                  </span>
+                </motion.button>
               ) : (
-                <CustomConnectButton size="sm" className="text-lg px-8 py-4" />
+                <CustomConnectButton size="sm" className="text-lg px-10 py-5" />
               )}
-              <button
+              <motion.button
                 onClick={() => scrollToSection('about')}
-                className="btn-secondary text-lg px-8 py-4 font-medium hover:shadow-lg transform hover:-translate-y-0.5 transition-all"
+                className="relative group px-10 py-5 text-lg font-black rounded-2xl overflow-hidden border-2 border-purple-500/50 text-white"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
-                Learn More
-              </button>
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-600/10 to-pink-600/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <span className="relative z-10 tracking-wide">LEARN MORE</span>
+              </motion.button>
             </motion.div>
 
-            {/* Professional Stats */}
+            {/* Futuristic Stats */}
             <motion.div 
-              className="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-5xl mx-auto"
+              className="grid grid-cols-1 sm:grid-cols-3 gap-8 max-w-6xl mx-auto"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.7 }}
+              transition={{ duration: 0.8, delay: 0.8 }}
             >
-              <div className="text-center modern-card p-8 group hover:scale-105 transition-transform duration-300">
-                <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center group-hover:scale-110 transition-transform overflow-hidden">
-                  <img
-                    src="/shellies_icon.jpg"
-                    alt="Shellies Logo"
-                    className="w-full h-full object-cover rounded-2xl"
-                  />
-                </div>
-                <AnimatedCounter end={2222} />
-                <div className="text-gray-300 font-medium mt-2">Unique NFTs</div>
-                <div className="text-sm text-purple-400 font-medium mt-1">In Collection</div>
-              </div>
-              
-              <div className="text-center modern-card p-8 group hover:scale-105 transition-transform duration-300">
-                <div className="w-16 h-16 icon-gradient rounded-2xl mx-auto mb-4 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <div className="w-8 h-8 text-white">
-                    <svg viewBox="0 0 24 24" className="w-full h-full" fill="currentColor">
-                      <path d="M12 2L13.09 8.26L20 9L13.09 9.74L12 16L10.91 9.74L4 9L10.91 8.26L12 2Z"/>
-                      <path d="M19 15L19.91 17.53L23 18L19.91 18.47L19 21L18.09 18.47L15 18L18.09 17.53L19 15Z"/>
-                      <path d="M5 15L5.91 17.53L9 18L5.91 18.47L5 21L4.09 18.47L1 18L4.09 17.53L5 15Z"/>
-                    </svg>
+              <motion.div 
+                className="relative group"
+                whileHover={{ y: -10 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-600/20 to-pink-600/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all"></div>
+                <div className="relative text-center bg-black/40 backdrop-blur-2xl border border-purple-500/30 rounded-3xl p-10 overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl"></div>
+                  <div className="relative z-10">
+                    <div className="w-20 h-20 rounded-3xl mx-auto mb-6 flex items-center justify-center overflow-hidden relative group-hover:scale-110 transition-transform">
+                      <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 opacity-50 group-hover:opacity-100 transition-opacity blur-xl"></div>
+                      <img
+                        src="/shellies_icon.jpg"
+                        alt="Shellies Logo"
+                        className="w-full h-full object-cover rounded-3xl relative z-10"
+                      />
+                    </div>
+                    <AnimatedCounter end={2222} />
+                    <div className="text-gray-200 font-bold mt-3 text-lg">Unique NFTs</div>
+                    <div className="text-sm text-purple-300 font-semibold mt-2 tracking-wide">IN COLLECTION</div>
                   </div>
                 </div>
-                <div className="text-4xl font-black text-gradient mb-2">FREE</div>
-                <div className="text-gray-300 font-medium mt-2">Entry</div>
-                <div className="text-sm text-purple-400 font-medium mt-1">Daily Bonus</div>
-              </div>
+              </motion.div>
               
-              <div className="text-center modern-card p-8 group hover:scale-105 transition-transform duration-300">
-                <div className="w-16 h-16 icon-gradient rounded-2xl mx-auto mb-4 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <div className="w-8 h-8 text-white">
-                    <Icons.Infinity />
+              <motion.div 
+                className="relative group"
+                whileHover={{ y: -10 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-pink-600/20 to-purple-600/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all"></div>
+                <div className="relative text-center bg-black/40 backdrop-blur-2xl border border-pink-500/30 rounded-3xl p-10 overflow-hidden">
+                  <div className="absolute top-0 left-0 w-32 h-32 bg-pink-500/10 rounded-full blur-3xl"></div>
+                  <div className="relative z-10">
+                    <div className="w-20 h-20 rounded-3xl mx-auto mb-6 flex items-center justify-center bg-gradient-to-br from-pink-600 to-purple-600 group-hover:scale-110 transition-transform shadow-lg shadow-pink-500/50">
+                      <div className="w-10 h-10 text-white">
+                        <svg viewBox="0 0 24 24" className="w-full h-full" fill="currentColor">
+                          <path d="M12 2L13.09 8.26L20 9L13.09 9.74L12 16L10.91 9.74L4 9L10.91 8.26L12 2Z"/>
+                          <path d="M19 15L19.91 17.53L23 18L19.91 18.47L19 21L18.09 18.47L15 18L18.09 17.53L19 15Z"/>
+                          <path d="M5 15L5.91 17.53L9 18L5.91 18.47L5 21L4.09 18.47L1 18L4.09 17.53L5 15Z"/>
+                        </svg>
+                      </div>
+                    </div>
+                    <div className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-400 mb-2">FREE</div>
+                    <div className="text-gray-200 font-bold mt-3 text-lg">Entry</div>
+                    <div className="text-sm text-pink-300 font-semibold mt-2 tracking-wide">DAILY BONUS</div>
                   </div>
                 </div>
-                <AnimatedCounter end={Infinity} />
-                <div className="text-gray-300 font-medium mt-2">Prize Pool</div>
-                <div className="text-sm text-purple-400 font-medium mt-1">Opportunities</div>
-              </div>
+              </motion.div>
+              
+              <motion.div 
+                className="relative group"
+                whileHover={{ y: -10 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-purple-600/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all"></div>
+                <div className="relative text-center bg-black/40 backdrop-blur-2xl border border-blue-500/30 rounded-3xl p-10 overflow-hidden">
+                  <div className="absolute bottom-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl"></div>
+                  <div className="relative z-10">
+                    <div className="w-20 h-20 rounded-3xl mx-auto mb-6 flex items-center justify-center bg-gradient-to-br from-blue-600 to-purple-600 group-hover:scale-110 transition-transform shadow-lg shadow-blue-500/50">
+                      <div className="w-10 h-10 text-white">
+                        <Icons.Infinity />
+                      </div>
+                    </div>
+                    <AnimatedCounter end={Infinity} />
+                    <div className="text-gray-200 font-bold mt-3 text-lg">Prize Pool</div>
+                    <div className="text-sm text-blue-300 font-semibold mt-2 tracking-wide">OPPORTUNITIES</div>
+                  </div>
+                </div>
+              </motion.div>
             </motion.div>
             
-            {/* Professional Trust Indicators */}
+            {/* Futuristic Trust Indicators */}
             <motion.div 
-              className="flex justify-center items-center space-x-12 mt-12"
+              className="flex flex-wrap justify-center items-center gap-8 mt-16"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ duration: 0.6, delay: 1 }}
+              transition={{ duration: 0.8, delay: 1 }}
             >
-              <div className="flex items-center space-x-2 text-gray-400">
-                <div className="w-5 h-5 text-purple-400">
+              <motion.div 
+                className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-black/30 backdrop-blur-xl border border-purple-500/30"
+                whileHover={{ scale: 1.05, borderColor: 'rgba(168, 85, 247, 0.6)' }}
+              >
+                <div className="w-6 h-6 text-purple-400">
                   <Icons.Chain />
                 </div>
-                <span className="text-sm font-medium">Ink Chain Native</span>
-              </div>
-              <div className="flex items-center space-x-2 text-gray-400">
-                <div className="w-5 h-5 text-purple-400">
+                <span className="text-sm font-bold text-gray-200 tracking-wide">INK CHAIN NATIVE</span>
+              </motion.div>
+              <motion.div 
+                className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-black/30 backdrop-blur-xl border border-pink-500/30"
+                whileHover={{ scale: 1.05, borderColor: 'rgba(236, 72, 153, 0.6)' }}
+              >
+                <div className="w-6 h-6 text-pink-400">
                   <Icons.Shield />
                 </div>
-                <span className="text-sm font-medium">Secure & Verified</span>
-              </div>
-              <div className="flex items-center space-x-2 text-gray-400">
-                <div className="w-5 h-5 text-purple-400">
+                <span className="text-sm font-bold text-gray-200 tracking-wide">SECURE & VERIFIED</span>
+              </motion.div>
+              <motion.div 
+                className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-black/30 backdrop-blur-xl border border-blue-500/30"
+                whileHover={{ scale: 1.05, borderColor: 'rgba(59, 130, 246, 0.6)' }}
+              >
+                <div className="w-6 h-6 text-blue-400">
                   <Icons.Coins />
                 </div>
-                <span className="text-sm font-medium">Premium Rewards</span>
-              </div>
+                <span className="text-sm font-bold text-gray-200 tracking-wide">PREMIUM REWARDS</span>
+              </motion.div>
             </motion.div>
           </div>
         </div>
       </section>
 
-      {/* Professional About Section */}
-      <section id="about" className="py-24 bg-gradient-to-br from-[#1a1625] to-[#160f1f] relative overflow-hidden">
-        {/* Subtle Background Pattern */}
-        <div className="absolute inset-0 opacity-3">
-          <div className="absolute inset-0" style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%236e36e4' fill-opacity='1'%3E%3Ccircle cx='20' cy='20' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-            backgroundSize: '40px 40px'
-          }}></div>
+      {/* Futuristic About Section */}
+      <section id="about" className="py-32 bg-[#0a0118] relative overflow-hidden">
+        {/* Futuristic Background */}
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 bg-grid-pattern opacity-10"></div>
+          <div className="absolute top-1/4 left-0 w-96 h-96 bg-purple-600/20 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-1/4 right-0 w-96 h-96 bg-pink-600/20 rounded-full blur-3xl"></div>
         </div>
         
         <div className="max-w-7xl mx-auto px-6 relative z-10">
-          <div className="text-center mb-16">
+          <div className="text-center mb-20">
             <motion.div 
-              className="inline-flex items-center px-4 py-2 bg-purple-900/30 border border-purple-400/30 rounded-full mb-8"
+              className="inline-flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-purple-900/40 to-pink-900/40 border border-purple-400/40 rounded-full mb-10 backdrop-blur-xl"
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5 }}
             >
-              <span className="text-purple-200 text-sm font-medium">Platform Overview</span>
+              <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
+              <span className="text-purple-200 text-sm font-bold tracking-wider">PLATFORM OVERVIEW</span>
             </motion.div>
             
             <motion.h2 
-              className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6"
+              className="text-5xl sm:text-6xl lg:text-7xl font-black text-white mb-8 relative"
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: 0.1 }}
             >
-              How It Works
+              <span className="relative">
+                How It Works
+                <div className="absolute inset-0 blur-3xl bg-gradient-to-r from-purple-600 to-pink-600 opacity-30"></div>
+              </span>
             </motion.h2>
             
             <motion.p 
-              className="text-xl text-gray-300 mb-4 max-w-3xl mx-auto"
+              className="text-xl sm:text-2xl text-gray-200 mb-6 max-w-3xl mx-auto font-medium"
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: 0.2 }}
             >
-              Built exclusively for holders of the SHELLIES NFT collection on <span className="text-gradient font-semibold">Ink Chain</span>
+              Built exclusively for holders of the SHELLIES NFT collection on{' '}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 font-bold">Ink Chain</span>
             </motion.p>
             
             <motion.p 
-              className="text-lg text-gray-400 max-w-2xl mx-auto"
+              className="text-lg sm:text-xl text-gray-300 max-w-2xl mx-auto leading-relaxed"
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
@@ -372,85 +520,121 @@ export default function LandingPage() {
             </motion.p>
           </div>
           
-          {/* Professional Feature Cards */}
-          <div className="grid lg:grid-cols-3 gap-8 mb-16">
+          {/* Futuristic Feature Cards */}
+          <div className="grid lg:grid-cols-3 gap-10 mb-20">
             <motion.div 
-              className="modern-card p-8 text-center group hover:scale-105 transition-all duration-300"
-              initial={{ opacity: 0, y: 20 }}
+              className="relative group"
+              initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.1 }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+              whileHover={{ y: -10 }}
             >
-              <div className="w-16 h-16 icon-gradient rounded-2xl mx-auto mb-6 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <div className="w-8 h-8 text-white">
-                  <Icons.Coins />
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-600/30 to-pink-600/30 rounded-3xl blur-2xl group-hover:blur-3xl transition-all"></div>
+              <div className="relative bg-black/50 backdrop-blur-2xl border border-purple-500/40 rounded-3xl p-10 text-center overflow-hidden">
+                <div className="absolute top-0 right-0 w-40 h-40 bg-purple-500/10 rounded-full blur-3xl"></div>
+                <div className="relative z-10">
+                  <div className="w-24 h-24 rounded-3xl mx-auto mb-8 flex items-center justify-center bg-gradient-to-br from-purple-600 to-pink-600 group-hover:scale-110 transition-transform shadow-2xl shadow-purple-500/50">
+                    <div className="w-12 h-12 text-white">
+                      <Icons.Coins />
+                    </div>
+                  </div>
+                  <h3 className="text-2xl font-black text-white mb-5">Daily Rewards</h3>
+                  <p className="text-gray-200 leading-relaxed mb-8 text-base">
+                    Earn points automatically based on your Shellies holdings. More NFTs means higher daily rewards.
+                  </p>
+                  <div className="inline-flex items-center gap-2 text-sm text-purple-300 font-bold bg-purple-900/50 px-5 py-2 rounded-full border border-purple-500/30">
+                    <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
+                    PASSIVE INCOME
+                  </div>
                 </div>
-              </div>
-              <h3 className="text-xl font-bold text-white mb-4">Daily Rewards</h3>
-              <p className="text-gray-300 leading-relaxed mb-6">
-                Earn points automatically based on your Shellies holdings. More NFTs means higher daily rewards.
-              </p>
-              <div className="text-sm text-purple-300 font-medium bg-purple-900/40 px-3 py-1 rounded-full inline-block">
-                Passive Income
               </div>
             </motion.div>
             
             <motion.div 
-              className="modern-card p-8 text-center group hover:scale-105 transition-all duration-300"
-              initial={{ opacity: 0, y: 20 }}
+              className="relative group"
+              initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.2 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              whileHover={{ y: -10 }}
             >
-              <div className="w-16 h-16 icon-gradient rounded-2xl mx-auto mb-6 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <div className="w-8 h-8 text-white">
-                  <Icons.Dice />
+              <div className="absolute inset-0 bg-gradient-to-br from-pink-600/30 to-purple-600/30 rounded-3xl blur-2xl group-hover:blur-3xl transition-all"></div>
+              <div className="relative bg-black/50 backdrop-blur-2xl border border-pink-500/40 rounded-3xl p-10 text-center overflow-hidden">
+                <div className="absolute top-0 left-0 w-40 h-40 bg-pink-500/10 rounded-full blur-3xl"></div>
+                <div className="relative z-10">
+                  <div className="w-24 h-24 rounded-3xl mx-auto mb-8 flex items-center justify-center bg-gradient-to-br from-pink-600 to-purple-600 group-hover:scale-110 transition-transform shadow-2xl shadow-pink-500/50">
+                    <div className="w-12 h-12 text-white">
+                      <Icons.Dice />
+                    </div>
+                  </div>
+                  <h3 className="text-2xl font-black text-white mb-5">Premium Raffles</h3>
+                  <p className="text-gray-200 leading-relaxed mb-8 text-base">
+                    Enter exclusive raffles using your earned points. Win rare NFTs, tokens, and premium prizes.
+                  </p>
+                  <div className="inline-flex items-center gap-2 text-sm text-pink-300 font-bold bg-pink-900/50 px-5 py-2 rounded-full border border-pink-500/30">
+                    <div className="w-2 h-2 rounded-full bg-pink-400 animate-pulse"></div>
+                    HIGH-VALUE PRIZES
+                  </div>
                 </div>
-              </div>
-              <h3 className="text-xl font-bold text-white mb-4">Premium Raffles</h3>
-              <p className="text-gray-300 leading-relaxed mb-6">
-                Enter exclusive raffles using your earned points. Win rare NFTs, tokens, and premium prizes.
-              </p>
-              <div className="text-sm text-purple-300 font-medium bg-purple-900/40 px-3 py-1 rounded-full inline-block">
-                High-Value Prizes
               </div>
             </motion.div>
             
             <motion.div 
-              className="modern-card p-8 text-center group hover:scale-105 transition-all duration-300"
-              initial={{ opacity: 0, y: 20 }}
+              className="relative group"
+              initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.3 }}
+              transition={{ duration: 0.6, delay: 0.3 }}
+              whileHover={{ y: -10 }}
             >
-              <div className="w-16 h-16 icon-gradient rounded-2xl mx-auto mb-6 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <div className="w-8 h-8 text-white">
-                  <Icons.Trophy />
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-600/30 to-purple-600/30 rounded-3xl blur-2xl group-hover:blur-3xl transition-all"></div>
+              <div className="relative bg-black/50 backdrop-blur-2xl border border-blue-500/40 rounded-3xl p-10 text-center overflow-hidden">
+                <div className="absolute bottom-0 right-0 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl"></div>
+                <div className="relative z-10">
+                  <div className="w-24 h-24 rounded-3xl mx-auto mb-8 flex items-center justify-center bg-gradient-to-br from-blue-600 to-purple-600 group-hover:scale-110 transition-transform shadow-2xl shadow-blue-500/50">
+                    <div className="w-12 h-12 text-white">
+                      <Icons.Trophy />
+                    </div>
+                  </div>
+                  <h3 className="text-2xl font-black text-white mb-5">Leaderboard</h3>
+                  <p className="text-gray-200 leading-relaxed mb-8 text-base">
+                    Compete with other holders on the community leaderboard for special bonuses and recognition.
+                  </p>
+                  <div className="inline-flex items-center gap-2 text-sm text-blue-300 font-bold bg-blue-900/50 px-5 py-2 rounded-full border border-blue-500/30">
+                    <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></div>
+                    COMMUNITY STATUS
+                  </div>
                 </div>
-              </div>
-              <h3 className="text-xl font-bold text-white mb-4">Leaderboard</h3>
-              <p className="text-gray-300 leading-relaxed mb-6">
-                Compete with other holders on the community leaderboard for special bonuses and recognition.
-              </p>
-              <div className="text-sm text-purple-300 font-medium bg-purple-900/40 px-3 py-1 rounded-full inline-block">
-                Community Status
               </div>
             </motion.div>
           </div>
 
           {/* Points Mechanism Section */}
           <motion.div
-            className="mb-16"
+            className="mb-20"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5, delay: 0.4 }}
           >
-            <div className="text-center mb-12">
-              <h3 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-                Points Earning System
+            <div className="text-center mb-16">
+              <motion.div 
+                className="inline-flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-purple-900/40 to-pink-900/40 border border-purple-400/40 rounded-full mb-8 backdrop-blur-xl"
+                initial={{ opacity: 0, scale: 0.8 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+              >
+                <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
+                <span className="text-purple-200 text-sm font-bold tracking-wider">REWARDS SYSTEM</span>
+              </motion.div>
+              <h3 className="text-4xl sm:text-5xl font-black text-white mb-6 relative">
+                <span className="relative">
+                  Points Earning System
+                  <div className="absolute inset-0 blur-3xl bg-gradient-to-r from-purple-600 to-pink-600 opacity-20"></div>
+                </span>
               </h3>
-              <p className="text-lg text-gray-300 max-w-2xl mx-auto">
+              <p className="text-lg sm:text-xl text-gray-200 max-w-2xl mx-auto">
                 Maximize your daily rewards through different participation levels
               </p>
             </div>
@@ -458,188 +642,285 @@ export default function LandingPage() {
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
               {/* Regular Users */}
               <motion.div
-                className="modern-card p-8 text-center group hover:scale-105 transition-all duration-300"
-                initial={{ opacity: 0, y: 20 }}
+                className="relative group"
+                initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: 0.1 }}
+                transition={{ duration: 0.6, delay: 0.1 }}
+                whileHover={{ y: -8 }}
               >
-                <div className="w-16 h-16 icon-gradient rounded-2xl mx-auto mb-6 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <div className="w-8 h-8 text-white">
-                    <svg viewBox="0 0 24 24" className="w-full h-full" fill="currentColor">
-                      <path d="M12 12C14.21 12 16 10.21 16 8C16 5.79 14.21 4 12 4C9.79 4 8 5.79 8 8C8 10.21 9.79 12 12 12ZM12 14C9.33 14 4 15.34 4 18V20H20V18C20 15.34 14.67 14 12 14Z"/>
-                    </svg>
+                <div className="absolute inset-0 bg-gradient-to-br from-gray-600/20 to-purple-600/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all"></div>
+                <div className="relative bg-black/40 backdrop-blur-2xl border border-gray-500/30 rounded-3xl p-8 text-center overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-gray-500/10 rounded-full blur-3xl"></div>
+                  <div className="relative z-10">
+                    <div className="w-20 h-20 rounded-3xl mx-auto mb-6 flex items-center justify-center bg-gradient-to-br from-gray-600 to-purple-600 group-hover:scale-110 transition-transform shadow-lg shadow-gray-500/30">
+                      <div className="w-10 h-10 text-white">
+                        <svg viewBox="0 0 24 24" className="w-full h-full" fill="currentColor">
+                          <path d="M12 12C14.21 12 16 10.21 16 8C16 5.79 14.21 4 12 4C9.79 4 8 5.79 8 8C8 10.21 9.79 12 12 12ZM12 14C9.33 14 4 15.34 4 18V20H20V18C20 15.34 14.67 14 12 14Z"/>
+                        </svg>
+                      </div>
+                    </div>
+                    <h3 className="text-xl font-black text-white mb-4">Regular Users</h3>
+                    <div className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-gray-300 to-purple-300 counter-animate mb-3">1</div>
+                    <div className="text-gray-200 font-bold mb-4">point per day</div>
+                    <div className="inline-flex items-center gap-2 text-xs text-gray-300 font-bold bg-gray-900/50 px-4 py-2 rounded-full border border-gray-500/30">
+                      BASE RATE
+                    </div>
                   </div>
-                </div>
-                <h3 className="text-xl font-bold text-white mb-4">Regular Users</h3>
-                <div className="text-4xl font-bold text-gradient counter-animate mb-2">1</div>
-                <div className="text-gray-300 font-medium">point per day</div>
-                <div className="text-sm text-purple-300 font-medium bg-purple-900/40 px-3 py-1 rounded-full inline-block mt-4">
-                  Base Rate
                 </div>
               </motion.div>
 
               {/* NFT Holders */}
               <motion.div
-                className="modern-card p-8 text-center group hover:scale-105 transition-all duration-300"
-                initial={{ opacity: 0, y: 20 }}
+                className="relative group"
+                initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: 0.2 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+                whileHover={{ y: -8 }}
               >
-                <div className="w-16 h-16 rounded-2xl mx-auto mb-6 flex items-center justify-center group-hover:scale-110 transition-transform overflow-hidden">
-                  <img
-                    src="/shellies_icon.jpg"
-                    alt="Shellies Logo"
-                    className="w-full h-full object-cover rounded-2xl"
-                  />
-                </div>
-                <h3 className="text-xl font-bold text-white mb-4">NFT Holders</h3>
-                <div className="text-4xl font-bold text-gradient counter-animate mb-2">5</div>
-                <div className="text-gray-300 font-medium">points per day</div>
-                <div className="text-sm text-purple-300 font-medium bg-purple-900/40 px-3 py-1 rounded-full inline-block mt-4">
-                  Hold Shellies
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-600/30 to-pink-600/30 rounded-3xl blur-xl group-hover:blur-2xl transition-all"></div>
+                <div className="relative bg-black/40 backdrop-blur-2xl border border-purple-500/40 rounded-3xl p-8 text-center overflow-hidden">
+                  <div className="absolute top-0 left-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl"></div>
+                  <div className="relative z-10">
+                    <div className="w-20 h-20 rounded-3xl mx-auto mb-6 flex items-center justify-center overflow-hidden group-hover:scale-110 transition-transform relative">
+                      <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 opacity-50 group-hover:opacity-100 transition-opacity blur-xl"></div>
+                      <img
+                        src="/shellies_icon.jpg"
+                        alt="Shellies Logo"
+                        className="w-full h-full object-cover rounded-3xl relative z-10"
+                      />
+                    </div>
+                    <h3 className="text-xl font-black text-white mb-4">NFT Holders</h3>
+                    <div className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 counter-animate mb-3">5</div>
+                    <div className="text-gray-200 font-bold mb-4">points per day</div>
+                    <div className="inline-flex items-center gap-2 text-xs text-purple-300 font-bold bg-purple-900/50 px-4 py-2 rounded-full border border-purple-500/30">
+                      HOLD SHELLIES
+                    </div>
+                  </div>
                 </div>
               </motion.div>
 
               {/* Staking Rewards */}
               <motion.div
-                className="modern-card p-8 text-center group hover:scale-105 transition-all duration-300"
-                initial={{ opacity: 0, y: 20 }}
+                className="relative group"
+                initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: 0.3 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+                whileHover={{ y: -8 }}
               >
-                <div className="w-16 h-16 icon-gradient rounded-2xl mx-auto mb-6 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <div className="w-8 h-8 text-white">
-                    <Icons.Shield />
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-600/30 to-purple-600/30 rounded-3xl blur-xl group-hover:blur-2xl transition-all"></div>
+                <div className="relative bg-black/40 backdrop-blur-2xl border border-blue-500/40 rounded-3xl p-8 text-center overflow-hidden">
+                  <div className="absolute bottom-0 left-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl"></div>
+                  <div className="relative z-10">
+                    <div className="w-20 h-20 rounded-3xl mx-auto mb-6 flex items-center justify-center bg-gradient-to-br from-blue-600 to-purple-600 group-hover:scale-110 transition-transform shadow-lg shadow-blue-500/30">
+                      <div className="w-10 h-10 text-white">
+                        <Icons.Shield />
+                      </div>
+                    </div>
+                    <h3 className="text-xl font-black text-white mb-6">Staking Rewards</h3>
+                    <div className="text-gray-200 leading-relaxed mb-6 space-y-3">
+                      <div className="flex justify-between items-center px-4 py-2 bg-blue-900/30 rounded-xl border border-blue-500/20">
+                        <span className="text-sm font-bold">1 Day:</span>
+                        <span className="font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">7 pts/day</span>
+                      </div>
+                      <div className="flex justify-between items-center px-4 py-2 bg-blue-900/30 rounded-xl border border-blue-500/20">
+                        <span className="text-sm font-bold">1 Week:</span>
+                        <span className="font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">10 pts/day</span>
+                      </div>
+                      <div className="flex justify-between items-center px-4 py-2 bg-blue-900/30 rounded-xl border border-blue-500/20">
+                        <span className="text-sm font-bold">1 Month:</span>
+                        <span className="font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">20 pts/day</span>
+                      </div>
+                    </div>
+                    <div className="inline-flex items-center gap-2 text-xs text-blue-300 font-bold bg-blue-900/50 px-4 py-2 rounded-full border border-blue-500/30">
+                      LOCK PERIOD BONUS
+                    </div>
                   </div>
-                </div>
-                <h3 className="text-xl font-bold text-white mb-4">Staking Rewards</h3>
-                <div className="text-gray-300 leading-relaxed mb-6 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">1 Day:</span>
-                    <span className="font-bold text-gradient">7 pts/day</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">1 Week:</span>
-                    <span className="font-bold text-gradient">10 pts/day</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">1 Month:</span>
-                    <span className="font-bold text-gradient">20 pts/day</span>
-                  </div>
-                </div>
-                <div className="text-sm text-purple-300 font-medium bg-purple-900/40 px-3 py-1 rounded-full inline-block">
-                  Lock Period Bonus
                 </div>
               </motion.div>
 
               {/* Maximum Potential */}
               <motion.div
-                className="modern-card p-8 text-center group hover:scale-105 transition-all duration-300"
-                initial={{ opacity: 0, y: 20 }}
+                className="relative group"
+                initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: 0.4 }}
+                transition={{ duration: 0.6, delay: 0.4 }}
+                whileHover={{ y: -8 }}
               >
-                <div className="w-16 h-16 icon-gradient rounded-2xl mx-auto mb-6 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <div className="w-8 h-8 text-white">
-                    <svg viewBox="0 0 24 24" className="w-full h-full" fill="currentColor">
-                      <path d="M12 2L13.09 8.26L20 9L13.09 9.74L12 16L10.91 9.74L4 9L10.91 8.26L12 2Z"/>
-                      <path d="M19 15L19.91 17.53L23 18L19.91 18.47L19 21L18.09 18.47L15 18L18.09 17.53L19 15Z"/>
-                      <path d="M5 15L5.91 17.53L9 18L5.91 18.47L5 21L4.09 18.47L1 18L4.09 17.53L5 15Z"/>
-                    </svg>
+                <div className="absolute inset-0 bg-gradient-to-br from-yellow-600/30 to-orange-600/30 rounded-3xl blur-xl group-hover:blur-2xl transition-all"></div>
+                <div className="relative bg-black/40 backdrop-blur-2xl border border-yellow-500/40 rounded-3xl p-8 text-center overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-500/10 rounded-full blur-3xl"></div>
+                  <div className="relative z-10">
+                    <div className="w-20 h-20 rounded-3xl mx-auto mb-6 flex items-center justify-center bg-gradient-to-br from-yellow-600 to-orange-600 group-hover:scale-110 transition-transform shadow-lg shadow-yellow-500/30">
+                      <div className="w-10 h-10 text-white">
+                        <svg viewBox="0 0 24 24" className="w-full h-full" fill="currentColor">
+                          <path d="M12 2L13.09 8.26L20 9L13.09 9.74L12 16L10.91 9.74L4 9L10.91 8.26L12 2Z"/>
+                          <path d="M19 15L19.91 17.53L23 18L19.91 18.47L19 21L18.09 18.47L15 18L18.09 17.53L19 15Z"/>
+                          <path d="M5 15L5.91 17.53L9 18L5.91 18.47L5 21L4.09 18.47L1 18L4.09 17.53L5 15Z"/>
+                        </svg>
+                      </div>
+                    </div>
+                    <h3 className="text-xl font-black text-white mb-4">Maximum Potential</h3>
+                    <div className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-400 counter-animate mb-3">25+</div>
+                    <div className="text-gray-200 font-bold mb-4">points per day</div>
+                    <div className="inline-flex items-center gap-2 text-xs text-yellow-300 font-bold bg-yellow-900/50 px-4 py-2 rounded-full border border-yellow-500/30">
+                      STAKE + HOLD
+                    </div>
                   </div>
-                </div>
-                <h3 className="text-xl font-bold text-white mb-4">Maximum Potential</h3>
-                <div className="text-4xl font-bold text-gradient counter-animate mb-2">25+</div>
-                <div className="text-gray-300 font-medium">points per day</div>
-                <div className="text-sm text-purple-300 font-medium bg-purple-900/40 px-3 py-1 rounded-full inline-block mt-4">
-                  Stake + Hold
                 </div>
               </motion.div>
             </div>
 
             {/* Points Usage Info */}
             <motion.div
-              className="mt-16 text-center"
+              className="mt-20 text-center relative"
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.5 }}
+              transition={{ duration: 0.6, delay: 0.5 }}
             >
-              <div className="modern-card p-8">
-                <div className="w-16 h-16 icon-gradient rounded-2xl mx-auto mb-6 flex items-center justify-center">
-                  <div className="w-8 h-8 text-white">
-                    <Icons.Dice />
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-600/20 to-pink-600/20 rounded-3xl blur-3xl"></div>
+              <div className="relative bg-black/50 backdrop-blur-2xl border border-purple-500/40 rounded-3xl p-12 overflow-hidden">
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl"></div>
+                <div className="relative z-10">
+                  <div className="w-24 h-24 rounded-3xl mx-auto mb-8 flex items-center justify-center bg-gradient-to-br from-purple-600 to-pink-600 shadow-2xl shadow-purple-500/50">
+                    <div className="w-12 h-12 text-white">
+                      <Icons.Dice />
+                    </div>
                   </div>
-                </div>
-                <h3 className="text-xl font-bold text-white mb-4">
-                  Use Your Points for Premium Raffles
-                </h3>
-                <p className="text-gray-300 max-w-3xl mx-auto leading-relaxed mb-6">
-                  Accumulated points can be spent to enter exclusive raffles featuring rare NFTs, tokens,
-                  and other valuable prizes. The more points you earn, the more opportunities you have to win big!
-                </p>
-                <div className="flex flex-wrap justify-center gap-3">
-                  <div className="text-sm text-purple-300 font-medium bg-purple-900/40 px-3 py-1 rounded-full">NFT Prizes</div>
-                  <div className="text-sm text-purple-300 font-medium bg-purple-900/40 px-3 py-1 rounded-full">Token Rewards</div>
-                  <div className="text-sm text-purple-300 font-medium bg-purple-900/40 px-3 py-1 rounded-full">Exclusive Access</div>
+                  <h3 className="text-3xl sm:text-4xl font-black text-white mb-6">
+                    Use Your Points for Premium Raffles
+                  </h3>
+                  <p className="text-lg text-gray-200 max-w-3xl mx-auto leading-relaxed mb-8">
+                    Accumulated points can be spent to enter exclusive raffles featuring rare NFTs, tokens,
+                    and other valuable prizes. The more points you earn, the more opportunities you have to win big!
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-4">
+                    <div className="inline-flex items-center gap-2 text-sm text-purple-300 font-bold bg-purple-900/50 px-5 py-3 rounded-full border border-purple-500/30">
+                      <div className="w-2 h-2 rounded-full bg-purple-400"></div>
+                      NFT PRIZES
+                    </div>
+                    <div className="inline-flex items-center gap-2 text-sm text-pink-300 font-bold bg-pink-900/50 px-5 py-3 rounded-full border border-pink-500/30">
+                      <div className="w-2 h-2 rounded-full bg-pink-400"></div>
+                      TOKEN REWARDS
+                    </div>
+                    <div className="inline-flex items-center gap-2 text-sm text-blue-300 font-bold bg-blue-900/50 px-5 py-3 rounded-full border border-blue-500/30">
+                      <div className="w-2 h-2 rounded-full bg-blue-400"></div>
+                      EXCLUSIVE ACCESS
+                    </div>
+                  </div>
                 </div>
               </div>
             </motion.div>
           </motion.div>
 
-          {/* Professional CTA */}
+          {/* Futuristic CTA */}
           <motion.div
-            className="text-center"
+            className="text-center mt-20"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.6 }}
+            transition={{ duration: 0.6, delay: 0.6 }}
           >
             {isConnected && session ? (
-              <button
+              <motion.button
                 onClick={handleEnterPortal}
-                className="btn-primary text-lg px-8 py-4 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all font-semibold"
+                className="relative group px-12 py-6 text-xl font-black rounded-2xl overflow-hidden"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
-                Start Earning Rewards
-              </button>
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 bg-[length:200%_100%] animate-gradient"></div>
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute inset-0 bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 blur-2xl"></div>
+                </div>
+                <span className="relative z-10 flex items-center gap-3 tracking-wide">
+                  <span>START EARNING REWARDS</span>
+                  <svg className="w-6 h-6 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
+                </span>
+              </motion.button>
             ) : (
               <CustomConnectButton size="xl" />
             )}
             
-            <p className="text-gray-400 mt-4 text-base">
-              Join <span className="font-medium text-purple-400">2,222 Shellies</span> holders earning daily
-            </p>
+            <motion.p 
+              className="text-gray-300 mt-6 text-lg"
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.8 }}
+            >
+              Join{' '}
+              <span className="font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
+                2,222 Shellies
+              </span>
+              {' '}holders earning daily
+            </motion.p>
           </motion.div>
         </div>
       </section>
 
-      {/* Professional Footer */}
-      <footer className="py-16 bg-[#0f0a19] text-white">
-        <div className="max-w-7xl mx-auto px-6">
+      {/* Futuristic Footer */}
+      <footer className="relative py-20 bg-black/50 text-white border-t border-purple-500/20 overflow-hidden">
+        <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
+        <div className="absolute top-0 left-1/4 w-64 h-64 bg-purple-600/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-pink-600/10 rounded-full blur-3xl"></div>
+        
+        <div className="max-w-7xl mx-auto px-6 relative z-10">
           <div className="text-center">
-            <div className="flex items-center justify-center space-x-3 mb-6">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
+            <motion.div 
+              className="flex items-center justify-center space-x-4 mb-8"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+            >
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center overflow-hidden relative group">
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 opacity-50 group-hover:opacity-100 transition-opacity blur-xl"></div>
                 <img
                   src="/shellies_icon.jpg"
                   alt="Shellies Logo"
-                  className="w-full h-full object-cover rounded-lg"
+                  className="w-full h-full object-cover rounded-2xl relative z-10"
                 />
               </div>
-              <span className="text-xl shellies-brand" data-text="SHELLIES">SHELLIES</span>
-            </div>
+              <span className="text-3xl shellies-brand tracking-wider" data-text="SHELLIES">SHELLIES</span>
+            </motion.div>
             
-            <p className="text-gray-300 text-base mb-2 max-w-2xl mx-auto">
+            <motion.p 
+              className="text-gray-200 text-lg mb-3 max-w-2xl mx-auto font-medium"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1 }}
+            >
               The premier raffle platform for Ink Chain's SHELLIES NFT collection.
-              Built for the community, powered by innovation.
-            </p>
+            </motion.p>
             
-            <p className="text-gray-400 text-sm">
-              © 2025 Ink Shellies Platform. All rights reserved.
-            </p>
+            <motion.p 
+              className="text-gray-300 text-base mb-8 max-w-2xl mx-auto"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.2 }}
+            >
+              Built for the community, powered by innovation.
+            </motion.p>
+            
+            <motion.div
+              className="inline-flex items-center gap-3 px-6 py-3 bg-black/40 backdrop-blur-xl border border-purple-500/30 rounded-full"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.3 }}
+            >
+              <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+              <span className="text-gray-300 text-sm font-bold tracking-wide">
+                © 2025 INK SHELLIES PLATFORM. ALL RIGHTS RESERVED.
+              </span>
+            </motion.div>
           </div>
         </div>
       </footer>

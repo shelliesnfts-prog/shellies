@@ -9,6 +9,7 @@ interface User {
   points: number;
   last_claim: string | null;
   nft_count: number;
+  game_score?: number;
   created_at: string;
   updated_at: string;
 }

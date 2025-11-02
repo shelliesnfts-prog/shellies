@@ -167,4 +167,97 @@ export class UserService {
     }
   }
 
+  // Get game XP leaderboard with cursor-based pagination
+  static async getGameXPLeaderboard(
+    limit: number = 50,
+    userWallet?: string,
+    cursor?: number
+  ): Promise<(User & { originalRank?: number })[]> {
+    try {
+      const client = supabaseAdmin || supabase;
+
+      // Build query - select wallet_address, points, and game_score
+      let query = client
+        .from('shellies_raffle_users')
+        .select('wallet_address, points, game_score')
+        .gt('game_score', 0) // Only include users with game score
+        .order('game_score', { ascending: false })
+        .order('wallet_address', { ascending: true }) // Secondary sort for consistency
+        .limit(limit);
+
+      // Apply cursor if provided (get users with game_score less than cursor)
+      if (cursor !== undefined) {
+        query = query.lt('game_score', cursor);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Error fetching game XP leaderboard:', error);
+        return [];
+      }
+
+      let result: any[] = data || [];
+
+      // If userWallet is provided, mark the current user
+      if (userWallet && result.length > 0) {
+        const userIndex = result.findIndex(
+          user => user.wallet_address.toLowerCase() === userWallet.toLowerCase()
+        );
+
+        if (userIndex >= 0) {
+          result[userIndex] = {
+            ...result[userIndex],
+            originalRank: userIndex + 1
+          };
+        }
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Unexpected error fetching game XP leaderboard:', error);
+      return [];
+    }
+  }
+
+  // Get game statistics
+  static async getGameStats(): Promise<{
+    totalPlayers: number;
+    averageXP: number;
+    topScore: number;
+  }> {
+    try {
+      const client = supabaseAdmin || supabase;
+
+      // Get aggregated statistics
+      const { data, error } = await client
+        .from('shellies_raffle_users')
+        .select('game_score')
+        .gt('game_score', 0);
+
+      if (error) {
+        console.error('Error fetching game stats:', error);
+        return { totalPlayers: 0, averageXP: 0, topScore: 0 };
+      }
+
+      if (!data || data.length === 0) {
+        return { totalPlayers: 0, averageXP: 0, topScore: 0 };
+      }
+
+      const totalPlayers = data.length;
+      const totalXP = data.reduce((sum, user) => sum + (user.game_score || 0), 0);
+      const averageXP = totalXP / totalPlayers;
+      const topScore = Math.max(...data.map(user => user.game_score || 0));
+
+      return {
+        totalPlayers,
+        averageXP: Math.round(averageXP),
+        topScore
+      };
+    } catch (error) {
+      console.error('Unexpected error fetching game stats:', error);
+      return { totalPlayers: 0, averageXP: 0, topScore: 0 };
+    }
+  }
+
 }

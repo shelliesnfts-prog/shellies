@@ -26,6 +26,20 @@ export class AuthenticationError extends ValidationError {
   }
 }
 
+export class PaymentError extends ValidationError {
+  constructor(message: string, code: string, statusCode: number = 400) {
+    super(message, code, statusCode);
+    this.name = 'PaymentError';
+  }
+}
+
+export class NetworkError extends ValidationError {
+  constructor(message: string = 'Network error occurred') {
+    super(message, ERROR_CODES.NETWORK_ERROR, 503);
+    this.name = 'NetworkError';
+  }
+}
+
 // Error codes for consistent error handling
 export const ERROR_CODES = {
   // Authentication
@@ -43,6 +57,21 @@ export const ERROR_CODES = {
   INVALID_TICKET_COUNT: 'INVALID_TICKET_COUNT',
   MAX_TICKETS_EXCEEDED: 'MAX_TICKETS_EXCEEDED',
   NO_REMAINING_TICKETS: 'NO_REMAINING_TICKETS',
+  
+  // Payment errors
+  PAYMENT_FAILED: 'PAYMENT_FAILED',
+  INSUFFICIENT_BALANCE: 'INSUFFICIENT_BALANCE',
+  USER_REJECTED_TRANSACTION: 'USER_REJECTED_TRANSACTION',
+  NETWORK_ERROR: 'NETWORK_ERROR',
+  WRONG_NETWORK: 'WRONG_NETWORK',
+  PRICE_FETCH_FAILED: 'PRICE_FETCH_FAILED',
+  CONTRACT_NOT_CONFIGURED: 'CONTRACT_NOT_CONFIGURED',
+  TRANSACTION_CONFIRMATION_FAILED: 'TRANSACTION_CONFIRMATION_FAILED',
+  
+  // XP Conversion errors
+  INSUFFICIENT_XP: 'INSUFFICIENT_XP',
+  INVALID_XP_AMOUNT: 'INVALID_XP_AMOUNT',
+  CONVERSION_FAILED: 'CONVERSION_FAILED',
   
   // General
   INVALID_REQUEST: 'INVALID_REQUEST',
@@ -95,6 +124,17 @@ function getUserFriendlyMessage(code: string): string {
     [ERROR_CODES.INVALID_TICKET_COUNT]: 'Please enter a valid number of tickets',
     [ERROR_CODES.MAX_TICKETS_EXCEEDED]: 'You\'ve reached the maximum tickets for this raffle',
     [ERROR_CODES.NO_REMAINING_TICKETS]: 'No remaining tickets available for you',
+    [ERROR_CODES.PAYMENT_FAILED]: 'Payment transaction failed. Please try again.',
+    [ERROR_CODES.INSUFFICIENT_BALANCE]: 'Insufficient ETH balance to complete payment',
+    [ERROR_CODES.USER_REJECTED_TRANSACTION]: 'Transaction was cancelled',
+    [ERROR_CODES.NETWORK_ERROR]: 'Network error. Please check your connection.',
+    [ERROR_CODES.WRONG_NETWORK]: 'Please switch to Ink network',
+    [ERROR_CODES.PRICE_FETCH_FAILED]: 'Failed to fetch current ETH price',
+    [ERROR_CODES.CONTRACT_NOT_CONFIGURED]: 'Payment contract is not configured',
+    [ERROR_CODES.TRANSACTION_CONFIRMATION_FAILED]: 'Transaction confirmation failed',
+    [ERROR_CODES.INSUFFICIENT_XP]: 'You don\'t have enough XP for this conversion',
+    [ERROR_CODES.INVALID_XP_AMOUNT]: 'Please enter a valid XP amount',
+    [ERROR_CODES.CONVERSION_FAILED]: 'XP conversion failed. Please try again.',
     [ERROR_CODES.INVALID_REQUEST]: 'Invalid request data',
     [ERROR_CODES.DATABASE_ERROR]: 'Database operation failed',
     [ERROR_CODES.INTERNAL_ERROR]: 'An unexpected error occurred'
@@ -162,4 +202,145 @@ export function parseContractError(error: any): string {
 
   // Default fallback for unknown errors
   return 'Transaction failed. Please try again.';
+}
+
+// Parse payment-specific errors with detailed categorization
+export function parsePaymentError(error: any): { message: string; code: string; canRetry: boolean } {
+  if (!error || typeof error !== 'object') {
+    return {
+      message: getUserFriendlyMessage(ERROR_CODES.PAYMENT_FAILED),
+      code: ERROR_CODES.PAYMENT_FAILED,
+      canRetry: true
+    };
+  }
+
+  const errorString = error.message || error.toString() || '';
+  const errorStringLower = errorString.toLowerCase();
+
+  // User rejected transaction
+  if (errorStringLower.includes('user rejected') || 
+      errorStringLower.includes('user denied') ||
+      errorStringLower.includes('user cancelled')) {
+    return {
+      message: getUserFriendlyMessage(ERROR_CODES.USER_REJECTED_TRANSACTION),
+      code: ERROR_CODES.USER_REJECTED_TRANSACTION,
+      canRetry: true
+    };
+  }
+
+  // Insufficient balance
+  if (errorStringLower.includes('insufficient funds') || 
+      errorStringLower.includes('insufficient balance') ||
+      errorStringLower.includes('insufficient eth')) {
+    return {
+      message: getUserFriendlyMessage(ERROR_CODES.INSUFFICIENT_BALANCE),
+      code: ERROR_CODES.INSUFFICIENT_BALANCE,
+      canRetry: false
+    };
+  }
+
+  // Network issues
+  if (errorStringLower.includes('network') || 
+      errorStringLower.includes('connection') ||
+      errorStringLower.includes('timeout') ||
+      errorStringLower.includes('fetch failed')) {
+    return {
+      message: getUserFriendlyMessage(ERROR_CODES.NETWORK_ERROR),
+      code: ERROR_CODES.NETWORK_ERROR,
+      canRetry: true
+    };
+  }
+
+  // Wrong network
+  if (errorStringLower.includes('chain') || 
+      errorStringLower.includes('wrong network') ||
+      errorStringLower.includes('unsupported chain')) {
+    return {
+      message: getUserFriendlyMessage(ERROR_CODES.WRONG_NETWORK),
+      code: ERROR_CODES.WRONG_NETWORK,
+      canRetry: true
+    };
+  }
+
+  // Transaction confirmation failed
+  if (errorStringLower.includes('confirmation') || 
+      errorStringLower.includes('receipt')) {
+    return {
+      message: getUserFriendlyMessage(ERROR_CODES.TRANSACTION_CONFIRMATION_FAILED),
+      code: ERROR_CODES.TRANSACTION_CONFIRMATION_FAILED,
+      canRetry: true
+    };
+  }
+
+  // Default payment error
+  return {
+    message: getUserFriendlyMessage(ERROR_CODES.PAYMENT_FAILED),
+    code: ERROR_CODES.PAYMENT_FAILED,
+    canRetry: true
+  };
+}
+
+// Parse XP conversion errors
+export function parseConversionError(error: any): { message: string; code: string; canRetry: boolean } {
+  if (!error || typeof error !== 'object') {
+    return {
+      message: getUserFriendlyMessage(ERROR_CODES.CONVERSION_FAILED),
+      code: ERROR_CODES.CONVERSION_FAILED,
+      canRetry: true
+    };
+  }
+
+  const errorString = error.message || error.toString() || '';
+  const errorStringLower = errorString.toLowerCase();
+
+  // Insufficient XP
+  if (errorStringLower.includes('insufficient xp') || 
+      errorStringLower.includes('not enough xp')) {
+    return {
+      message: getUserFriendlyMessage(ERROR_CODES.INSUFFICIENT_XP),
+      code: ERROR_CODES.INSUFFICIENT_XP,
+      canRetry: false
+    };
+  }
+
+  // Invalid amount
+  if (errorStringLower.includes('invalid') || 
+      errorStringLower.includes('must be positive') ||
+      errorStringLower.includes('whole number')) {
+    return {
+      message: getUserFriendlyMessage(ERROR_CODES.INVALID_XP_AMOUNT),
+      code: ERROR_CODES.INVALID_XP_AMOUNT,
+      canRetry: false
+    };
+  }
+
+  // Network issues
+  if (errorStringLower.includes('network') || 
+      errorStringLower.includes('connection') ||
+      errorStringLower.includes('timeout') ||
+      errorStringLower.includes('fetch failed')) {
+    return {
+      message: getUserFriendlyMessage(ERROR_CODES.NETWORK_ERROR),
+      code: ERROR_CODES.NETWORK_ERROR,
+      canRetry: true
+    };
+  }
+
+  // Database errors
+  if (errorStringLower.includes('database') || 
+      errorStringLower.includes('query') ||
+      errorStringLower.includes('update')) {
+    return {
+      message: getUserFriendlyMessage(ERROR_CODES.DATABASE_ERROR),
+      code: ERROR_CODES.DATABASE_ERROR,
+      canRetry: true
+    };
+  }
+
+  // Default conversion error
+  return {
+    message: getUserFriendlyMessage(ERROR_CODES.CONVERSION_FAILED),
+    code: ERROR_CODES.CONVERSION_FAILED,
+    canRetry: true
+  };
 }

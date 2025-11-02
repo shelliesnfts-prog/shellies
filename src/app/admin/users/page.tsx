@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useAccount } from 'wagmi';
+import { useRouter } from 'next/navigation';
 import { 
   Users, 
   Gift, 
@@ -15,7 +16,8 @@ import {
   Plus,
   Copy,
   Edit,
-  ExternalLink
+  ExternalLink,
+  Clock
 } from 'lucide-react';
 
 export default function AdminUsersPage() {
@@ -24,6 +26,7 @@ export default function AdminUsersPage() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const { data: session } = useSession();
   const { address } = useAccount();
+  const router = useRouter();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -260,28 +263,54 @@ export default function AdminUsersPage() {
             <ul className="space-y-1">
               {/* Raffles */}
               <li>
-                <a
-                  href="/admin/raffles"
+                <button
+                  onClick={() => router.push('/admin/raffles')}
                   className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
                     isDarkMode ? 'text-gray-400 hover:bg-gray-700 hover:text-gray-300' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                   }`}
                 >
                   <Gift className="w-5 h-5 mr-3" />
                   <span className="font-medium text-sm">Raffles</span>
-                </a>
+                </button>
               </li>
               
               {/* Users */}
               <li>
-                <a
-                  href="/admin/users"
+                <button
+                  onClick={() => router.push('/admin/users')}
                   className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
                     isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'
                   }`}
                 >
                   <Users className="w-5 h-5 mr-3" />
                   <span className="font-medium text-sm">Users</span>
-                </a>
+                </button>
+              </li>
+              
+              {/* Sessions */}
+              <li>
+                <button
+                  onClick={() => router.push('/admin/sessions')}
+                  className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
+                    isDarkMode ? 'text-gray-400 hover:bg-gray-700 hover:text-gray-300' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                  }`}
+                >
+                  <Clock className="w-5 h-5 mr-3" />
+                  <span className="font-medium text-sm">Sessions</span>
+                </button>
+              </li>
+              
+              {/* Withdrawals */}
+              <li>
+                <button
+                  onClick={() => router.push('/admin/withdrawals')}
+                  className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
+                    isDarkMode ? 'text-gray-400 hover:bg-gray-700 hover:text-gray-300' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                  }`}
+                >
+                  <Square className="w-5 h-5 mr-3" />
+                  <span className="font-medium text-sm">Withdrawals</span>
+                </button>
               </li>
               
               {/* Portal Link */}

@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
 }
 
 // POST /api/game-score
-// Update user's game score
+// Update user's game score (with session verification)
 export async function POST(request: NextRequest) {
   try {
     const body: GameScoreUpdate = await request.json();
@@ -76,6 +76,27 @@ export async function POST(request: NextRequest) {
     }
 
     const client = supabaseAdmin || supabase;
+
+    // SECURITY: Verify user has an active game session before accepting score
+    const { data: gameSession, error: sessionError } = await client
+      .from('shellies_raffle_game_sessions')
+      .select('id, is_active, expires_at')
+      .eq('wallet_address', walletAddress.toLowerCase())
+      .eq('is_active', true)
+      .gte('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (sessionError || !gameSession) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'No active game session found. Please pay to play first.' 
+        },
+        { status: 403 }
+      );
+    }
 
     // Try to call the update function first
     const { data: updateData, error: updateError } = await client

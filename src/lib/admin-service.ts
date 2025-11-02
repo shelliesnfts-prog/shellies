@@ -5,10 +5,12 @@ export class AdminService {
   static async isAdmin(walletAddress: string): Promise<boolean> {
     try {
       const client = supabaseAdmin || supabase;
+
+      // Use ilike for case-insensitive comparison
       const { data, error } = await client
         .from('shellies_raffle_admins')
         .select('id')
-        .eq('wallet_address', walletAddress)
+        .ilike('wallet_address', walletAddress)
         .eq('is_active', true)
         .single();
 
@@ -58,9 +60,9 @@ export class AdminService {
   static async toggleUserBlock(userId: string, blocked: boolean): Promise<boolean> {
     try {
       const client = supabaseAdmin || supabase;
-      
+
       // Use a negative points value to indicate blocked status
-      const updateData = blocked 
+      const updateData = blocked
         ? { points: -999999 } // Blocked indicator
         : { points: Math.max(0, Math.abs(Math.floor(Math.random() * 100))) }; // Unblock with random points
 
@@ -85,13 +87,13 @@ export class AdminService {
   static async updateUser(userId: string, updateData: { points?: number; status?: 'active' | 'blocked' }): Promise<boolean> {
     try {
       const client = supabaseAdmin || supabase;
-      
+
       const updates: any = {};
-      
+
       if (updateData.points !== undefined) {
         updates.points = updateData.points;
       }
-      
+
       if (updateData.status !== undefined) {
         // Use points to indicate status - negative for blocked, positive/zero for active
         if (updateData.status === 'blocked') {
@@ -123,7 +125,7 @@ export class AdminService {
   static async deleteUser(userId: string): Promise<boolean> {
     try {
       const client = supabaseAdmin || supabase;
-      
+
       const { error } = await client
         .from('shellies_raffle_users')
         .delete()
@@ -164,8 +166,8 @@ export class AdminService {
         return { raffles: [], total: 0, page: 1 };
       }
 
-      return { 
-        raffles: raffles || [], 
+      return {
+        raffles: raffles || [],
         total: count || 0,
         page: page
       };
@@ -179,7 +181,7 @@ export class AdminService {
   static async getAllRafflesLegacy(): Promise<Raffle[]> {
     try {
       const client = supabaseAdmin || supabase;
-      
+
       const { data: raffles, error } = await client
         .from('shellies_raffle_raffles')
         .select('*')
@@ -213,7 +215,7 @@ export class AdminService {
   }): Promise<Raffle | null> {
     try {
       const client = supabaseAdmin || supabase;
-      
+
       const { data: raffle, error } = await client
         .from('shellies_raffle_raffles')
         .insert([raffleData])
@@ -236,7 +238,7 @@ export class AdminService {
   static async updateRaffle(raffleId: string, raffleData: Partial<Raffle>): Promise<boolean> {
     try {
       const client = supabaseAdmin || supabase;
-      
+
       const { error } = await client
         .from('shellies_raffle_raffles')
         .update(raffleData)
@@ -257,14 +259,14 @@ export class AdminService {
   // End raffle by setting status to COMPLETED and calling smart contract (DEPRECATED - uses server wallet)
   static async endRaffleEarly(raffleId: string): Promise<{ success: boolean; txHash?: string; error?: string }> {
     console.warn('🚨 Using deprecated server wallet ending method. Consider using admin wallet ending instead.');
-    
+
     try {
       const client = supabaseAdmin || supabase;
-      
+
       // Step 1: Call smart contract to end raffle (picks winner and distributes prize)
       const { RaffleContractService } = await import('./raffle-contract');
       const contractResult = await RaffleContractService.serverEndRaffle(raffleId);
-      
+
       if (!contractResult.success) {
         console.error('Smart contract end raffle failed:', contractResult.error);
         return { success: false, error: contractResult.error };
@@ -273,7 +275,7 @@ export class AdminService {
       // Step 2: Update database status to COMPLETED (smart contract should have set this)
       const { error } = await client
         .from('shellies_raffle_raffles')
-        .update({ 
+        .update({
           status: 'COMPLETED',
           end_date: new Date().toISOString()
         })
@@ -302,7 +304,7 @@ export class AdminService {
   }> {
     try {
       const client = supabaseAdmin || supabase;
-      
+
       const { data: entries, error: entriesError } = await client
         .from('shellies_raffle_entries')
         .select('wallet_address, ticket_count')
@@ -345,7 +347,7 @@ export class AdminService {
   static async deleteRaffle(raffleId: string): Promise<boolean> {
     try {
       const client = supabaseAdmin || supabase;
-      
+
       const { error } = await client
         .from('shellies_raffle_raffles')
         .delete()
@@ -367,7 +369,7 @@ export class AdminService {
   static async getAdmins(): Promise<any[]> {
     try {
       const client = supabaseAdmin || supabase;
-      
+
       const { data: admins, error } = await client
         .from('shellies_raffle_admins')
         .select('*')
@@ -390,7 +392,7 @@ export class AdminService {
   static async addAdmin(walletAddress: string, createdBy: string): Promise<boolean> {
     try {
       const client = supabaseAdmin || supabase;
-      
+
       const { error } = await client
         .from('shellies_raffle_admins')
         .insert([{

@@ -17,6 +17,8 @@ export function useAccountMonitor() {
   // Track the last known address to detect changes
   const lastAddressRef = useRef<string | null>(null);
   const lastSessionAddressRef = useRef<string | null>(null);
+  const hasInitializedRef = useRef(false);
+  const wasConnectedRef = useRef(false);
 
   useEffect(() => {
     // Skip if session is still loading
@@ -27,9 +29,20 @@ export function useAccountMonitor() {
     const lastAddress = lastAddressRef.current?.toLowerCase();
     const lastSessionAddress = lastSessionAddressRef.current?.toLowerCase();
 
+    // Mark as initialized once we have a connected wallet or no session
+    if (!hasInitializedRef.current && (isConnected || !sessionAddress)) {
+      hasInitializedRef.current = true;
+      wasConnectedRef.current = isConnected;
+    }
+
     // Update refs with current values
     lastAddressRef.current = currentAddress || null;
     lastSessionAddressRef.current = sessionAddress || null;
+
+    // Skip all checks until we've initialized (prevents false positives during page load)
+    if (!hasInitializedRef.current) {
+      return;
+    }
 
     // Scenario 1: Wallet account switched while authenticated
     if (
@@ -49,10 +62,12 @@ export function useAccountMonitor() {
       return;
     }
 
-    // Scenario 2: Session exists but wallet is disconnected
+    // Scenario 2: Session exists but wallet was explicitly disconnected by user
+    // Only trigger if we were previously connected (prevents false positives on page load)
     if (
       sessionAddress &&
-      !isConnected
+      !isConnected &&
+      wasConnectedRef.current
     ) {
       console.log('Wallet disconnected, clearing session...');
       handleAccountSwitch();
@@ -60,9 +75,11 @@ export function useAccountMonitor() {
     }
 
     // Scenario 3: Session address doesn't match current wallet address
+    // Only check if wallet is actually connected (prevents false positives during connection)
     if (
       sessionAddress &&
       currentAddress &&
+      isConnected &&
       sessionAddress !== currentAddress
     ) {
       console.log('Address mismatch detected, clearing session...', {
@@ -73,6 +90,9 @@ export function useAccountMonitor() {
       handleAccountSwitch();
       return;
     }
+
+    // Update connection state tracking
+    wasConnectedRef.current = isConnected;
 
   }, [address, session, status, isConnected]);
 

@@ -4,9 +4,10 @@ import { useState, useRef, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Gamepad2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Trophy } from 'lucide-react';
+import { Gamepad2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Trophy, AlertCircle } from 'lucide-react';
 import { useGameScore } from '@/hooks/useGameScore';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useGamePayment } from '@/hooks/useGamePayment';
 import GameWalletPrompt from './GameWalletPrompt';
 
 export default function MarioGameConsoleV2() {
@@ -18,8 +19,10 @@ export default function MarioGameConsoleV2() {
 
   const [gameStarted, setGameStarted] = useState(false);
   const [levelInput, setLevelInput] = useState('');
+  const [showPaymentExpired, setShowPaymentExpired] = useState(false);
 
   const { bestScore, updateScore, isLoading: scoreLoading } = useGameScore();
+  const { clearPaymentSession, checkPaymentStatus } = useGamePayment();
 
   // Handle postMessage events from game iframe
   useEffect(() => {
@@ -32,6 +35,7 @@ export default function MarioGameConsoleV2() {
       switch (type) {
         case 'GAME_STARTED':
           setGameStarted(true);
+          setShowPaymentExpired(false);
           // Send best score to game
           if (iframeRef.current?.contentWindow) {
             iframeRef.current.contentWindow.postMessage(
@@ -46,6 +50,12 @@ export default function MarioGameConsoleV2() {
           if (coins > bestScore) {
             updateScore(coins, true);
           }
+          
+          // Clear payment session on game over
+          clearPaymentSession();
+          
+          // Show payment expired indicator
+          setShowPaymentExpired(true);
           break;
 
         case 'LEVEL_COMPLETED':
@@ -73,7 +83,26 @@ export default function MarioGameConsoleV2() {
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [bestScore, updateScore, router]);
+  }, [bestScore, updateScore, router, clearPaymentSession]);
+
+  // Listen for payment required events (from score submission failures)
+  useEffect(() => {
+    const handlePaymentRequired = (event: CustomEvent) => {
+      console.log('Payment required - session expired during gameplay');
+      // Show payment expired banner
+      setShowPaymentExpired(true);
+      // Clear payment session
+      clearPaymentSession();
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('paymentRequired', handlePaymentRequired as EventListener);
+      
+      return () => {
+        window.removeEventListener('paymentRequired', handlePaymentRequired as EventListener);
+      };
+    }
+  }, [clearPaymentSession]);
 
   // Handle level navigation
   const handleLevelNavigation = () => {
@@ -159,11 +188,42 @@ export default function MarioGameConsoleV2() {
           }`}>
           <Trophy className="w-5 h-5 text-yellow-500" />
           <div>
-            <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Your Best Score</p>
+            <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Your Best XP</p>
             <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{bestScore}</p>
           </div>
         </div>
       </div>
+
+      {/* Payment Expired Banner */}
+      {showPaymentExpired && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`rounded-xl border p-4 mb-4 ${
+            isDarkMode
+              ? 'bg-yellow-900/20 border-yellow-700/50'
+              : 'bg-yellow-50 border-yellow-200'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className={`font-semibold ${isDarkMode ? 'text-yellow-400' : 'text-yellow-800'}`}>
+                Payment Required
+              </h3>
+              <p className={`text-sm ${isDarkMode ? 'text-yellow-300' : 'text-yellow-700'}`}>
+                Your game session has ended. Please refresh the page and make a new payment to play again.
+              </p>
+            </div>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 rounded-lg font-medium text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 transition-all duration-200 transform hover:scale-105 flex-shrink-0"
+            >
+              Refresh
+            </button>
+          </div>
+        </motion.div>
+      )}
 
       {/* Game Console */}
       <div className={`rounded-2xl border overflow-hidden transition-all duration-300 ${isDarkMode

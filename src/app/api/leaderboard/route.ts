@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UserService } from '@/lib/user-service';
 
+// Backward compatibility: redirect to points leaderboard
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);

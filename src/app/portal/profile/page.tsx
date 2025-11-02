@@ -13,6 +13,7 @@ import { ProfilePageSkeleton } from '@/components/portal/ProfilePageSkeleton';
 import { useRouter } from 'next/navigation';
 import { usePathname } from 'next/navigation';
 import { Trophy, Coins, Gift, TrendingUp, ArrowRight, Sparkles, Target, Zap, Clock, Calendar, CalendarDays, ExternalLink, Layers } from 'lucide-react';
+import XPBridge from '@/components/XPBridge';
 
 export default function ProfilePage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -73,6 +74,10 @@ export default function ProfilePage() {
     await executeUnifiedClaim();
   };
 
+  const handleConversionComplete = async (newXP: number, newPoints: number) => {
+    // Refresh user data to get updated XP and points from database
+    await refreshWithFreshData();
+  };
 
   const handleOpenNFTCollection = () => {
     // Open Shellies NFT collection in Ink blockchain explorer in a new tab
@@ -136,8 +141,8 @@ export default function ProfilePage() {
                   </p>
                 </div>
                 <div className={`px-3 py-1 rounded-full border ${isDarkMode
-                    ? 'bg-gray-800 border-gray-600 text-gray-300'
-                    : 'bg-gray-50 border-gray-200 text-gray-600'
+                  ? 'bg-gray-800 border-gray-600 text-gray-300'
+                  : 'bg-gray-50 border-gray-200 text-gray-600'
                   }`}>
                   <span className="text-xs font-medium">
                     {walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : 'Not connected'}
@@ -148,8 +153,8 @@ export default function ProfilePage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                 {/* NFT Holdings Card */}
                 <div className={`h-fit group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-lg hover:-translate-y-1 ${isDarkMode
-                    ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 hover:border-purple-500'
-                    : 'bg-gradient-to-br from-white to-gray-50 border-gray-200 hover:border-purple-300'
+                  ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 hover:border-purple-500'
+                  : 'bg-gradient-to-br from-white to-gray-50 border-gray-200 hover:border-purple-300'
                   }`}>
                   <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                   <div className="relative p-5">
@@ -179,8 +184,8 @@ export default function ProfilePage() {
 
                 {/* 1 Day Staked NFTs */}
                 <div className={`h-fit group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-lg hover:-translate-y-1 ${isDarkMode
-                    ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 hover:border-yellow-500'
-                    : 'bg-gradient-to-br from-white to-yellow-50/30 border-yellow-200/60 hover:border-yellow-300'
+                  ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 hover:border-yellow-500'
+                  : 'bg-gradient-to-br from-white to-yellow-50/30 border-yellow-200/60 hover:border-yellow-300'
                   }`}>
                   <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                   <div className="relative p-5">
@@ -212,8 +217,8 @@ export default function ProfilePage() {
 
                 {/* 1 Week Staked NFTs */}
                 <div className={`h-fit group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-lg hover:-translate-y-1 ${isDarkMode
-                    ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 hover:border-blue-500'
-                    : 'bg-gradient-to-br from-white to-blue-50/30 border-blue-200/60 hover:border-blue-300'
+                  ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 hover:border-blue-500'
+                  : 'bg-gradient-to-br from-white to-blue-50/30 border-blue-200/60 hover:border-blue-300'
                   }`}>
                   <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                   <div className="relative p-5">
@@ -245,8 +250,8 @@ export default function ProfilePage() {
 
                 {/* 1 Month Staked NFTs */}
                 <div className={`h-fit group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-lg hover:-translate-y-1 ${isDarkMode
-                    ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 hover:border-green-500'
-                    : 'bg-gradient-to-br from-white to-green-50/30 border-green-200/60 hover:border-green-300'
+                  ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 hover:border-green-500'
+                  : 'bg-gradient-to-br from-white to-green-50/30 border-green-200/60 hover:border-green-300'
                   }`}>
                   <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                   <div className="relative p-5">
@@ -279,8 +284,8 @@ export default function ProfilePage() {
                 {/* Unified Daily Claim Card */}
                 <div className="sm:col-span-4 col-span-2">
                   <div className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-lg ${isDarkMode
-                      ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
-                      : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
+                    ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
+                    : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
                     }`}>
                     <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-pink-500/5 to-transparent" />
                     <div className="relative p-6">
@@ -316,8 +321,8 @@ export default function ProfilePage() {
                                   Total: {((nftCount * 5) + (claimStatus?.stakingPoints || 0) || (nftCount === 0 ? 1 : 0)).toFixed(1)} points
                                 </span>
                                 <div className={`flex items-center space-x-1 text-xs ${claimStatus?.canClaim
-                                    ? 'text-green-600'
-                                    : isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                  ? 'text-green-600'
+                                  : isDarkMode ? 'text-gray-400' : 'text-gray-500'
                                   }`}>
                                   <div className={`w-1.5 h-1.5 rounded-full mr-2 ${claimStatus?.canClaim ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
                                     }`} />
@@ -366,14 +371,35 @@ export default function ProfilePage() {
                 </div>
               </div>
 
+              {/* XP Bridge Section */}
+              <div className="w-full">
+                {userLoading ? (
+                  <div className="space-y-4">
+                    <div className={`h-32 rounded-xl animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
+                    <div className={`h-16 rounded-xl animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
+                    <div className={`h-12 rounded-xl animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
+                  </div>
+                ) : user ? (
+                  <XPBridge
+                    currentXP={user.game_score || 0}
+                    currentPoints={user.points || 0}
+                    onConversionComplete={handleConversionComplete}
+                  />
+                ) : (
+                  <div className={`text-center py-8 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    Unable to load XP Bridge. Please connect your wallet.
+                  </div>
+                )}
+              </div>
+
               {/* Navigation Actions */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                 {/* Staking Page Link */}
                 <div
                   onClick={handleNavigateToStaking}
                   className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-xl hover:-translate-y-2 cursor-pointer ${isDarkMode
-                      ? 'bg-gradient-to-br from-blue-900/40 to-blue-800/40 border-blue-700/50 hover:border-blue-500'
-                      : 'bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200 hover:border-blue-400'
+                    ? 'bg-gradient-to-br from-blue-900/40 to-blue-800/40 border-blue-700/50 hover:border-blue-500'
+                    : 'bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200 hover:border-blue-400'
                     }`}>
                   <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                   <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-400/20 to-transparent rounded-full -translate-y-16 translate-x-16 group-hover:scale-150 transition-transform duration-500" />
@@ -394,8 +420,8 @@ export default function ProfilePage() {
                         Stake your NFTs and earn up to 20x rewards! Lock your Shellies for higher multipliers.
                       </p>
                       <div className={`inline-flex items-center space-x-1 text-xs font-medium px-3 py-1 rounded-full ${isDarkMode
-                          ? 'bg-blue-500/20 text-blue-300'
-                          : 'bg-blue-200/60 text-blue-700'
+                        ? 'bg-blue-500/20 text-blue-300'
+                        : 'bg-blue-200/60 text-blue-700'
                         }`}>
                         <Sparkles className="w-3 h-3" />
                         <span>Boost Your Earnings</span>
@@ -408,8 +434,8 @@ export default function ProfilePage() {
                 <div
                   onClick={handleOpenNFTCollection}
                   className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-xl hover:-translate-y-2 cursor-pointer ${isDarkMode
-                      ? 'bg-gradient-to-br from-purple-900/40 to-pink-800/40 border-purple-700/50 hover:border-purple-500'
-                      : 'bg-gradient-to-br from-purple-50 to-pink-100/50 border-purple-200 hover:border-purple-400'
+                    ? 'bg-gradient-to-br from-purple-900/40 to-pink-800/40 border-purple-700/50 hover:border-purple-500'
+                    : 'bg-gradient-to-br from-purple-50 to-pink-100/50 border-purple-200 hover:border-purple-400'
                     }`}>
                   <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                   <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-400/20 to-transparent rounded-full -translate-y-16 translate-x-16 group-hover:scale-150 transition-transform duration-500" />
@@ -430,8 +456,8 @@ export default function ProfilePage() {
                         View the complete Shellies NFT collection on Ink blockchain explorer and track activity.
                       </p>
                       <div className={`inline-flex items-center space-x-1 text-xs font-medium px-3 py-1 rounded-full ${isDarkMode
-                          ? 'bg-purple-500/20 text-purple-300'
-                          : 'bg-purple-200/60 text-purple-700'
+                        ? 'bg-purple-500/20 text-purple-300'
+                        : 'bg-purple-200/60 text-purple-700'
                         }`}>
                         <Target className="w-3 h-3" />
                         <span>View on Explorer</span>
@@ -444,8 +470,8 @@ export default function ProfilePage() {
               {/* Error Display */}
               {claimError && (
                 <div className={`p-4 rounded-xl border ${isDarkMode
-                    ? 'bg-red-900/20 border-red-800 text-red-300'
-                    : 'bg-red-50 border-red-200 text-red-700'
+                  ? 'bg-red-900/20 border-red-800 text-red-300'
+                  : 'bg-red-50 border-red-200 text-red-700'
                   }`}>
                   <div className="flex items-center space-x-2">
                     <div className="w-1.5 h-1.5 bg-red-500 rounded-full" />

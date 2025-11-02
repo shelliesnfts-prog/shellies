@@ -220,6 +220,22 @@ html {
   50% { box-shadow: 0 0 30px rgba(110, 54, 228, 0.6); }
 }
 
+/* Pulsing glow animation for rank 1 badge */
+.animate-pulse-glow {
+  animation: rank-pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes rank-pulse-glow {
+  0%, 100% { 
+    box-shadow: 0 4px 20px rgba(234, 179, 8, 0.5), 0 0 30px rgba(245, 158, 11, 0.3);
+    transform: scale(1);
+  }
+  50% { 
+    box-shadow: 0 6px 30px rgba(234, 179, 8, 0.8), 0 0 50px rgba(245, 158, 11, 0.5);
+    transform: scale(1.05);
+  }
+}
+
 /* Shine animation for claim button */
 @keyframes shine {
   0% { transform: translateX(-200%) skewX(-12deg); }
@@ -267,6 +283,125 @@ html {
   background: #1a1625;
 }
 
+/* Screen reader only utility class */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Futuristic Grid Pattern */
+.bg-grid-pattern {
+  background-image: 
+    linear-gradient(rgba(168, 85, 247, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(168, 85, 247, 0.1) 1px, transparent 1px);
+  background-size: 50px 50px;
+  animation: grid-move 20s linear infinite;
+}
+
+@keyframes grid-move {
+  0% { background-position: 0 0; }
+  100% { background-position: 50px 50px; }
+}
+
+/* Animated Gradient Background */
+@keyframes gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-gradient {
+  animation: gradient 3s ease infinite;
+}
+
+/* Slow Spin Animation */
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 20s linear infinite;
+}
+
+/* Slow Pulse Animation */
+@keyframes pulse-slow {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.05); }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 4s ease-in-out infinite;
+}
+
+/* Float Animation */
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-20px) rotate(5deg); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* Holographic Effect */
+.holographic {
+  background: linear-gradient(
+    135deg,
+    rgba(168, 85, 247, 0.3) 0%,
+    rgba(236, 72, 153, 0.3) 25%,
+    rgba(59, 130, 246, 0.3) 50%,
+    rgba(236, 72, 153, 0.3) 75%,
+    rgba(168, 85, 247, 0.3) 100%
+  );
+  background-size: 200% 200%;
+  animation: holographic-shift 3s ease infinite;
+}
+
+@keyframes holographic-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Neon Glow */
+.neon-glow {
+  text-shadow: 
+    0 0 10px rgba(168, 85, 247, 0.8),
+    0 0 20px rgba(168, 85, 247, 0.6),
+    0 0 30px rgba(168, 85, 247, 0.4),
+    0 0 40px rgba(168, 85, 247, 0.2);
+}
+
+/* Cyber Border */
+.cyber-border {
+  position: relative;
+  border: 2px solid transparent;
+  background: linear-gradient(#0a0118, #0a0118) padding-box,
+              linear-gradient(135deg, #a855f7, #ec4899, #3b82f6) border-box;
+}
+
+/* Glitch Effect */
+@keyframes glitch {
+  0% { transform: translate(0); }
+  20% { transform: translate(-2px, 2px); }
+  40% { transform: translate(-2px, -2px); }
+  60% { transform: translate(2px, 2px); }
+  80% { transform: translate(2px, -2px); }
+  100% { transform: translate(0); }
+}
+
+.glitch:hover {
+  animation: glitch 0.3s ease-in-out;
+}
+
 /* Mobile optimizations */
 @media (max-width: 768px) {
   .btn-primary, .btn-secondary {
@@ -277,5 +412,9 @@ html {
   .modern-card {
     border-radius: 20px;
     margin: 0 4px;
+  }
+  
+  .bg-grid-pattern {
+    background-size: 30px 30px;
   }
 }

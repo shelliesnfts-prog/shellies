@@ -115,6 +115,24 @@ export function useGameScore(): UseGameScoreReturn {
         }),
       });
 
+      // Handle 403 Forbidden - payment session expired
+      if (response.status === 403) {
+        const errorData = await response.json();
+        setError('PAYMENT_REQUIRED'); // Special error code
+        
+        // Dispatch custom event to trigger payment modal
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('paymentRequired', {
+            detail: { 
+              message: errorData.error || 'Payment required to submit score',
+              score 
+            }
+          }));
+        }
+        
+        return false;
+      }
+
       if (!response.ok) {
         throw new Error('Failed to update game score');
       }
