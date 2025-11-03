@@ -282,7 +282,7 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Unified Daily Claim Card */}
-                <div className="sm:col-span-4 col-span-2">
+                <div className="sm:col-span-2 col-span-1">
                   <div className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-lg ${isDarkMode
                     ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
                     : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
@@ -369,27 +369,25 @@ export default function ProfilePage() {
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* XP Bridge Section */}
-              <div className="w-full">
-                {userLoading ? (
-                  <div className="space-y-4">
-                    <div className={`h-32 rounded-xl animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
-                    <div className={`h-16 rounded-xl animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
-                    <div className={`h-12 rounded-xl animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
-                  </div>
-                ) : user ? (
-                  <XPBridge
-                    currentXP={user.game_score || 0}
-                    currentPoints={user.points || 0}
-                    onConversionComplete={handleConversionComplete}
-                  />
-                ) : (
-                  <div className={`text-center py-8 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                    Unable to load XP Bridge. Please connect your wallet.
-                  </div>
-                )}
+                {/* XP Bridge Card */}
+                <div className="sm:col-span-2 col-span-1 h-full">
+                  {userLoading ? (
+                    <div className={`h-full rounded-2xl animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
+                  ) : user ? (
+                    <div className="h-full">
+                      <XPBridge
+                        currentXP={user.game_score || 0}
+                        currentPoints={user.points || 0}
+                        onConversionComplete={handleConversionComplete}
+                      />
+                    </div>
+                  ) : (
+                    <div className={`h-full flex items-center justify-center rounded-2xl border ${isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-400' : 'bg-white border-gray-200 text-gray-500'}`}>
+                      <p className="text-xs">Unable to load XP Bridge</p>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Navigation Actions */}

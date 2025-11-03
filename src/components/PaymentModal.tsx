@@ -30,7 +30,7 @@ interface PaymentModalProps {
   onClose: () => void;
   onPaymentSuccess: () => void;
   requiredAmount: bigint; // in wei
-  usdAmount: number; // 0.04
+  usdAmount?: number; // Optional, will be calculated from ETH price
   onInitiatePayment: () => Promise<boolean>;
   paymentLoading: boolean;
   paymentError: string | null;
@@ -39,6 +39,7 @@ interface PaymentModalProps {
   transactionHash?: string | null;
   sessionCreating?: boolean;  // New prop for session creation state
   sessionCreated?: boolean;   // New prop for session created state
+  ethPrice?: number | null;   // ETH price for USD conversion
 }
 
 /**
@@ -67,6 +68,7 @@ export default function PaymentModal({
   transactionHash,
   sessionCreating = false,
   sessionCreated = false,
+  ethPrice = null,
 }: PaymentModalProps) {
   const { address, isConnected, chain } = useAccount();
   const { switchChain } = useSwitchChain();
@@ -190,8 +192,15 @@ export default function PaymentModal({
    * Format ETH amount for display
    */
   const formattedEth = requiredAmount > BigInt(0) 
-    ? parseFloat(formatEther(requiredAmount)).toFixed(6)
-    : '0.000000';
+    ? parseFloat(formatEther(requiredAmount)).toFixed(8)
+    : '0.00000000';
+
+  /**
+   * Calculate USD amount from ETH price
+   */
+  const calculatedUsdAmount = ethPrice && requiredAmount > BigInt(0)
+    ? GamePaymentService.convertEthToUsd(requiredAmount, ethPrice)
+    : usdAmount || 0;
 
   /**
    * Get status icon based on payment status
@@ -381,8 +390,13 @@ export default function PaymentModal({
                   <div className="text-center">
                     <p className={`text-sm mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Amount</p>
                     <p className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                      ${usdAmount.toFixed(2)}
+                      ${calculatedUsdAmount.toFixed(4)}
                     </p>
+                    {ethPrice && (
+                      <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                        ETH Price: ${ethPrice.toLocaleString()}
+                      </p>
+                    )}
                   </div>
 
                   {/* Divider */}

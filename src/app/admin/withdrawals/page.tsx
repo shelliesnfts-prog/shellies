@@ -6,6 +6,7 @@ import { useSession, signOut } from 'next-auth/react';
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { GAME_PAYMENT_CONTRACT, GamePaymentService } from '@/lib/contracts';
 import { PriceOracle } from '@/lib/price-oracle';
+import EthUsdConverter from '@/components/EthUsdConverter';
 import {
   Users,
   Gift,
@@ -16,7 +17,8 @@ import {
   MoreHorizontal,
   ExternalLink,
   RefreshCw,
-  Clock
+  Clock,
+  Settings
 } from 'lucide-react';
 
 export default function WithdrawalsPage() {
@@ -31,11 +33,13 @@ export default function WithdrawalsPage() {
   // Balance and price state
   const [ethPrice, setEthPrice] = useState<number | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
+  const [showUpdateAmountModal, setShowUpdateAmountModal] = useState<boolean>(false);
+  const [newPaymentAmount, setNewPaymentAmount] = useState<bigint>(BigInt(0));
 
   // Get wallet address
   const walletAddress = address || session?.address || '';
 
-  // Contract balance reading
+  // Contract balance reading - disable auto-polling to prevent rate limits
   const {
     data: contractBalance,
     isLoading: balanceLoading,
@@ -44,6 +48,23 @@ export default function WithdrawalsPage() {
     address: GAME_PAYMENT_CONTRACT.address,
     abi: GAME_PAYMENT_CONTRACT.abi,
     functionName: 'getBalance',
+    query: {
+      refetchInterval: false, // Disable automatic polling
+    }
+  });
+
+  // Read current payment amount - disable auto-polling to prevent rate limits
+  const {
+    data: currentPaymentAmount,
+    isLoading: paymentAmountLoading,
+    refetch: refetchPaymentAmount
+  } = useReadContract({
+    address: GAME_PAYMENT_CONTRACT.address,
+    abi: GAME_PAYMENT_CONTRACT.abi,
+    functionName: 'getPaymentAmount',
+    query: {
+      refetchInterval: false, // Disable automatic polling
+    }
   });
 
   // Withdrawal transaction
@@ -54,6 +75,14 @@ export default function WithdrawalsPage() {
     error: withdrawError,
   } = useWriteContract();
 
+  // Update payment amount transaction
+  const {
+    writeContract: writeUpdateAmount,
+    data: updateAmountHash,
+    isPending: isUpdateAmountPending,
+    error: updateAmountError,
+  } = useWriteContract();
+
   // Transaction confirmation
   const {
     isLoading: isConfirming,
@@ -61,6 +90,15 @@ export default function WithdrawalsPage() {
     error: confirmError,
   } = useWaitForTransactionReceipt({
     hash: withdrawHash,
+  });
+
+  // Update amount transaction confirmation
+  const {
+    isLoading: isUpdateAmountConfirming,
+    isSuccess: isUpdateAmountSuccess,
+    error: updateAmountConfirmError,
+  } = useWaitForTransactionReceipt({
+    hash: updateAmountHash,
   });
 
 
@@ -76,16 +114,8 @@ export default function WithdrawalsPage() {
     fetchPrice();
   }, []);
 
-  /**
-   * Auto-refresh balance every 30 seconds
-   */
-  useEffect(() => {
-    const interval = setInterval(() => {
-      refetchBalance();
-    }, 30000); // 30 seconds
-
-    return () => clearInterval(interval);
-  }, [refetchBalance]);
+  // Removed auto-refresh to prevent RPC rate limiting
+  // Users can manually refresh using the refresh buttons
 
   /**
    * Refresh balance after successful withdrawal
@@ -96,6 +126,16 @@ export default function WithdrawalsPage() {
       setShowConfirmModal(false);
     }
   }, [isWithdrawSuccess, refetchBalance]);
+
+  /**
+   * Refresh payment amount after successful update
+   */
+  useEffect(() => {
+    if (isUpdateAmountSuccess) {
+      refetchPaymentAmount();
+      setShowUpdateAmountModal(false);
+    }
+  }, [isUpdateAmountSuccess, refetchPaymentAmount]);
 
   /**
    * Handle withdrawal execution
@@ -113,6 +153,26 @@ export default function WithdrawalsPage() {
       });
     } catch (error) {
       console.error('Error initiating withdrawal:', error);
+    }
+  };
+
+  /**
+   * Handle payment amount update
+   */
+  const handleUpdatePaymentAmount = () => {
+    if (!newPaymentAmount || newPaymentAmount === BigInt(0)) {
+      return;
+    }
+
+    try {
+      writeUpdateAmount({
+        address: GAME_PAYMENT_CONTRACT.address,
+        abi: GAME_PAYMENT_CONTRACT.abi,
+        functionName: 'updatePaymentAmount',
+        args: [newPaymentAmount],
+      });
+    } catch (error) {
+      console.error('Error updating payment amount:', error);
     }
   };
 
@@ -321,126 +381,183 @@ export default function WithdrawalsPage() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col lg:ml-4">
         {/* Content Area */}
-        <main className="flex-1 p-3 lg:p-6 mt-16 lg:mt-0" style={{ marginLeft: '150px', marginRight: '150px' }}>
-          <div className="space-y-6">
+        <main className="flex-1 p-3 lg:p-6 mt-16 lg:mt-0">
+          <div className="space-y-4 max-w-7xl mx-auto">
             <div>
               <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Contract Withdrawals</h1>
               <p className={`text-sm mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Manage funds collected from game payments</p>
             </div>
 
-            {/* Contract Info Card */}
-            <div className={`rounded-2xl shadow-sm border p-6 ${isDarkMode
+            {/* Contract Info Card - Full Width */}
+            <div className={`rounded-xl shadow-sm border p-4 ${isDarkMode
               ? 'bg-gray-800 border-gray-700'
               : 'bg-white border-gray-200'
               }`}>
-              <h2 className={`text-lg font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Contract Information</h2>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Contract Address:</span>
+              <h2 className={`text-sm font-semibold mb-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Contract Information</h2>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className={`block mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Contract:</span>
                   <a
                     href={GamePaymentService.getContractExplorerUrl()}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-purple-600 hover:text-purple-700 font-mono text-sm flex items-center gap-1"
+                    className="text-purple-600 hover:text-purple-700 font-mono flex items-center gap-1"
                   >
                     {GAME_PAYMENT_CONTRACT.address.slice(0, 6)}...{GAME_PAYMENT_CONTRACT.address.slice(-4)}
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Owner Address:</span>
-                  <span className={`font-mono text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                <div>
+                  <span className={`block mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Owner:</span>
+                  <span className={`font-mono ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {address?.slice(0, 6)}...{address?.slice(-4)}
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Balance Card */}
-            <div className={`rounded-2xl shadow-sm border p-8 ${isDarkMode
-              ? 'bg-gradient-to-br from-purple-900/30 to-pink-900/30 border-purple-700/50'
-              : 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200'
-              }`}>
-              <div className="flex justify-between items-start mb-6">
-                <div>
-                  <h2 className={`text-xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Contract Balance</h2>
-                  <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Available funds for withdrawal</p>
+            {/* 2-Column Grid Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Payment Amount Management Card */}
+              <div className={`rounded-xl shadow-sm border p-4 ${isDarkMode
+                ? 'bg-gray-800 border-gray-700'
+                : 'bg-white border-gray-200'
+                }`}>
+                <div className="flex justify-between items-center mb-3">
+                  <h2 className={`text-sm font-semibold flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    <Settings className="w-4 h-4" />
+                    Payment Amount
+                  </h2>
+                  <button
+                    onClick={() => refetchPaymentAmount()}
+                    disabled={paymentAmountLoading}
+                    className={`p-1.5 rounded-lg transition-colors disabled:opacity-50 ${isDarkMode
+                      ? 'text-purple-400 hover:bg-gray-700'
+                      : 'text-purple-600 hover:bg-purple-100'
+                      }`}
+                    title="Refresh"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${paymentAmountLoading ? 'animate-spin' : ''}`} />
+                  </button>
                 </div>
-                <button
-                  onClick={() => refetchBalance()}
-                  disabled={balanceLoading}
-                  className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${isDarkMode
-                    ? 'text-purple-400 hover:bg-gray-700'
-                    : 'text-purple-600 hover:bg-purple-100'
-                    }`}
-                  title="Refresh balance"
-                >
-                  <RefreshCw className={`w-5 h-5 ${balanceLoading ? 'animate-spin' : ''}`} />
-                </button>
-              </div>
 
-              {balanceLoading ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div>
-                    <div className={`text-4xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                      {getEthBalance()} ETH
-                    </div>
-                    <div className={`text-xl ${isDarkMode ? 'text-purple-300' : 'text-purple-600'}`}>
-                      ≈ ${getUsdValue()} USD
-                    </div>
+                {paymentAmountLoading ? (
+                  <div className="text-center py-3">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-600 mx-auto"></div>
                   </div>
-
-                  {ethPrice && (
-                    <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                      ETH Price: ${ethPrice.toLocaleString()}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Withdrawal Button */}
-            <div className={`rounded-2xl shadow-sm border p-6 ${isDarkMode
-              ? 'bg-gray-800 border-gray-700'
-              : 'bg-white border-gray-200'
-              }`}>
-              <h2 className={`text-lg font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Withdraw Funds</h2>
-              <p className={`text-sm mb-6 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Transfer all collected funds to your owner wallet. This action cannot be undone.
-              </p>
-
-              <button
-                onClick={() => setShowConfirmModal(true)}
-                disabled={!contractBalance || contractBalance === BigInt(0) || isWithdrawPending || isConfirming}
-                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-medium transition-all duration-200"
-              >
-                {isWithdrawPending || isConfirming ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                    {isWithdrawPending ? 'Initiating Withdrawal...' : 'Confirming Transaction...'}
-                  </span>
-                ) : contractBalance === BigInt(0) ? (
-                  'No Funds to Withdraw'
                 ) : (
-                  'Withdraw All Funds'
+                  <div className="space-y-3">
+                    <div className={`rounded-lg p-3 border ${
+                      isDarkMode 
+                        ? 'bg-gradient-to-br from-purple-900/40 to-pink-900/40 border-purple-700/50' 
+                        : 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className={`text-xs mb-0.5 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            Current Amount
+                          </p>
+                          <p className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                            {currentPaymentAmount ? GamePaymentService.formatEthWithDecimals(currentPaymentAmount, 8) : '0.00000000'} ETH
+                          </p>
+                        </div>
+                        {ethPrice && currentPaymentAmount && (
+                          <p className={`text-sm font-medium ${isDarkMode ? 'text-purple-300' : 'text-purple-600'}`}>
+                            ${GamePaymentService.convertEthToUsd(currentPaymentAmount, ethPrice).toFixed(4)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setShowUpdateAmountModal(true)}
+                      className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200"
+                    >
+                      Update Amount
+                    </button>
+                  </div>
                 )}
-              </button>
+              </div>
+
+              {/* Balance Card */}
+              <div className={`rounded-xl shadow-sm border p-4 ${isDarkMode
+                ? 'bg-gradient-to-br from-purple-900/30 to-pink-900/30 border-purple-700/50'
+                : 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200'
+                }`}>
+                <div className="flex justify-between items-center mb-3">
+                  <h2 className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Contract Balance</h2>
+                  <button
+                    onClick={() => refetchBalance()}
+                    disabled={balanceLoading}
+                    className={`p-1.5 rounded-lg transition-colors disabled:opacity-50 ${isDarkMode
+                      ? 'text-purple-400 hover:bg-gray-700'
+                      : 'text-purple-600 hover:bg-purple-100'
+                      }`}
+                    title="Refresh"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${balanceLoading ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+
+                {balanceLoading ? (
+                  <div className="text-center py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600 mx-auto"></div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {getEthBalance()} ETH
+                        </div>
+                        <div className={`text-sm ${isDarkMode ? 'text-purple-300' : 'text-purple-600'}`}>
+                          ≈ ${getUsdValue()} USD
+                        </div>
+                      </div>
+                      {ethPrice && (
+                        <div className={`text-xs text-right ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                          ETH: ${ethPrice.toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => setShowConfirmModal(true)}
+                      disabled={!contractBalance || contractBalance === BigInt(0) || isWithdrawPending || isConfirming}
+                      className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200"
+                    >
+                      {isWithdrawPending || isConfirming ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          {isWithdrawPending ? 'Initiating...' : 'Confirming...'}
+                        </span>
+                      ) : contractBalance === BigInt(0) ? (
+                        'No Funds Available'
+                      ) : (
+                        'Withdraw All Funds'
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Transaction Status */}
             {(withdrawError || confirmError || isWithdrawSuccess) && (
-              <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
+              <div className={`rounded-xl shadow-sm border p-4 ${isDarkMode
+                ? 'bg-gray-800 border-gray-700'
+                : 'bg-white border-gray-200'
+                }`}>
                 {withdrawError && (
-                  <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 mb-4">
-                    <div className="flex items-start gap-3">
-                      <span className="text-2xl">❌</span>
+                  <div className={`rounded-lg p-3 border mb-3 ${isDarkMode
+                    ? 'bg-red-900/20 border-red-800'
+                    : 'bg-red-50 border-red-200'
+                    }`}>
+                    <div className="flex items-start gap-2">
+                      <X className={`w-4 h-4 mt-0.5 ${isDarkMode ? 'text-red-400' : 'text-red-600'}`} />
                       <div>
-                        <h3 className="text-white font-bold mb-1">Withdrawal Failed</h3>
-                        <p className="text-red-200 text-sm">
+                        <h3 className={`text-sm font-semibold mb-1 ${isDarkMode ? 'text-red-300' : 'text-red-800'}`}>Withdrawal Failed</h3>
+                        <p className={`text-xs ${isDarkMode ? 'text-red-400' : 'text-red-700'}`}>
                           {withdrawError.message.includes('User rejected')
                             ? 'Transaction was cancelled'
                             : 'Transaction failed. Please try again.'}
@@ -451,53 +568,15 @@ export default function WithdrawalsPage() {
                 )}
 
                 {confirmError && (
-                  <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 mb-4">
-                    <div className="flex items-start gap-3">
-                      <span className="text-2xl">❌</span>
-                      <div>
-                        <h3 className="text-white font-bold mb-1">Confirmation Failed</h3>
-                        <p className="text-red-200 text-sm">
-                          Transaction confirmation failed. Please check the blockchain explorer.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Transaction Status */}
-            {(withdrawError || confirmError || isWithdrawSuccess) && (
-              <div className="space-y-4">
-                {withdrawError && (
-                  <div className={`rounded-2xl shadow-sm border p-4 ${isDarkMode
+                  <div className={`rounded-lg p-3 border mb-3 ${isDarkMode
                     ? 'bg-red-900/20 border-red-800'
                     : 'bg-red-50 border-red-200'
                     }`}>
-                    <div className="flex items-start gap-3">
-                      <X className={`w-5 h-5 ${isDarkMode ? 'text-red-400' : 'text-red-600'}`} />
+                    <div className="flex items-start gap-2">
+                      <X className={`w-4 h-4 mt-0.5 ${isDarkMode ? 'text-red-400' : 'text-red-600'}`} />
                       <div>
-                        <h3 className={`font-bold mb-1 ${isDarkMode ? 'text-red-300' : 'text-red-800'}`}>Withdrawal Failed</h3>
-                        <p className={`text-sm ${isDarkMode ? 'text-red-400' : 'text-red-700'}`}>
-                          {withdrawError.message.includes('User rejected')
-                            ? 'Transaction was cancelled'
-                            : 'Transaction failed. Please try again.'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {confirmError && (
-                  <div className={`rounded-2xl shadow-sm border p-4 ${isDarkMode
-                    ? 'bg-red-900/20 border-red-800'
-                    : 'bg-red-50 border-red-200'
-                    }`}>
-                    <div className="flex items-start gap-3">
-                      <X className={`w-5 h-5 ${isDarkMode ? 'text-red-400' : 'text-red-600'}`} />
-                      <div>
-                        <h3 className={`font-bold mb-1 ${isDarkMode ? 'text-red-300' : 'text-red-800'}`}>Confirmation Failed</h3>
-                        <p className={`text-sm ${isDarkMode ? 'text-red-400' : 'text-red-700'}`}>
+                        <h3 className={`text-sm font-semibold mb-1 ${isDarkMode ? 'text-red-300' : 'text-red-800'}`}>Confirmation Failed</h3>
+                        <p className={`text-xs ${isDarkMode ? 'text-red-400' : 'text-red-700'}`}>
                           Transaction confirmation failed. Please check the blockchain explorer.
                         </p>
                       </div>
@@ -506,25 +585,25 @@ export default function WithdrawalsPage() {
                 )}
 
                 {isWithdrawSuccess && withdrawHash && (
-                  <div className={`rounded-2xl shadow-sm border p-4 ${isDarkMode
+                  <div className={`rounded-lg p-3 border ${isDarkMode
                     ? 'bg-green-900/20 border-green-800'
                     : 'bg-green-50 border-green-200'
                     }`}>
-                    <div className="flex items-start gap-3">
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center ${isDarkMode ? 'bg-green-700' : 'bg-green-500'
+                    <div className="flex items-start gap-2">
+                      <div className={`w-4 h-4 mt-0.5 rounded-full flex items-center justify-center ${isDarkMode ? 'bg-green-700' : 'bg-green-500'
                         }`}>
                         <span className="text-white text-xs">✓</span>
                       </div>
                       <div className="flex-1">
-                        <h3 className={`font-bold mb-1 ${isDarkMode ? 'text-green-300' : 'text-green-800'}`}>Withdrawal Successful!</h3>
-                        <p className={`text-sm mb-3 ${isDarkMode ? 'text-green-400' : 'text-green-700'}`}>
+                        <h3 className={`text-sm font-semibold mb-1 ${isDarkMode ? 'text-green-300' : 'text-green-800'}`}>Withdrawal Successful!</h3>
+                        <p className={`text-xs mb-2 ${isDarkMode ? 'text-green-400' : 'text-green-700'}`}>
                           Funds have been transferred to your wallet.
                         </p>
                         <a
                           href={GamePaymentService.getExplorerTxUrl(withdrawHash)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 text-sm font-medium"
+                          className="inline-flex items-center gap-1 text-purple-600 hover:text-purple-700 text-xs font-medium"
                         >
                           View on Ink Explorer
                           <ExternalLink className="w-3 h-3" />
@@ -578,6 +657,112 @@ export default function WithdrawalsPage() {
                   className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors"
                 >
                   Confirm
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Update Payment Amount Modal */}
+      {showUpdateAmountModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className={`rounded-2xl shadow-xl border max-w-md w-full ${isDarkMode
+            ? 'bg-gray-800 border-gray-700'
+            : 'bg-white border-gray-200'
+            }`}>
+            <div className={`p-6 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Update Payment Amount</h3>
+              <p className={`text-sm mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Set a new payment amount for players. Use the converter to calculate the right ETH amount based on current USD value.
+              </p>
+            </div>
+            <div className="p-6 space-y-6">
+              <EthUsdConverter 
+                isDarkMode={isDarkMode}
+                onEthAmountChange={setNewPaymentAmount}
+                initialEthAmount={currentPaymentAmount ? Number(currentPaymentAmount) / 1e18 : 0.00001}
+              />
+
+              {isUpdateAmountPending || isUpdateAmountConfirming ? (
+                <div className={`p-4 rounded-lg border ${
+                  isDarkMode ? 'bg-purple-900/20 border-purple-700' : 'bg-purple-50 border-purple-200'
+                }`}>
+                  <div className="flex items-center gap-3">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-600"></div>
+                    <span className={`text-sm ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
+                      {isUpdateAmountPending ? 'Waiting for signature...' : 'Confirming transaction...'}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+
+              {updateAmountError && (
+                <div className={`p-4 rounded-lg border ${
+                  isDarkMode ? 'bg-red-900/20 border-red-800' : 'bg-red-50 border-red-200'
+                }`}>
+                  <p className={`text-sm font-semibold mb-1 ${isDarkMode ? 'text-red-300' : 'text-red-700'}`}>
+                    {updateAmountError.message.includes('User rejected') 
+                      ? 'Transaction Cancelled' 
+                      : updateAmountError.message.includes('circuit breaker')
+                      ? 'Network Rate Limit'
+                      : 'Transaction Failed'}
+                  </p>
+                  <p className={`text-xs ${isDarkMode ? 'text-red-400' : 'text-red-600'}`}>
+                    {updateAmountError.message.includes('User rejected') 
+                      ? 'You cancelled the transaction in MetaMask.' 
+                      : updateAmountError.message.includes('circuit breaker')
+                      ? 'The RPC network is rate-limiting requests. Please wait a moment and try again.'
+                      : 'Failed to update payment amount. Please try again.'}
+                  </p>
+                </div>
+              )}
+
+              {isUpdateAmountSuccess && updateAmountHash && (
+                <div className={`p-4 rounded-lg border ${
+                  isDarkMode ? 'bg-green-900/20 border-green-800' : 'bg-green-50 border-green-200'
+                }`}>
+                  <div className="flex items-start gap-3">
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
+                      isDarkMode ? 'bg-green-700' : 'bg-green-500'
+                    }`}>
+                      <span className="text-white text-xs">✓</span>
+                    </div>
+                    <div className="flex-1">
+                      <p className={`text-sm font-medium mb-1 ${isDarkMode ? 'text-green-300' : 'text-green-800'}`}>
+                        Payment amount updated successfully!
+                      </p>
+                      <a
+                        href={GamePaymentService.getExplorerTxUrl(updateAmountHash)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700"
+                      >
+                        View on Ink Explorer
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowUpdateAmountModal(false)}
+                  disabled={isUpdateAmountPending || isUpdateAmountConfirming}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium text-sm transition-colors disabled:opacity-50 ${isDarkMode
+                    ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                    }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpdatePaymentAmount}
+                  disabled={!newPaymentAmount || newPaymentAmount === BigInt(0) || isUpdateAmountPending || isUpdateAmountConfirming}
+                  className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors"
+                >
+                  {isUpdateAmountPending || isUpdateAmountConfirming ? 'Updating...' : 'Update Amount'}
                 </button>
               </div>
             </div>

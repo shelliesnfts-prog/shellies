@@ -27,11 +27,11 @@ const inkChain = defineChain({
   },
   rpcUrls: {
     default: {
-      http: ['https://rpc-gel.inkonchain.com'],
+      http: ['https://rpc-gel.inkonchain.com', 'https://rpc-qnd.inkonchain.com','https://ink.drpc.org'],
       webSocket: ['wss://rpc-gel.inkonchain.com'],
     },
     public: {
-      http: ['https://rpc-gel.inkonchain.com', 'https://rpc-qnd.inkonchain.com'],
+      http: ['https://rpc-gel.inkonchain.com', 'https://rpc-qnd.inkonchain.com','https://ink.drpc.org'],
       webSocket: ['wss://rpc-gel.inkonchain.com', 'wss://rpc-qnd.inkonchain.com'],
     },
   },

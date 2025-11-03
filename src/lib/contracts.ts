@@ -79,8 +79,33 @@ export const GAME_PAYMENT_ABI = [
     type: 'event',
   },
   {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: 'uint256',
+        name: 'oldAmount',
+        type: 'uint256',
+      },
+      {
+        indexed: false,
+        internalType: 'uint256',
+        name: 'newAmount',
+        type: 'uint256',
+      },
+      {
+        indexed: false,
+        internalType: 'uint256',
+        name: 'timestamp',
+        type: 'uint256',
+      },
+    ],
+    name: 'PaymentAmountUpdated',
+    type: 'event',
+  },
+  {
     inputs: [],
-    name: 'PAYMENT_AMOUNT',
+    name: 'getPaymentAmount',
     outputs: [
       {
         internalType: 'uint256',
@@ -119,6 +144,19 @@ export const GAME_PAYMENT_ABI = [
   },
   {
     inputs: [],
+    name: 'paymentAmount',
+    outputs: [
+      {
+        internalType: 'uint256',
+        name: '',
+        type: 'uint256',
+      },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
     name: 'payToPlay',
     outputs: [],
     stateMutability: 'payable',
@@ -135,6 +173,19 @@ export const GAME_PAYMENT_ABI = [
       },
     ],
     stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      {
+        internalType: 'uint256',
+        name: 'newAmount',
+        type: 'uint256',
+      },
+    ],
+    name: 'updatePaymentAmount',
+    outputs: [],
+    stateMutability: 'nonpayable',
     type: 'function',
   },
   {

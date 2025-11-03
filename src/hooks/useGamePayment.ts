@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
 import { parseEther } from 'viem';
 import { PriceOracle } from '@/lib/price-oracle';
 import { GAME_PAYMENT_CONTRACT, GamePaymentService } from '@/lib/contracts';
@@ -153,6 +153,16 @@ export function useGamePayment(): UseGamePaymentReturn {
   const [sessionCreating, setSessionCreating] = useState<boolean>(false);
   const [sessionCreated, setSessionCreated] = useState<boolean>(false);
   
+  // Read payment amount from contract
+  const {
+    data: contractPaymentAmount,
+    isLoading: isLoadingPaymentAmount,
+  } = useReadContract({
+    address: GAME_PAYMENT_CONTRACT.address,
+    abi: GAME_PAYMENT_CONTRACT.abi,
+    functionName: 'getPaymentAmount',
+  });
+
   // Wagmi hooks for contract interaction
   const { 
     writeContract, 
@@ -170,17 +180,13 @@ export function useGamePayment(): UseGamePaymentReturn {
   });
   
   /**
-   * Fetch ETH price on mount and calculate required ETH
+   * Fetch ETH price on mount
    */
   useEffect(() => {
     const fetchPrice = async () => {
       try {
         const price = await PriceOracle.getEthPrice();
         setEthPrice(price);
-        
-        // Calculate required ETH for 0.04 USD
-        const required = GamePaymentService.calculateRequiredEth(0.04, price);
-        setRequiredEth(required);
         setPaymentError(null);
         setPaymentErrorCode(null);
       } catch (error) {
@@ -198,6 +204,15 @@ export function useGamePayment(): UseGamePaymentReturn {
     
     fetchPrice();
   }, []);
+
+  /**
+   * Update required ETH when contract payment amount is loaded
+   */
+  useEffect(() => {
+    if (contractPaymentAmount && contractPaymentAmount > BigInt(0)) {
+      setRequiredEth(contractPaymentAmount);
+    }
+  }, [contractPaymentAmount]);
   
   /**
    * Check payment status on mount and when wallet changes

@@ -17,7 +17,7 @@ function Score() {
   this.init = function() {
     that.coinScore = 0;
     that.totalScore = 0;
-    that.lifeCount = 3; // Start with 3 lives
+    that.lifeCount = 1; // Start with 1 life
 
     mainWrapper = view.getMainWrapper();
 
@@ -119,7 +119,7 @@ function Score() {
     // Reset everything including lives for a brand new game
     that.coinScore = 0;
     that.totalScore = 0;
-    that.lifeCount = 3; // Reset to 3 lives for new game
+    that.lifeCount = 1; // Reset to 1 life for new game
     that.updateCoinScore();
     that.updateLifeCount();
   };

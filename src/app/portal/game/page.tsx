@@ -175,7 +175,6 @@ export default function GamePage() {
         onClose={handleModalClose}
         onPaymentSuccess={handlePaymentSuccess}
         requiredAmount={requiredEth}
-        usdAmount={0.04}
         onInitiatePayment={initiatePayment}
         paymentLoading={paymentLoading}
         paymentError={paymentError}
@@ -184,6 +183,7 @@ export default function GamePage() {
         transactionHash={hash || null}
         sessionCreating={sessionCreating}
         sessionCreated={sessionCreated}
+        ethPrice={ethPrice}
       />
     </div>
   );
