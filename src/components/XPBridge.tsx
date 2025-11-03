@@ -309,7 +309,7 @@ export default function XPBridge({
               </div>
 
               {/* Convert Button Wrapper */}
-              <div className={`rounded-xl p-4 border ${isDarkMode 
+              <div className={`rounded-xl p-6 border ${isDarkMode 
                 ? 'bg-white/5 backdrop-blur-md border-white/10' 
                 : 'bg-white/50 backdrop-blur-md border-gray-200/50'
               }`}>
