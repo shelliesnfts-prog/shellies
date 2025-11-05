@@ -277,34 +277,13 @@ export function useGamePayment(): UseGamePaymentReturn {
   }, [isConnected, address]);
   
   /**
-   * Listen for GAME_OVER postMessage event to clear session
-   * Also clears server-side session
+   * NOTE: GAME_OVER session clearing is now handled in MarioGameConsoleV2
+   * to ensure proper sequencing - score must be saved BEFORE session is cleared.
+   * This prevents race conditions where the session gets deleted before the score
+   * update API call completes (which requires an active session).
+   * 
+   * The hook still provides clearPaymentSession() for manual clearing when needed.
    */
-  useEffect(() => {
-    const handleGameOver = async (event: MessageEvent) => {
-      // Validate message origin if needed
-      if (event.data && event.data.type === 'GAME_OVER') {
-        try {
-          // Clear server-side session
-          await fetch('/api/game-session', { method: 'DELETE' });
-        } catch (error) {
-          console.error('Error clearing server session:', error);
-        }
-        
-        // Clear local session
-        clearPaymentSession();
-        setHasActivePayment(false);
-      }
-    };
-    
-    if (typeof window !== 'undefined') {
-      window.addEventListener('message', handleGameOver);
-      
-      return () => {
-        window.removeEventListener('message', handleGameOver);
-      };
-    }
-  }, []);
   
   /**
    * Handle transaction confirmation and create server-side session

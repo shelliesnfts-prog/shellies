@@ -3,15 +3,32 @@
 import { useState, useRef, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { Gamepad2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Trophy } from 'lucide-react';
+import { Gamepad2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Trophy, X } from 'lucide-react';
 import { useGameScore } from '@/hooks/useGameScore';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useGamePayment } from '@/hooks/useGamePayment';
+import { useWriteContract } from 'wagmi';
+import { formatEther } from 'viem';
+import { GamePaymentService } from '@/lib/contracts';
+import { Shield, Coins, Info } from 'lucide-react';
 import GameWalletPrompt from './GameWalletPrompt';
+import PaymentLoadingOverlay from './PaymentLoadingOverlay';
 
 interface MarioGameConsoleV2Props {
   hasActivePayment: boolean;
 }
+
+/**
+ * Payment status states for the overlay
+ */
+type PaymentStatus =
+  | 'idle'
+  | 'signing'           // Waiting for wallet signature
+  | 'confirming'        // Transaction confirming on blockchain
+  | 'creating_session'  // Creating game session on server
+  | 'loading_game'      // Loading game console
+  | 'success'           // Complete
+  | 'error';            // Error occurred
 
 export default function MarioGameConsoleV2({ hasActivePayment }: MarioGameConsoleV2Props) {
   // ALL HOOKS MUST BE CALLED AT THE TOP LEVEL - NO CONDITIONAL RETURNS BEFORE HOOKS
@@ -22,9 +39,106 @@ export default function MarioGameConsoleV2({ hasActivePayment }: MarioGameConsol
 
   const [gameStarted, setGameStarted] = useState(false);
   const [levelInput, setLevelInput] = useState('');
+  const [showPaymentOverlay, setShowPaymentOverlay] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('idle');
+  const [currentStep, setCurrentStep] = useState(0);
+  const [pendingGameAction, setPendingGameAction] = useState<'start' | 'restart' | null>(null);
+  const [showPaymentInfo, setShowPaymentInfo] = useState(() => {
+    // Check localStorage on mount to see if user has dismissed the banner
+    if (typeof window !== 'undefined') {
+      const dismissed = localStorage.getItem('hidePaymentInfoBanner');
+      return dismissed !== 'true';
+    }
+    return true;
+  });
 
   const { bestScore, updateScore, isLoading: scoreLoading } = useGameScore();
-  const { clearPaymentSession, checkPaymentStatus } = useGamePayment();
+  const {
+    clearPaymentSession,
+    checkPaymentStatus,
+    initiatePayment,
+    paymentLoading,
+    paymentError,
+    canRetryPayment,
+    sessionCreating,
+    sessionCreated,
+    ethPrice,
+    requiredEth,
+  } = useGamePayment();
+
+  // Get transaction hash from wagmi
+  const { data: hash } = useWriteContract();
+
+  // Update payment status based on loading state with detailed steps
+  useEffect(() => {
+    if (paymentError) {
+      setPaymentStatus('error');
+      setCurrentStep(0);
+    } else if (sessionCreated) {
+      // Step 4: Game loading
+      setPaymentStatus('loading_game');
+      setCurrentStep(3);
+      // Auto-close overlay and allow game to start
+      setTimeout(() => {
+        setPaymentStatus('success');
+        setCurrentStep(4);
+        setShowPaymentOverlay(false);
+
+        // Notify game to proceed with pending action
+        if (pendingGameAction && iframeRef.current?.contentWindow) {
+          if (pendingGameAction === 'restart') {
+            iframeRef.current.contentWindow.postMessage(
+              { type: 'ALLOW_GAME_RESTART' },
+              window.location.origin
+            );
+          } else {
+            iframeRef.current.contentWindow.postMessage(
+              { type: 'ALLOW_GAME_START' },
+              window.location.origin
+            );
+          }
+        }
+        setPendingGameAction(null);
+      }, 800);
+    } else if (sessionCreating) {
+      // Step 3: Creating session
+      setPaymentStatus('creating_session');
+      setCurrentStep(2);
+    } else if (hash && !paymentLoading) {
+      // Step 2: Transaction confirmed, waiting for session creation
+      setPaymentStatus('confirming');
+      setCurrentStep(2);
+    } else if (hash && paymentLoading) {
+      // Step 2: Transaction confirming
+      setPaymentStatus('confirming');
+      setCurrentStep(1);
+    } else if (paymentLoading) {
+      // Step 1: Waiting for signature
+      setPaymentStatus('signing');
+      setCurrentStep(0);
+    } else if (!showPaymentOverlay) {
+      setPaymentStatus('idle');
+      setCurrentStep(0);
+    }
+  }, [paymentLoading, paymentError, hash, sessionCreating, sessionCreated, showPaymentOverlay, pendingGameAction]);
+
+  // Handle payment initiation
+  const handlePaymentInitiation = async (action: 'start' | 'restart') => {
+    setPendingGameAction(action);
+    setShowPaymentOverlay(true);
+    setPaymentStatus('signing');
+    setCurrentStep(0);
+
+    // Initiate payment immediately
+    await initiatePayment();
+  };
+
+  // Handle retry payment
+  const handleRetryPayment = async () => {
+    setPaymentStatus('signing');
+    setCurrentStep(0);
+    await initiatePayment();
+  };
 
   // Handle postMessage events from game iframe
   useEffect(() => {
@@ -38,8 +152,8 @@ export default function MarioGameConsoleV2({ hasActivePayment }: MarioGameConsol
         case 'GAME_START_ATTEMPT':
           // User clicked play button - check if they have active payment
           if (!hasActivePayment) {
-            // Trigger payment modal via custom event
-            window.dispatchEvent(new CustomEvent('gameStartAttempt'));
+            // Trigger payment immediately with overlay
+            handlePaymentInitiation('start');
           } else {
             // Allow game to start
             if (iframeRef.current?.contentWindow) {
@@ -55,17 +169,14 @@ export default function MarioGameConsoleV2({ hasActivePayment }: MarioGameConsol
           // User clicked restart button - always require payment for new session
           // Clear current session first (both local and server)
           clearPaymentSession();
-          
+
           // Clear server session asynchronously
-          fetch('/api/game-session', { method: 'DELETE' }).catch(err => 
+          fetch('/api/game-session', { method: 'DELETE' }).catch(err =>
             console.error('Error clearing server session on restart:', err)
           );
-          
-          // Trigger payment modal with forcePayment flag
-          // This ensures modal stays open regardless of hasActivePayment state
-          window.dispatchEvent(new CustomEvent('gameStartAttempt', { 
-            detail: { forcePayment: true, action: 'restart' } 
-          }));
+
+          // Trigger payment immediately with overlay
+          handlePaymentInitiation('restart');
           break;
 
         case 'GAME_STARTED':
@@ -81,18 +192,32 @@ export default function MarioGameConsoleV2({ hasActivePayment }: MarioGameConsol
 
         case 'GAME_OVER':
           // Update score if it's a new best (immediate update)
+          // IMPORTANT: Wait for score update to complete BEFORE clearing session
+          // The API requires an active session to accept score updates
           if (coins > bestScore) {
-            updateScore(coins, true);
+            updateScore(coins, true).then(() => {
+              // Clear payment session AFTER score is saved
+              clearPaymentSession();
+
+              // Also clear server-side session explicitly
+              fetch('/api/game-session', { method: 'DELETE' }).catch(err =>
+                console.error('Error clearing server session on game over:', err)
+              );
+            }).catch(err => {
+              console.error('Error updating score:', err);
+              // Still clear session even if score update fails
+              clearPaymentSession();
+              fetch('/api/game-session', { method: 'DELETE' }).catch(err =>
+                console.error('Error clearing server session on game over:', err)
+              );
+            });
+          } else {
+            // No score update needed, clear session immediately
+            clearPaymentSession();
+            fetch('/api/game-session', { method: 'DELETE' }).catch(err =>
+              console.error('Error clearing server session on game over:', err)
+            );
           }
-          
-          // IMPORTANT: Clear payment session immediately on game over
-          // This ensures the session is ended and user must pay for next game
-          clearPaymentSession();
-          
-          // Also clear server-side session explicitly
-          fetch('/api/game-session', { method: 'DELETE' }).catch(err => 
-            console.error('Error clearing server session on game over:', err)
-          );
           break;
 
         case 'LEVEL_COMPLETED':
@@ -132,43 +257,12 @@ export default function MarioGameConsoleV2({ hasActivePayment }: MarioGameConsol
 
     if (typeof window !== 'undefined') {
       window.addEventListener('paymentRequired', handlePaymentRequired as EventListener);
-      
+
       return () => {
         window.removeEventListener('paymentRequired', handlePaymentRequired as EventListener);
       };
     }
   }, [clearPaymentSession]);
-
-  // Listen for payment completion to notify game
-  useEffect(() => {
-    const handlePaymentComplete = (event: CustomEvent) => {
-      const action = event.detail?.action;
-      
-      if (iframeRef.current?.contentWindow) {
-        if (action === 'restart') {
-          // Send restart command to game
-          iframeRef.current.contentWindow.postMessage(
-            { type: 'ALLOW_GAME_RESTART' },
-            window.location.origin
-          );
-        } else {
-          // Send start command to game
-          iframeRef.current.contentWindow.postMessage(
-            { type: 'ALLOW_GAME_START' },
-            window.location.origin
-          );
-        }
-      }
-    };
-
-    if (typeof window !== 'undefined') {
-      window.addEventListener('paymentComplete', handlePaymentComplete as EventListener);
-      
-      return () => {
-        window.removeEventListener('paymentComplete', handlePaymentComplete as EventListener);
-      };
-    }
-  }, []);
 
   // Handle level navigation
   const handleLevelNavigation = () => {
@@ -260,10 +354,85 @@ export default function MarioGameConsoleV2({ hasActivePayment }: MarioGameConsol
         </div>
       </div>
 
+      {/* Payment Information Banner */}
+      {showPaymentInfo && (
+        <div className={`rounded-xl border p-6 relative ${isDarkMode
+          ? 'bg-gradient-to-br from-purple-900/20 to-pink-900/20 border-purple-700/50'
+          : 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200'
+          }`}>
+          {/* Close Button */}
+          <button
+            onClick={() => {
+              setShowPaymentInfo(false);
+              // Save to localStorage so banner stays hidden
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('hidePaymentInfoBanner', 'true');
+              }
+            }}
+            className={`absolute top-4 right-4 p-2 rounded-lg transition-colors duration-200 ${isDarkMode
+              ? 'hover:bg-gray-700/50 text-gray-400 hover:text-white'
+              : 'hover:bg-gray-200/50 text-gray-500 hover:text-gray-900'
+              }`}
+            aria-label="Close payment information"
+          >
+            <X className="w-5 h-5" />
+          </button>
 
+          <div className="flex items-start gap-4 pr-8">
+            <div className={`p-3 rounded-xl flex-shrink-0 ${isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
+              }`}>
+              <Info className="w-6 h-6 text-purple-600" />
+            </div>
+            <div className="flex-1 space-y-3">
+              <h3 className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                Why Pay to Play?
+              </h3>
+              <div className="space-y-2">
+                <div className="flex items-start gap-3">
+                  <Shield className={`w-5 h-5 mt-0.5 flex-shrink-0 ${isDarkMode ? 'text-purple-400' : 'text-purple-600'
+                    }`} />
+                  <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    <span className="font-semibold">Authenticity First:</span> We value real players and prevent bots from gaming the system. This small fee ensures fair competition on the leaderboard.
+                  </p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Coins className={`w-5 h-5 mt-0.5 flex-shrink-0 ${isDarkMode ? 'text-purple-400' : 'text-purple-600'
+                    }`} />
+                  <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    <span className="font-semibold">Community Benefits:</span> All collected funds are reinvested into more raffles and rewards to benefit our Shellies community.
+                  </p>
+                </div>
+              </div>
+              {/* Payment Amount Display */}
+              <div className={`mt-4 pt-4 border-t flex items-center justify-between flex-wrap gap-3 ${isDarkMode ? 'border-purple-700/50' : 'border-purple-200'
+                }`}>
+                <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Cost per game:
+                </span>
+                <div className="flex items-center gap-3">
+                  {ethPrice && requiredEth > BigInt(0) ? (
+                    <>
+                      <span className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        ${GamePaymentService.convertEthToUsd(requiredEth, ethPrice).toFixed(4)} USD
+                      </span>
+                      <span className={`text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                        ({parseFloat(formatEther(requiredEth)).toFixed(8)} ETH)
+                      </span>
+                    </>
+                  ) : (
+                    <span className={`text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                      Loading price...
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Game Console */}
-      <div className={`rounded-2xl border overflow-hidden transition-all duration-300 ${isDarkMode
+      <div className={`rounded-2xl border overflow-hidden transition-all duration-300 relative ${isDarkMode
         ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
         : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
         }`}>
@@ -280,6 +449,17 @@ export default function MarioGameConsoleV2({ hasActivePayment }: MarioGameConsol
             />
           </div>
         </div>
+
+        {/* Payment Loading Overlay */}
+        <PaymentLoadingOverlay
+          isVisible={showPaymentOverlay}
+          paymentStatus={paymentStatus === 'idle' ? 'signing' : paymentStatus}
+          currentStep={currentStep}
+          transactionHash={hash || null}
+          errorMessage={paymentError}
+          canRetry={canRetryPayment}
+          onRetry={handleRetryPayment}
+        />
 
         {/* Level Navigation & Controls */}
         <div className="p-6 space-y-6">
