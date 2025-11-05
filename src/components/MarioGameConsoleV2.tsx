@@ -309,6 +309,19 @@ export default function MarioGameConsoleV2({ hasActivePayment }: MarioGameConsol
           <div className={`h-10 w-32 rounded-full animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
         </div>
 
+        {/* Payment Information Banner Skeleton */}
+        <div className={`rounded-xl border p-6 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+          <div className="flex items-start gap-4">
+            <div className={`w-12 h-12 rounded-xl animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
+            <div className="flex-1 space-y-3">
+              <div className={`h-6 w-40 rounded animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
+              <div className={`h-4 w-full rounded animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
+              <div className={`h-4 w-3/4 rounded animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
+              <div className={`h-10 w-full rounded animate-pulse mt-4 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
+            </div>
+          </div>
+        </div>
+
         {/* Game Container Skeleton */}
         <div className={`rounded-2xl border overflow-hidden ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
           <div className="relative w-full bg-black flex items-center justify-center overflow-hidden">

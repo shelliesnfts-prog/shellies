@@ -9,23 +9,27 @@ export function LeaderboardPageSkeleton({ isDarkMode, count = 10 }: LeaderboardP
   return (
     <div className="space-y-6">
       {/* Page Header Skeleton */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <div className="flex items-center space-x-3 mb-2">
-            <div className={`w-10 h-10 rounded-xl animate-pulse ${
-              isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
-            }`} />
-            <div className={`h-6 sm:h-8 w-40 rounded animate-pulse ${
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <div className="flex items-center space-x-3 mb-2">
+              <div className={`w-10 h-10 rounded-xl animate-pulse ${
+                isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
+              }`} />
+              <div className={`h-6 sm:h-8 w-40 rounded animate-pulse ${
+                isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
+              }`} />
+            </div>
+            <div className={`h-4 w-64 rounded animate-pulse ${
               isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
             }`} />
           </div>
-          <div className={`h-4 w-64 rounded animate-pulse ${
-            isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
-          }`} />
         </div>
-        <div className="flex items-center space-x-2">
-          <div className={`h-10 w-28 rounded-xl animate-pulse ${
-            isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
+        
+        {/* Toggle Switcher Skeleton */}
+        <div className="flex justify-center sm:justify-start">
+          <div className={`h-12 w-64 rounded-full animate-pulse ${
+            isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
           }`} />
         </div>
       </div>
