@@ -9,7 +9,7 @@ import { supabaseAdmin } from '@/lib/supabase';
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { tier: string } }
+  { params }: { params: Promise<{ tier: string }> }
 ) {
   try {
     // Check admin authentication
@@ -22,6 +22,7 @@ export async function PUT(
       );
     }
 
+    const { tier } = await params;
     const body = await request.json();
     const { payment_amount_wei, min_nfts, max_nfts, description, is_active } = body;
 
@@ -49,7 +50,7 @@ export async function PUT(
     const { data, error } = await supabaseAdmin
       .from('payment_tiers')
       .update(updateData)
-      .eq('tier_name', params.tier)
+      .eq('tier_name', tier)
       .select()
       .single();
 
@@ -87,7 +88,7 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { tier: string } }
+  { params }: { params: Promise<{ tier: string }> }
 ) {
   try {
     // Check admin authentication
@@ -100,8 +101,10 @@ export async function DELETE(
       );
     }
 
+    const { tier } = await params;
+
     // Prevent deleting the regular tier
-    if (params.tier === 'regular') {
+    if (tier === 'regular') {
       return NextResponse.json(
         { error: 'Cannot delete the regular tier' },
         { status: 400 }
@@ -112,7 +115,7 @@ export async function DELETE(
     const { error } = await supabaseAdmin
       .from('payment_tiers')
       .delete()
-      .eq('tier_name', params.tier);
+      .eq('tier_name', tier);
 
     if (error) {
       console.error('Error deleting payment tier:', error);
