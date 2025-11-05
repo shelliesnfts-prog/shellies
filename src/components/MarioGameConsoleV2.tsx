@@ -64,6 +64,9 @@ export default function MarioGameConsoleV2({ hasActivePayment }: MarioGameConsol
     sessionCreated,
     ethPrice,
     requiredEth,
+    isNFTHolder,
+    nftCount,
+    paymentTier,
   } = useGamePayment();
 
   // Get transaction hash from wagmi
@@ -416,6 +419,58 @@ export default function MarioGameConsoleV2({ hasActivePayment }: MarioGameConsol
                   </p>
                 </div>
               </div>
+              {/* NFT Holder Discount Badge */}
+              {isNFTHolder && (
+                <div className={`mt-4 p-3 rounded-lg border ${
+                  paymentTier === 'gold'
+                    ? isDarkMode
+                      ? 'bg-gradient-to-r from-yellow-900/30 to-amber-900/30 border-yellow-700/50'
+                      : 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200'
+                    : paymentTier === 'silver'
+                    ? isDarkMode
+                      ? 'bg-gradient-to-r from-slate-700/30 to-zinc-700/30 border-slate-600/50'
+                      : 'bg-gradient-to-r from-slate-100 to-zinc-100 border-slate-300'
+                    : isDarkMode 
+                      ? 'bg-gradient-to-r from-orange-900/30 to-amber-900/30 border-orange-700/50' 
+                      : 'bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">
+                      {paymentTier === 'gold' ? '🥇' : paymentTier === 'silver' ? '🥈' : '🥉'}
+                    </span>
+                    <div className="flex-1">
+                      <p className={`text-sm font-bold capitalize ${
+                        paymentTier === 'gold'
+                          ? isDarkMode ? 'text-yellow-300' : 'text-yellow-700'
+                          : paymentTier === 'silver'
+                          ? isDarkMode ? 'text-slate-300' : 'text-slate-700'
+                          : isDarkMode ? 'text-orange-300' : 'text-orange-700'
+                      }`}>
+                        {paymentTier} Tier Active!
+                      </p>
+                      <p className={`text-xs ${
+                        paymentTier === 'gold'
+                          ? isDarkMode ? 'text-yellow-400' : 'text-yellow-600'
+                          : paymentTier === 'silver'
+                          ? isDarkMode ? 'text-slate-400' : 'text-slate-600'
+                          : isDarkMode ? 'text-orange-400' : 'text-orange-600'
+                      }`}>
+                        You own {nftCount} Shellies NFT{nftCount > 1 ? 's' : ''} - Enjoy your discount! 🎉
+                      </p>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                      paymentTier === 'gold'
+                        ? isDarkMode ? 'bg-yellow-700 text-yellow-100' : 'bg-yellow-500 text-white'
+                        : paymentTier === 'silver'
+                        ? isDarkMode ? 'bg-slate-700 text-slate-100' : 'bg-slate-500 text-white'
+                        : isDarkMode ? 'bg-orange-700 text-orange-100' : 'bg-orange-500 text-white'
+                    }`}>
+                      {paymentTier === 'gold' ? '80%' : paymentTier === 'silver' ? '70%' : '50%'} OFF
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* Payment Amount Display */}
               <div className={`mt-4 pt-4 border-t flex items-center justify-between flex-wrap gap-3 ${isDarkMode ? 'border-purple-700/50' : 'border-purple-200'
                 }`}>
@@ -425,7 +480,11 @@ export default function MarioGameConsoleV2({ hasActivePayment }: MarioGameConsol
                 <div className="flex items-center gap-3">
                   {ethPrice && requiredEth > BigInt(0) ? (
                     <>
-                      <span className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                      <span className={`text-lg font-bold ${
+                        isNFTHolder 
+                          ? isDarkMode ? 'text-green-300' : 'text-green-600'
+                          : isDarkMode ? 'text-white' : 'text-gray-900'
+                      }`}>
                         ${GamePaymentService.convertEthToUsd(requiredEth, ethPrice).toFixed(4)} USD
                       </span>
                       <span className={`text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>

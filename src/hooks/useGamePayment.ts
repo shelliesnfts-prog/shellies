@@ -44,6 +44,9 @@ export interface UseGamePaymentReturn {
   retryPayment: () => Promise<boolean>;
   sessionCreating: boolean;  // New: Track session creation
   sessionCreated: boolean;   // New: Track session created
+  isNFTHolder: boolean;      // NFT holder status
+  nftCount: number;          // Number of NFTs owned
+  paymentTier: string;       // Payment tier (regular or nft_holder)
 }
 
 /**
@@ -153,6 +156,11 @@ export function useGamePayment(): UseGamePaymentReturn {
   const [sessionCreating, setSessionCreating] = useState<boolean>(false);
   const [sessionCreated, setSessionCreated] = useState<boolean>(false);
   
+  // NFT holder state
+  const [isNFTHolder, setIsNFTHolder] = useState<boolean>(false);
+  const [nftCount, setNftCount] = useState<number>(0);
+  const [paymentTier, setPaymentTier] = useState<string>('regular');
+  
   // Read payment amount from contract
   const {
     data: contractPaymentAmount,
@@ -211,13 +219,57 @@ export function useGamePayment(): UseGamePaymentReturn {
   }, []);
 
   /**
-   * Update required ETH when contract payment amount is loaded
+   * Fetch payment amount based on user's NFT ownership (tier-based pricing)
+   * Falls back to contract amount if API fails
    */
   useEffect(() => {
-    if (contractPaymentAmount && contractPaymentAmount > BigInt(0)) {
-      setRequiredEth(contractPaymentAmount);
-    }
-  }, [contractPaymentAmount]);
+    const fetchPaymentAmount = async () => {
+      if (!address) {
+        // No wallet connected, use contract amount as fallback
+        if (contractPaymentAmount && contractPaymentAmount > BigInt(0)) {
+          setRequiredEth(contractPaymentAmount);
+        }
+        return;
+      }
+      
+      try {
+        // Fetch user-specific payment amount from API
+        const response = await fetch('/api/payment-amount');
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch payment amount');
+        }
+        
+        const data = await response.json();
+        
+        // Update state with tier-specific data
+        setRequiredEth(BigInt(data.payment_amount_wei));
+        setIsNFTHolder(data.is_nft_holder);
+        setNftCount(data.nft_count);
+        setPaymentTier(data.tier);
+        
+        logger.payment('Payment amount fetched', {
+          tier: data.tier,
+          isNFTHolder: data.is_nft_holder,
+          nftCount: data.nft_count,
+          amount: data.payment_amount_wei,
+        });
+        
+      } catch (error) {
+        console.error('Error fetching payment amount:', error);
+        
+        // Fallback to contract amount
+        if (contractPaymentAmount && contractPaymentAmount > BigInt(0)) {
+          setRequiredEth(contractPaymentAmount);
+          setPaymentTier('regular');
+          setIsNFTHolder(false);
+          setNftCount(0);
+        }
+      }
+    };
+    
+    fetchPaymentAmount();
+  }, [address, contractPaymentAmount]);
   
   /**
    * Check payment status on mount and when wallet changes
@@ -532,5 +584,8 @@ export function useGamePayment(): UseGamePaymentReturn {
     retryPayment,
     sessionCreating,
     sessionCreated,
+    isNFTHolder,
+    nftCount,
+    paymentTier,
   };
 }

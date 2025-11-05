@@ -35,6 +35,21 @@ export default function WithdrawalsPage() {
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
   const [showUpdateAmountModal, setShowUpdateAmountModal] = useState<boolean>(false);
   const [newPaymentAmount, setNewPaymentAmount] = useState<bigint>(BigInt(0));
+  
+  // Payment tiers state
+  const [paymentTiers, setPaymentTiers] = useState<any[]>([]);
+  const [loadingTiers, setLoadingTiers] = useState(false);
+  const [selectedTier, setSelectedTier] = useState<string | null>(null);
+  const [updatingTier, setUpdatingTier] = useState<string | null>(null);
+  const [showAddTierModal, setShowAddTierModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  
+  // New tier form state
+  const [newTierName, setNewTierName] = useState('');
+  const [newTierMinNfts, setNewTierMinNfts] = useState<number>(1);
+  const [newTierMaxNfts, setNewTierMaxNfts] = useState<number | null>(null);
+  const [newTierDescription, setNewTierDescription] = useState('');
+  const [newTierAmount, setNewTierAmount] = useState<bigint>(BigInt(0));
 
   // Get wallet address
   const walletAddress = address || session?.address || '';
@@ -114,6 +129,26 @@ export default function WithdrawalsPage() {
     fetchPrice();
   }, []);
 
+  /**
+   * Fetch payment tiers from database
+   */
+  const fetchTiers = async () => {
+    setLoadingTiers(true);
+    try {
+      const response = await fetch('/api/payment-tiers?includeInactive=true');
+      const { tiers } = await response.json();
+      setPaymentTiers(tiers || []);
+    } catch (error) {
+      console.error('Error fetching payment tiers:', error);
+    } finally {
+      setLoadingTiers(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTiers();
+  }, []);
+
   // Removed auto-refresh to prevent RPC rate limiting
   // Users can manually refresh using the refresh buttons
 
@@ -157,7 +192,7 @@ export default function WithdrawalsPage() {
   };
 
   /**
-   * Handle payment amount update
+   * Handle payment amount update (contract - kept for backward compatibility)
    */
   const handleUpdatePaymentAmount = () => {
     if (!newPaymentAmount || newPaymentAmount === BigInt(0)) {
@@ -173,6 +208,126 @@ export default function WithdrawalsPage() {
       });
     } catch (error) {
       console.error('Error updating payment amount:', error);
+    }
+  };
+
+  /**
+   * Handle tier payment amount update (database)
+   */
+  const handleUpdateTierAmount = async (tierName: string, amountWei: string) => {
+    if (!amountWei || amountWei === '0') {
+      return;
+    }
+
+    setUpdatingTier(tierName);
+    
+    try {
+      const response = await fetch(`/api/payment-tiers/${tierName}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_amount_wei: amountWei }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update tier');
+      }
+
+      await fetchTiers();
+      
+      setShowUpdateAmountModal(false);
+      setSelectedTier(null);
+      setNewPaymentAmount(BigInt(0));
+    } catch (error) {
+      console.error('Error updating tier amount:', error);
+    } finally {
+      setUpdatingTier(null);
+    }
+  };
+
+  /**
+   * Handle tier activation/deactivation
+   */
+  const handleToggleTierActive = async (tierName: string, currentStatus: boolean) => {
+    try {
+      const response = await fetch(`/api/payment-tiers/${tierName}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: !currentStatus }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to toggle tier status');
+      }
+
+      await fetchTiers();
+    } catch (error) {
+      console.error('Error toggling tier status:', error);
+    }
+  };
+
+  /**
+   * Handle tier deletion
+   */
+  const handleDeleteTier = async (tierName: string) => {
+    try {
+      const response = await fetch(`/api/payment-tiers/${tierName}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        alert(data.error || 'Failed to delete tier');
+        return;
+      }
+
+      await fetchTiers();
+      setShowDeleteConfirm(null);
+    } catch (error) {
+      console.error('Error deleting tier:', error);
+      alert('Failed to delete tier');
+    }
+  };
+
+  /**
+   * Handle adding new tier
+   */
+  const handleAddTier = async () => {
+    if (!newTierName || !newTierAmount || newTierAmount === BigInt(0)) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/payment-tiers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tier_name: newTierName,
+          payment_amount_wei: newTierAmount.toString(),
+          min_nfts: newTierMinNfts,
+          max_nfts: newTierMaxNfts,
+          description: newTierDescription || `${newTierName} tier`,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        alert(data.error || 'Failed to create tier');
+        return;
+      }
+
+      await fetchTiers();
+      
+      // Reset form
+      setShowAddTierModal(false);
+      setNewTierName('');
+      setNewTierMinNfts(1);
+      setNewTierMaxNfts(null);
+      setNewTierDescription('');
+      setNewTierAmount(BigInt(0));
+    } catch (error) {
+      console.error('Error adding tier:', error);
+      alert('Failed to create tier');
     }
   };
 
@@ -416,68 +571,201 @@ export default function WithdrawalsPage() {
               </div>
             </div>
 
-            {/* 2-Column Grid Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Payment Amount Management Card */}
-              <div className={`rounded-xl shadow-sm border p-4 ${isDarkMode
-                ? 'bg-gray-800 border-gray-700'
-                : 'bg-white border-gray-200'
-                }`}>
-                <div className="flex justify-between items-center mb-3">
-                  <h2 className={`text-sm font-semibold flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                    <Settings className="w-4 h-4" />
-                    Payment Amount
-                  </h2>
+            {/* Payment Tiers Management - Full Width */}
+            <div className={`rounded-xl shadow-sm border p-4 ${isDarkMode
+              ? 'bg-gray-800 border-gray-700'
+              : 'bg-white border-gray-200'
+              }`}>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className={`text-sm font-semibold flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  <Settings className="w-4 h-4" />
+                  Payment Tiers
+                </h2>
+                <div className="flex items-center gap-2">
                   <button
-                    onClick={() => refetchPaymentAmount()}
-                    disabled={paymentAmountLoading}
+                    onClick={() => setShowAddTierModal(true)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white transition-all duration-200"
+                  >
+                    + Add Tier
+                  </button>
+                  <button
+                    onClick={fetchTiers}
+                    disabled={loadingTiers}
                     className={`p-1.5 rounded-lg transition-colors disabled:opacity-50 ${isDarkMode
                       ? 'text-purple-400 hover:bg-gray-700'
                       : 'text-purple-600 hover:bg-purple-100'
                       }`}
                     title="Refresh"
                   >
-                    <RefreshCw className={`w-4 h-4 ${paymentAmountLoading ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`w-4 h-4 ${loadingTiers ? 'animate-spin' : ''}`} />
                   </button>
                 </div>
-
-                {paymentAmountLoading ? (
-                  <div className="text-center py-3">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-600 mx-auto"></div>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className={`rounded-lg p-3 border ${
-                      isDarkMode 
-                        ? 'bg-gradient-to-br from-purple-900/40 to-pink-900/40 border-purple-700/50' 
-                        : 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200'
-                    }`}>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className={`text-xs mb-0.5 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                            Current Amount
-                          </p>
-                          <p className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                            {currentPaymentAmount ? GamePaymentService.formatEthWithDecimals(currentPaymentAmount, 8) : '0.00000000'} ETH
-                          </p>
-                        </div>
-                        {ethPrice && currentPaymentAmount && (
-                          <p className={`text-sm font-medium ${isDarkMode ? 'text-purple-300' : 'text-purple-600'}`}>
-                            ${GamePaymentService.convertEthToUsd(currentPaymentAmount, ethPrice).toFixed(4)}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => setShowUpdateAmountModal(true)}
-                      className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200"
-                    >
-                      Update Amount
-                    </button>
-                  </div>
-                )}
               </div>
+
+              {loadingTiers ? (
+                <div className="text-center py-6">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600 mx-auto"></div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {paymentTiers.map((tier) => {
+                    const tierAmount = BigInt(tier.payment_amount_wei);
+                    const isRegular = tier.tier_name === 'regular';
+                    
+                    // Determine tier color and icon based on name
+                    const getTierStyle = () => {
+                      if (isRegular) {
+                        return {
+                          gradient: isDarkMode 
+                            ? 'bg-gradient-to-br from-gray-700/30 to-gray-800/30 border-gray-600/50'
+                            : 'bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200',
+                          icon: '👤',
+                          buttonGradient: 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800',
+                          textColor: isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                        };
+                      } else if (tier.tier_name === 'bronze') {
+                        return {
+                          gradient: isDarkMode
+                            ? 'bg-gradient-to-br from-orange-900/30 to-amber-900/30 border-orange-700/50'
+                            : 'bg-gradient-to-br from-orange-50 to-amber-50 border-orange-200',
+                          icon: '🥉',
+                          buttonGradient: 'bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700',
+                          textColor: isDarkMode ? 'text-orange-300' : 'text-orange-600'
+                        };
+                      } else if (tier.tier_name === 'silver') {
+                        return {
+                          gradient: isDarkMode
+                            ? 'bg-gradient-to-br from-slate-700/30 to-zinc-700/30 border-slate-600/50'
+                            : 'bg-gradient-to-br from-slate-100 to-zinc-100 border-slate-300',
+                          icon: '🥈',
+                          buttonGradient: 'bg-gradient-to-r from-slate-600 to-zinc-600 hover:from-slate-700 hover:to-zinc-700',
+                          textColor: isDarkMode ? 'text-slate-300' : 'text-slate-600'
+                        };
+                      } else if (tier.tier_name === 'gold') {
+                        return {
+                          gradient: isDarkMode
+                            ? 'bg-gradient-to-br from-yellow-900/30 to-amber-900/30 border-yellow-700/50'
+                            : 'bg-gradient-to-br from-yellow-50 to-amber-50 border-yellow-200',
+                          icon: '🥇',
+                          buttonGradient: 'bg-gradient-to-r from-yellow-600 to-amber-600 hover:from-yellow-700 hover:to-amber-700',
+                          textColor: isDarkMode ? 'text-yellow-300' : 'text-yellow-600'
+                        };
+                      } else {
+                        return {
+                          gradient: isDarkMode
+                            ? 'bg-gradient-to-br from-purple-900/30 to-pink-900/30 border-purple-700/50'
+                            : 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200',
+                          icon: '🎨',
+                          buttonGradient: 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700',
+                          textColor: isDarkMode ? 'text-purple-300' : 'text-purple-600'
+                        };
+                      }
+                    };
+
+                    const style = getTierStyle();
+                    const regularAmount = BigInt('10000000000000'); // 0.00001 ETH
+                    const discountPercent = isRegular ? 0 : Math.round((1 - Number(tierAmount) / Number(regularAmount)) * 100);
+                    
+                    return (
+                      <div
+                        key={tier.id}
+                        className={`rounded-lg p-4 border ${style.gradient}`}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xl">{style.icon}</span>
+                              <h3 className={`text-sm font-bold capitalize ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                {tier.tier_name}
+                              </h3>
+                              {!isRegular && (
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                                  isDarkMode ? 'bg-green-700 text-green-100' : 'bg-green-500 text-white'
+                                }`}>
+                                  {discountPercent}% OFF
+                                </span>
+                              )}
+                            </div>
+                            <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                              {tier.max_nfts === null 
+                                ? `${tier.min_nfts}+ NFTs`
+                                : tier.min_nfts === tier.max_nfts
+                                ? `${tier.min_nfts} NFT${tier.min_nfts > 1 ? 's' : ''}`
+                                : `${tier.min_nfts}-${tier.max_nfts} NFTs`
+                              }
+                            </p>
+                            <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                              {tier.description}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div>
+                            <p className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                              {GamePaymentService.formatEthWithDecimals(tierAmount, 8)} ETH
+                            </p>
+                            {ethPrice && (
+                              <p className={`text-sm font-medium ${style.textColor}`}>
+                                ≈ ${GamePaymentService.convertEthToUsd(tierAmount, ethPrice).toFixed(4)} USD
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                setSelectedTier(tier.tier_name);
+                                setNewPaymentAmount(tierAmount);
+                                setShowUpdateAmountModal(true);
+                              }}
+                              disabled={updatingTier === tier.tier_name}
+                              className={`flex-1 px-3 py-2 rounded-lg font-medium text-xs transition-all duration-200 ${style.buttonGradient} text-white disabled:opacity-50 disabled:cursor-not-allowed`}
+                            >
+                              {updatingTier === tier.tier_name ? 'Updating...' : 'Update'}
+                            </button>
+                            
+                            {!isRegular && (
+                              <>
+                                <button
+                                  onClick={() => handleToggleTierActive(tier.tier_name, tier.is_active)}
+                                  className={`px-3 py-2 rounded-lg font-medium text-xs transition-all duration-200 ${
+                                    tier.is_active
+                                      ? 'bg-yellow-600 hover:bg-yellow-700'
+                                      : 'bg-green-600 hover:bg-green-700'
+                                  } text-white`}
+                                  title={tier.is_active ? 'Deactivate' : 'Activate'}
+                                >
+                                  {tier.is_active ? '⏸' : '▶'}
+                                </button>
+                                <button
+                                  onClick={() => setShowDeleteConfirm(tier.tier_name)}
+                                  className="px-3 py-2 rounded-lg font-medium text-xs transition-all duration-200 bg-red-600 hover:bg-red-700 text-white"
+                                  title="Delete"
+                                >
+                                  🗑
+                                </button>
+                              </>
+                            )}
+                          </div>
+                          
+                          {!tier.is_active && (
+                            <div className={`mt-2 text-xs text-center px-2 py-1 rounded ${
+                              isDarkMode ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-100 text-yellow-700'
+                            }`}>
+                              ⚠️ Inactive
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* 2-Column Grid Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
               {/* Balance Card */}
               <div className={`rounded-xl shadow-sm border p-4 ${isDarkMode
@@ -672,16 +960,18 @@ export default function WithdrawalsPage() {
             : 'bg-white border-gray-200'
             }`}>
             <div className={`p-6 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-              <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Update Payment Amount</h3>
+              <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                Update {selectedTier === 'nft_holder' ? 'NFT Holder' : 'Regular User'} Payment Amount
+              </h3>
               <p className={`text-sm mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Set a new payment amount for players. Use the converter to calculate the right ETH amount based on current USD value.
+                Set a new payment amount for {selectedTier === 'nft_holder' ? 'NFT holders' : 'regular users'}. Use the converter to calculate the right ETH amount based on current USD value.
               </p>
             </div>
             <div className="p-6 space-y-6">
               <EthUsdConverter 
                 isDarkMode={isDarkMode}
                 onEthAmountChange={setNewPaymentAmount}
-                initialEthAmount={currentPaymentAmount ? Number(currentPaymentAmount) / 1e18 : 0.00001}
+                initialEthAmount={newPaymentAmount ? Number(newPaymentAmount) / 1e18 : 0.00001}
               />
 
               {isUpdateAmountPending || isUpdateAmountConfirming ? (
@@ -748,8 +1038,12 @@ export default function WithdrawalsPage() {
 
               <div className="flex gap-3">
                 <button
-                  onClick={() => setShowUpdateAmountModal(false)}
-                  disabled={isUpdateAmountPending || isUpdateAmountConfirming}
+                  onClick={() => {
+                    setShowUpdateAmountModal(false);
+                    setSelectedTier(null);
+                    setNewPaymentAmount(BigInt(0));
+                  }}
+                  disabled={updatingTier !== null}
                   className={`flex-1 px-4 py-2 rounded-lg font-medium text-sm transition-colors disabled:opacity-50 ${isDarkMode
                     ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
                     : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
@@ -758,11 +1052,185 @@ export default function WithdrawalsPage() {
                   Cancel
                 </button>
                 <button
-                  onClick={handleUpdatePaymentAmount}
-                  disabled={!newPaymentAmount || newPaymentAmount === BigInt(0) || isUpdateAmountPending || isUpdateAmountConfirming}
+                  onClick={() => {
+                    if (selectedTier) {
+                      handleUpdateTierAmount(selectedTier, newPaymentAmount.toString());
+                    }
+                  }}
+                  disabled={!newPaymentAmount || newPaymentAmount === BigInt(0) || updatingTier !== null}
                   className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors"
                 >
-                  {isUpdateAmountPending || isUpdateAmountConfirming ? 'Updating...' : 'Update Amount'}
+                  {updatingTier ? 'Updating...' : 'Update Amount'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Tier Modal */}
+      {showAddTierModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className={`rounded-2xl shadow-xl border max-w-md w-full ${isDarkMode
+            ? 'bg-gray-800 border-gray-700'
+            : 'bg-white border-gray-200'
+            }`}>
+            <div className={`p-6 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                Add New Payment Tier
+              </h3>
+              <p className={`text-sm mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Create a new tier for users with specific NFT counts
+              </p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Tier Name *
+                </label>
+                <input
+                  type="text"
+                  value={newTierName}
+                  onChange={(e) => setNewTierName(e.target.value)}
+                  placeholder="e.g., platinum, diamond"
+                  className={`w-full px-3 py-2 rounded-lg border ${isDarkMode
+                    ? 'bg-gray-700 border-gray-600 text-white'
+                    : 'bg-white border-gray-300 text-gray-900'
+                    }`}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Min NFTs *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newTierMinNfts}
+                    onChange={(e) => setNewTierMinNfts(parseInt(e.target.value) || 0)}
+                    className={`w-full px-3 py-2 rounded-lg border ${isDarkMode
+                      ? 'bg-gray-700 border-gray-600 text-white'
+                      : 'bg-white border-gray-300 text-gray-900'
+                      }`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Max NFTs (blank = unlimited)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newTierMaxNfts || ''}
+                    onChange={(e) => setNewTierMaxNfts(e.target.value ? parseInt(e.target.value) : null)}
+                    placeholder="∞"
+                    className={`w-full px-3 py-2 rounded-lg border ${isDarkMode
+                      ? 'bg-gray-700 border-gray-600 text-white'
+                      : 'bg-white border-gray-300 text-gray-900'
+                      }`}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Description
+                </label>
+                <input
+                  type="text"
+                  value={newTierDescription}
+                  onChange={(e) => setNewTierDescription(e.target.value)}
+                  placeholder="Tier description"
+                  className={`w-full px-3 py-2 rounded-lg border ${isDarkMode
+                    ? 'bg-gray-700 border-gray-600 text-white'
+                    : 'bg-white border-gray-300 text-gray-900'
+                    }`}
+                />
+              </div>
+
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Payment Amount *
+                </label>
+                <EthUsdConverter 
+                  isDarkMode={isDarkMode}
+                  onEthAmountChange={setNewTierAmount}
+                  initialEthAmount={0.000001}
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => {
+                    setShowAddTierModal(false);
+                    setNewTierName('');
+                    setNewTierMinNfts(1);
+                    setNewTierMaxNfts(null);
+                    setNewTierDescription('');
+                    setNewTierAmount(BigInt(0));
+                  }}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium text-sm transition-colors ${isDarkMode
+                    ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                    }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddTier}
+                  className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors"
+                >
+                  Create Tier
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className={`rounded-2xl shadow-xl border max-w-md w-full ${isDarkMode
+            ? 'bg-gray-800 border-gray-700'
+            : 'bg-white border-gray-200'
+            }`}>
+            <div className={`p-6 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                Delete Tier
+              </h3>
+            </div>
+            <div className="p-6">
+              <p className={`text-sm mb-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Are you sure you want to delete the <span className="font-bold capitalize">{showDeleteConfirm}</span> tier? This action cannot be undone.
+              </p>
+              <div className={`p-3 rounded-lg border mb-6 ${isDarkMode
+                ? 'bg-red-900/20 border-red-800 text-red-300'
+                : 'bg-red-50 border-red-200 text-red-800'
+                }`}>
+                <p className="text-sm flex items-start gap-2">
+                  <span>⚠️</span>
+                  <span>Users in this tier will fall back to the next available tier.</span>
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(null)}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium text-sm transition-colors ${isDarkMode
+                    ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                    }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleDeleteTier(showDeleteConfirm)}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors"
+                >
+                  Delete
                 </button>
               </div>
             </div>
