@@ -47,7 +47,7 @@ export default function GamePage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [checkingPayment, setCheckingPayment] = useState(true);
+  const [pendingGameAction, setPendingGameAction] = useState<'start' | 'restart' | null>(null);
   const { isDarkMode } = useTheme();
 
   // Use the payment hook with enhanced error handling
@@ -73,22 +73,7 @@ export default function GamePage() {
     setIsMounted(true);
   }, []);
 
-  // Check payment status on mount
-  useEffect(() => {
-    if (isMounted) {
-      setCheckingPayment(true);
-      const hasPayment = checkPaymentStatus();
-      
-      // If no active payment, show payment modal
-      if (!hasPayment) {
-        setShowPaymentModal(true);
-      }
-      
-      setCheckingPayment(false);
-    }
-  }, [isMounted, checkPaymentStatus]);
-
-  // Listen for payment required events (from score submission failures)
+  // Listen for payment required events (from score submission failures or play button clicks)
   useEffect(() => {
     const handlePaymentRequired = (event: CustomEvent) => {
       console.log('Payment required event received:', event.detail);
@@ -106,9 +91,53 @@ export default function GamePage() {
     }
   }, [clearPaymentSession]);
 
+  // Listen for game start attempts to check payment
+  useEffect(() => {
+    const handleGameStartAttempt = (event: CustomEvent) => {
+      // Check if this is a forced payment request (from restart)
+      const forcePayment = event.detail?.forcePayment;
+      const action = event.detail?.action || 'start';
+      
+      if (forcePayment) {
+        // For restart attempts, ensure session is fully cleared first
+        clearPaymentSession();
+        // Wait a tick to ensure state updates, then show modal
+        setTimeout(() => {
+          setPendingGameAction(action);
+          setShowPaymentModal(true);
+        }, 50);
+      } else {
+        // Check if user has active payment for regular play attempts
+        const hasPayment = checkPaymentStatus();
+        if (!hasPayment) {
+          // Show payment modal if no active payment
+          setPendingGameAction(action);
+          setShowPaymentModal(true);
+        }
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('gameStartAttempt', handleGameStartAttempt as EventListener);
+      
+      return () => {
+        window.removeEventListener('gameStartAttempt', handleGameStartAttempt as EventListener);
+      };
+    }
+  }, [checkPaymentStatus, clearPaymentSession]);
+
   // Handle payment success
   const handlePaymentSuccess = () => {
     setShowPaymentModal(false);
+    
+    // Notify game to proceed with pending action
+    if (pendingGameAction) {
+      // Dispatch event to notify game console that payment is complete
+      window.dispatchEvent(new CustomEvent('paymentComplete', {
+        detail: { action: pendingGameAction }
+      }));
+      setPendingGameAction(null);
+    }
   };
 
   // Handle modal close
@@ -129,43 +158,8 @@ export default function GamePage() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col lg:ml-4 min-h-screen">
         <main className="flex-1 p-3 sm:p-4 lg:p-6 mt-16 lg:mt-0 mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8">
-          {/* Loading state while checking payment */}
-          {checkingPayment && (
-            <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                  <div className={`h-8 w-48 rounded animate-pulse mb-2 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
-                  <div className={`h-4 w-64 rounded animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
-                </div>
-              </div>
-              <div className={`rounded-2xl border overflow-hidden ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-                <div className="relative w-full bg-black flex items-center justify-center overflow-hidden">
-                  <div className={`animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} style={{ width: '1282px', height: '532px', maxWidth: '100%' }} />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Show game only if payment is active and not checking */}
-          {!checkingPayment && hasActivePayment && isMounted && <MarioGameConsoleV2 />}
-
-          {/* Show payment required message if no payment and modal is closed */}
-          {!checkingPayment && !hasActivePayment && !showPaymentModal && (
-            <div className={`rounded-2xl border p-8 text-center ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-              <h2 className={`text-2xl font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                Payment Required
-              </h2>
-              <p className={`mb-6 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                You need to pay to play the game. Click the button below to proceed.
-              </p>
-              <button
-                onClick={() => setShowPaymentModal(true)}
-                className="px-6 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
-              >
-                Pay to Play
-              </button>
-            </div>
-          )}
+          {/* Always show game console - payment check happens when user clicks play */}
+          {isMounted && <MarioGameConsoleV2 hasActivePayment={hasActivePayment} />}
         </main>
       </div>
 

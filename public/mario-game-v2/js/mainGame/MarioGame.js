@@ -879,7 +879,13 @@ function MarioGame() {
     view.setHTML(restartButton, 'Restart Game');
     
     restartButton.onclick = function() {
-      that.restartGame();
+      // Notify parent window that user wants to restart (payment check)
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'GAME_RESTART_ATTEMPT' }, '*');
+      } else {
+        // If not in iframe, restart game directly
+        that.restartGame();
+      }
     };
     
     // Position restart button on the left

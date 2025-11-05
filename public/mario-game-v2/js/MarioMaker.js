@@ -31,7 +31,7 @@ var MarioMaker = (function() {
       editor = new Editor();
       createdLevels = new CreatedLevels();
       
-      // Listen for restart messages from parent window
+      // Listen for messages from parent window
       window.addEventListener('message', function(event) {
         if (event.data && event.data.type === 'RESTART_GAME') {
           that.restartCurrentGame();
@@ -40,6 +40,13 @@ var MarioMaker = (function() {
           if (targetLevel >= 1 && targetLevel <= 999) {
             that.navigateToLevel(targetLevel);
           }
+        } else if (event.data && event.data.type === 'ALLOW_GAME_START') {
+          // Payment confirmed, start the game
+          map = that.loadMainGameMap();
+          that.startGame(map);
+        } else if (event.data && event.data.type === 'ALLOW_GAME_RESTART') {
+          // Payment confirmed, restart the game
+          that.restartCurrentGame();
         }
       });
 
@@ -73,8 +80,14 @@ var MarioMaker = (function() {
       backToMenuBtn.onclick = that.backToMenu;
 
       startGameButton.onclick = function() {
-        map = that.loadMainGameMap();
-        that.startGame(map);
+        // Notify parent window that user wants to start game (payment check)
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'GAME_START_ATTEMPT' }, '*');
+        } else {
+          // If not in iframe, start game directly
+          map = that.loadMainGameMap();
+          that.startGame(map);
+        }
       };
     };
 

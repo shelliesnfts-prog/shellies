@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract, useBalance } from 'wagmi';
 import { parseEther } from 'viem';
 import { PriceOracle } from '@/lib/price-oracle';
 import { GAME_PAYMENT_CONTRACT, GamePaymentService } from '@/lib/contracts';
@@ -161,6 +161,11 @@ export function useGamePayment(): UseGamePaymentReturn {
     address: GAME_PAYMENT_CONTRACT.address,
     abi: GAME_PAYMENT_CONTRACT.abi,
     functionName: 'getPaymentAmount',
+  });
+
+  // Get user's ETH balance
+  const { data: balanceData } = useBalance({
+    address: address,
   });
 
   // Wagmi hooks for contract interaction
@@ -435,6 +440,34 @@ export function useGamePayment(): UseGamePaymentReturn {
       setCanRetryPayment(true);
       return false;
     }
+
+    // Check if user has sufficient balance (payment + estimated gas)
+    if (balanceData) {
+      const userBalance = balanceData.value;
+      // Estimate gas cost (rough estimate: 50000 gas * gas price)
+      // For safety, we'll check if user has at least payment amount + 20% buffer for gas
+      const estimatedGasBuffer = requiredEth / BigInt(5); // 20% buffer
+      const totalRequired = requiredEth + estimatedGasBuffer;
+      
+      if (userBalance < totalRequired) {
+        const shortfall = totalRequired - userBalance;
+        setPaymentError(
+          `Insufficient ETH balance. You need approximately ${GamePaymentService.formatEthAmount(totalRequired)} ETH (${GamePaymentService.formatEthAmount(requiredEth)} for payment + gas fees). You have ${GamePaymentService.formatEthAmount(userBalance)} ETH. Please add at least ${GamePaymentService.formatEthAmount(shortfall)} ETH to your wallet.`
+        );
+        setPaymentErrorCode(ERROR_CODES.INSUFFICIENT_BALANCE);
+        setCanRetryPayment(false);
+        
+        logger.error('Insufficient balance', undefined, {
+          action: 'initiatePayment',
+          userBalance: userBalance.toString(),
+          requiredEth: requiredEth.toString(),
+          totalRequired: totalRequired.toString(),
+          shortfall: shortfall.toString()
+        });
+        
+        return false;
+      }
+    }
     
     try {
       setPaymentLoading(true);
@@ -475,7 +508,7 @@ export function useGamePayment(): UseGamePaymentReturn {
       
       return false;
     }
-  }, [isConnected, address, requiredEth, writeContract]);
+  }, [isConnected, address, requiredEth, writeContract, balanceData]);
   
   /**
    * Clear payment session (exposed for external use)
@@ -483,6 +516,9 @@ export function useGamePayment(): UseGamePaymentReturn {
   const clearSession = useCallback(() => {
     clearPaymentSession();
     setHasActivePayment(false);
+    // Reset session creation states to prevent modal auto-close on next open
+    setSessionCreating(false);
+    setSessionCreated(false);
   }, []);
   
   /**
