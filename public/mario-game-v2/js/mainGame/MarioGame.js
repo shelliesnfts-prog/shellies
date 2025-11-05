@@ -861,9 +861,6 @@ function MarioGame() {
     
     // Use the max of coin count and current best score to ensure we show the right value
     var displayScore = Math.max(coinCount, currentBestScore);
-    if (displayScore > 0) {
-      gameUI.writeText('Your Best Score: ' + displayScore + ' coins', centerPos - 150, height / 2 + 40);
-    }
     
     // Create restart and leaderboard buttons
     that.createGameOverButtons();
