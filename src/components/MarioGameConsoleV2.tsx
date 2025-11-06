@@ -14,10 +14,6 @@ import { Shield, Coins, Info } from 'lucide-react';
 import GameWalletPrompt from './GameWalletPrompt';
 import PaymentLoadingOverlay from './PaymentLoadingOverlay';
 
-interface MarioGameConsoleV2Props {
-  hasActivePayment: boolean;
-}
-
 /**
  * Payment status states for the overlay
  */
@@ -30,7 +26,7 @@ type PaymentStatus =
   | 'success'           // Complete
   | 'error';            // Error occurred
 
-export default function MarioGameConsoleV2({ hasActivePayment }: MarioGameConsoleV2Props) {
+export default function MarioGameConsoleV2() {
   // ALL HOOKS MUST BE CALLED AT THE TOP LEVEL - NO CONDITIONAL RETURNS BEFORE HOOKS
   const { data: session } = useSession();
   const router = useRouter();
@@ -51,9 +47,12 @@ export default function MarioGameConsoleV2({ hasActivePayment }: MarioGameConsol
     }
     return true;
   });
+  const [paymentTiers, setPaymentTiers] = useState<any[]>([]);
+  const [tiersLoading, setTiersLoading] = useState(true);
 
   const { bestScore, updateScore, isLoading: scoreLoading } = useGameScore();
   const {
+    hasActivePayment,
     clearPaymentSession,
     checkPaymentStatus,
     initiatePayment,
@@ -71,6 +70,32 @@ export default function MarioGameConsoleV2({ hasActivePayment }: MarioGameConsol
 
   // Get transaction hash from wagmi
   const { data: hash } = useWriteContract();
+
+  // Fetch payment tiers dynamically
+  useEffect(() => {
+    const fetchPaymentTiers = async () => {
+      try {
+        setTiersLoading(true);
+        const response = await fetch('/api/payment-tiers');
+        const data = await response.json();
+        if (data.tiers) {
+          // Sort tiers by min_nfts to display in order
+          const sortedTiers = data.tiers.sort((a: any, b: any) => {
+            const aMin = a.min_nfts ?? 0;
+            const bMin = b.min_nfts ?? 0;
+            return aMin - bMin;
+          });
+          setPaymentTiers(sortedTiers);
+        }
+      } catch (error) {
+        console.error('Error fetching payment tiers:', error);
+      } finally {
+        setTiersLoading(false);
+      }
+    };
+
+    fetchPaymentTiers();
+  }, []);
 
   // Update payment status based on loading state with detailed steps
   useEffect(() => {
@@ -241,6 +266,10 @@ export default function MarioGameConsoleV2({ hasActivePayment }: MarioGameConsol
           router.push('/portal/leaderboard');
           break;
 
+        case 'NAVIGATE_TO_PROFILE':
+          router.push('/portal/profile');
+          break;
+
         default:
           break;
       }
@@ -399,11 +428,11 @@ export default function MarioGameConsoleV2({ hasActivePayment }: MarioGameConsol
               }`}>
               <Info className="w-6 h-6 text-purple-600" />
             </div>
-            <div className="flex-1 space-y-3">
-              <h3 className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+            <div className="flex-1 space-y-4">
+              <h3 className={`text-2xl font-extrabold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent`}>
                 Why Pay to Play?
               </h3>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex items-start gap-3">
                   <Shield className={`w-5 h-5 mt-0.5 flex-shrink-0 ${isDarkMode ? 'text-purple-400' : 'text-purple-600'
                     }`} />
@@ -419,52 +448,197 @@ export default function MarioGameConsoleV2({ hasActivePayment }: MarioGameConsol
                   </p>
                 </div>
               </div>
+
+              {/* NFT Holder Pricing Tiers */}
+              <div className={`mt-6 p-5 rounded-xl border backdrop-blur-sm ${isDarkMode
+                  ? 'bg-gray-800/40 border-gray-700/50'
+                  : 'bg-white/60 border-gray-200'
+                }`}>
+                <div className="mb-4">
+                  <h4 className={`text-lg font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    NFT Holder Benefits
+                  </h4>
+                  <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    The more Shellies NFTs you hold, the less you pay per game
+                  </p>
+                </div>
+                
+                {tiersLoading ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className={`p-4 rounded-lg h-32 animate-pulse ${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-200'}`} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {paymentTiers.map((tier) => {
+                      const tierName = tier.tier_name;
+                      const minNfts = tier.min_nfts ?? 0;
+                      const maxNfts = tier.max_nfts;
+                      const ethAmount = parseFloat(formatEther(BigInt(tier.payment_amount_wei))).toFixed(8);
+                      
+                      // Calculate discount percentage
+                      const regularTier = paymentTiers.find(t => t.tier_name === 'regular');
+                      const discountPercent = regularTier 
+                        ? Math.round((1 - parseFloat(tier.payment_amount_wei) / parseFloat(regularTier.payment_amount_wei)) * 100)
+                        : 0;
+
+                      // Tier styling
+                      const getTierStyles = () => {
+                        switch (tierName) {
+                          case 'regular':
+                            return {
+                              bgGradient: isDarkMode 
+                                ? 'from-gray-800 to-gray-900' 
+                                : 'from-gray-50 to-gray-100',
+                              borderColor: isDarkMode ? 'border-gray-700' : 'border-gray-300',
+                              accentColor: isDarkMode ? 'bg-gray-700' : 'bg-gray-300',
+                              textColor: isDarkMode ? 'text-gray-300' : 'text-gray-700',
+                              priceColor: isDarkMode ? 'text-white' : 'text-gray-900',
+                              labelColor: isDarkMode ? 'text-gray-500' : 'text-gray-500',
+                            };
+                          case 'bronze':
+                            return {
+                              bgGradient: isDarkMode 
+                                ? 'from-orange-950/50 to-amber-950/50' 
+                                : 'from-orange-50 to-amber-50',
+                              borderColor: isDarkMode ? 'border-orange-800/50' : 'border-orange-200',
+                              accentColor: isDarkMode ? 'bg-orange-600' : 'bg-orange-500',
+                              textColor: isDarkMode ? 'text-orange-300' : 'text-orange-700',
+                              priceColor: isDarkMode ? 'text-orange-200' : 'text-orange-800',
+                              labelColor: isDarkMode ? 'text-orange-400/70' : 'text-orange-600/70',
+                              badgeColor: isDarkMode ? 'bg-orange-600/20 text-orange-300 border-orange-500/30' : 'bg-orange-100 text-orange-700 border-orange-300',
+                            };
+                          case 'silver':
+                            return {
+                              bgGradient: isDarkMode 
+                                ? 'from-slate-900/50 to-zinc-900/50' 
+                                : 'from-slate-50 to-zinc-50',
+                              borderColor: isDarkMode ? 'border-slate-700/50' : 'border-slate-300',
+                              accentColor: isDarkMode ? 'bg-slate-500' : 'bg-slate-400',
+                              textColor: isDarkMode ? 'text-slate-300' : 'text-slate-700',
+                              priceColor: isDarkMode ? 'text-slate-200' : 'text-slate-800',
+                              labelColor: isDarkMode ? 'text-slate-400/70' : 'text-slate-600/70',
+                              badgeColor: isDarkMode ? 'bg-slate-600/20 text-slate-300 border-slate-500/30' : 'bg-slate-100 text-slate-700 border-slate-300',
+                            };
+                          case 'gold':
+                            return {
+                              bgGradient: isDarkMode 
+                                ? 'from-yellow-950/50 to-amber-950/50' 
+                                : 'from-yellow-50 to-amber-50',
+                              borderColor: isDarkMode ? 'border-yellow-800/50' : 'border-yellow-200',
+                              accentColor: isDarkMode ? 'bg-yellow-600' : 'bg-yellow-500',
+                              textColor: isDarkMode ? 'text-yellow-300' : 'text-yellow-700',
+                              priceColor: isDarkMode ? 'text-yellow-200' : 'text-yellow-800',
+                              labelColor: isDarkMode ? 'text-yellow-400/70' : 'text-yellow-600/70',
+                              badgeColor: isDarkMode ? 'bg-yellow-600/20 text-yellow-300 border-yellow-500/30' : 'bg-yellow-100 text-yellow-700 border-yellow-300',
+                            };
+                          default:
+                            return {
+                              bgGradient: isDarkMode ? 'from-purple-950/50 to-pink-950/50' : 'from-purple-50 to-pink-50',
+                              borderColor: isDarkMode ? 'border-purple-700/50' : 'border-purple-200',
+                              accentColor: isDarkMode ? 'bg-purple-600' : 'bg-purple-500',
+                              textColor: isDarkMode ? 'text-purple-300' : 'text-purple-700',
+                              priceColor: isDarkMode ? 'text-purple-200' : 'text-purple-800',
+                              labelColor: isDarkMode ? 'text-purple-400/70' : 'text-purple-600/70',
+                              badgeColor: isDarkMode ? 'bg-purple-600/20 text-purple-300 border-purple-500/30' : 'bg-purple-100 text-purple-700 border-purple-300',
+                            };
+                        }
+                      };
+
+                      const styles = getTierStyles();
+                      const nftRange = maxNfts ? `${minNfts}-${maxNfts}` : minNfts === 0 ? '0' : `${minNfts}+`;
+
+                      return (
+                        <div 
+                          key={tier.id} 
+                          className={`relative p-4 rounded-lg border bg-gradient-to-br ${styles.bgGradient} ${styles.borderColor} transition-all duration-200 hover:shadow-lg hover:scale-[1.02]`}
+                        >
+                          {/* Accent bar */}
+                          <div className={`absolute top-0 left-0 right-0 h-1 rounded-t-lg ${styles.accentColor}`} />
+                          
+                          {/* Tier name */}
+                          <div className="flex items-center justify-between mb-3 mt-1">
+                            <h5 className={`text-sm font-bold uppercase tracking-wide ${styles.textColor}`}>
+                              {tierName}
+                            </h5>
+                            {discountPercent > 0 && (
+                              <span className={`px-2 py-0.5 rounded-md text-xs font-semibold border ${styles.badgeColor}`}>
+                                -{discountPercent}%
+                              </span>
+                            )}
+                          </div>
+
+                          {/* NFT requirement */}
+                          <div className="mb-3">
+                            <p className={`text-xs font-medium uppercase tracking-wider ${styles.labelColor}`}>
+                              NFT Requirement
+                            </p>
+                            <p className={`text-lg font-bold ${styles.textColor}`}>
+                              {nftRange} {parseInt(nftRange) === 1 ? 'NFT' : 'NFTs'}
+                            </p>
+                          </div>
+
+                          {/* Price */}
+                          <div>
+                            <p className={`text-xs font-medium uppercase tracking-wider ${styles.labelColor}`}>
+                              Price per Game
+                            </p>
+                            <p className={`text-xl font-bold ${styles.priceColor}`}>
+                              {parseFloat(ethAmount).toFixed(6)}
+                            </p>
+                            <p className={`text-xs ${styles.labelColor}`}>
+                              ETH
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
               {/* NFT Holder Discount Badge */}
               {isNFTHolder && (
-                <div className={`mt-4 p-3 rounded-lg border ${
-                  paymentTier === 'gold'
+                <div className={`mt-4 p-3 rounded-lg border ${paymentTier === 'gold'
                     ? isDarkMode
                       ? 'bg-gradient-to-r from-yellow-900/30 to-amber-900/30 border-yellow-700/50'
                       : 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200'
                     : paymentTier === 'silver'
-                    ? isDarkMode
-                      ? 'bg-gradient-to-r from-slate-700/30 to-zinc-700/30 border-slate-600/50'
-                      : 'bg-gradient-to-r from-slate-100 to-zinc-100 border-slate-300'
-                    : isDarkMode 
-                      ? 'bg-gradient-to-r from-orange-900/30 to-amber-900/30 border-orange-700/50' 
-                      : 'bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200'
-                }`}>
+                      ? isDarkMode
+                        ? 'bg-gradient-to-r from-slate-700/30 to-zinc-700/30 border-slate-600/50'
+                        : 'bg-gradient-to-r from-slate-100 to-zinc-100 border-slate-300'
+                      : isDarkMode
+                        ? 'bg-gradient-to-r from-orange-900/30 to-amber-900/30 border-orange-700/50'
+                        : 'bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200'
+                  }`}>
                   <div className="flex items-center gap-2">
                     <span className="text-2xl">
                       {paymentTier === 'gold' ? '🥇' : paymentTier === 'silver' ? '🥈' : '🥉'}
                     </span>
                     <div className="flex-1">
-                      <p className={`text-sm font-bold capitalize ${
-                        paymentTier === 'gold'
+                      <p className={`text-sm font-bold capitalize ${paymentTier === 'gold'
                           ? isDarkMode ? 'text-yellow-300' : 'text-yellow-700'
                           : paymentTier === 'silver'
-                          ? isDarkMode ? 'text-slate-300' : 'text-slate-700'
-                          : isDarkMode ? 'text-orange-300' : 'text-orange-700'
-                      }`}>
+                            ? isDarkMode ? 'text-slate-300' : 'text-slate-700'
+                            : isDarkMode ? 'text-orange-300' : 'text-orange-700'
+                        }`}>
                         {paymentTier} Tier Active!
                       </p>
-                      <p className={`text-xs ${
-                        paymentTier === 'gold'
+                      <p className={`text-xs ${paymentTier === 'gold'
                           ? isDarkMode ? 'text-yellow-400' : 'text-yellow-600'
                           : paymentTier === 'silver'
-                          ? isDarkMode ? 'text-slate-400' : 'text-slate-600'
-                          : isDarkMode ? 'text-orange-400' : 'text-orange-600'
-                      }`}>
+                            ? isDarkMode ? 'text-slate-400' : 'text-slate-600'
+                            : isDarkMode ? 'text-orange-400' : 'text-orange-600'
+                        }`}>
                         You own {nftCount} Shellies NFT{nftCount > 1 ? 's' : ''} - Enjoy your discount! 🎉
                       </p>
                     </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                      paymentTier === 'gold'
+                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${paymentTier === 'gold'
                         ? isDarkMode ? 'bg-yellow-700 text-yellow-100' : 'bg-yellow-500 text-white'
                         : paymentTier === 'silver'
-                        ? isDarkMode ? 'bg-slate-700 text-slate-100' : 'bg-slate-500 text-white'
-                        : isDarkMode ? 'bg-orange-700 text-orange-100' : 'bg-orange-500 text-white'
-                    }`}>
+                          ? isDarkMode ? 'bg-slate-700 text-slate-100' : 'bg-slate-500 text-white'
+                          : isDarkMode ? 'bg-orange-700 text-orange-100' : 'bg-orange-500 text-white'
+                      }`}>
                       {paymentTier === 'gold' ? '80%' : paymentTier === 'silver' ? '70%' : '50%'} OFF
                     </span>
                   </div>
@@ -480,11 +654,10 @@ export default function MarioGameConsoleV2({ hasActivePayment }: MarioGameConsol
                 <div className="flex items-center gap-3">
                   {ethPrice && requiredEth > BigInt(0) ? (
                     <>
-                      <span className={`text-lg font-bold ${
-                        isNFTHolder 
+                      <span className={`text-lg font-bold ${isNFTHolder
                           ? isDarkMode ? 'text-green-300' : 'text-green-600'
                           : isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}>
+                        }`}>
                         ${GamePaymentService.convertEthToUsd(requiredEth, ethPrice).toFixed(4)} USD
                       </span>
                       <span className={`text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
@@ -531,6 +704,7 @@ export default function MarioGameConsoleV2({ hasActivePayment }: MarioGameConsol
           errorMessage={paymentError}
           canRetry={canRetryPayment}
           onRetry={handleRetryPayment}
+          onClose={() => setShowPaymentOverlay(false)}
         />
 
         {/* Level Navigation & Controls */}

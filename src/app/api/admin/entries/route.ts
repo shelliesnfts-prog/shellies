@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { supabase } from '@/lib/supabase';
 import { authOptions } from '@/lib/auth';
+import { AdminService } from '@/lib/admin-service';
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,14 +15,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check if user is admin
-    const { data: adminUser, error: adminError } = await supabase
-      .from('shellies_users')
-      .select('is_admin')
-      .eq('wallet_address', session.address)
-      .single();
+    // Check if user is admin using the admin service
+    const isAdmin = await AdminService.isAdmin(session.address);
 
-    if (adminError || !adminUser?.is_admin) {
+    if (!isAdmin) {
       return NextResponse.json(
         { error: 'Unauthorized - Admin access required' },
         { status: 403 }

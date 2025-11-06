@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin, supabase } from '@/lib/supabase';
+import { AdminService } from '@/lib/admin-service';
 
 /**
  * PUT /api/payment-tiers/[tier]
@@ -15,10 +16,20 @@ export async function PUT(
     // Check admin authentication
     const session = await getServerSession(authOptions);
     
-    if (!session?.isAdmin) {
+    if (!session?.address) {
+      return NextResponse.json(
+        { error: 'Not authenticated' },
+        { status: 401 }
+      );
+    }
+
+    // Check if user is admin
+    const isAdmin = await AdminService.isAdmin(session.address);
+    
+    if (!isAdmin) {
       return NextResponse.json(
         { error: 'Unauthorized. Admin access required.' },
-        { status: 401 }
+        { status: 403 }
       );
     }
 
@@ -46,8 +57,10 @@ export async function PUT(
     if (description !== undefined) updateData.description = description;
     if (is_active !== undefined) updateData.is_active = is_active;
 
+    const client = supabaseAdmin || supabase;
+
     // Update the tier
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await client
       .from('payment_tiers')
       .update(updateData)
       .eq('tier_name', tier)
@@ -94,10 +107,20 @@ export async function DELETE(
     // Check admin authentication
     const session = await getServerSession(authOptions);
     
-    if (!session?.isAdmin) {
+    if (!session?.address) {
+      return NextResponse.json(
+        { error: 'Not authenticated' },
+        { status: 401 }
+      );
+    }
+
+    // Check if user is admin
+    const isAdmin = await AdminService.isAdmin(session.address);
+    
+    if (!isAdmin) {
       return NextResponse.json(
         { error: 'Unauthorized. Admin access required.' },
-        { status: 401 }
+        { status: 403 }
       );
     }
 
@@ -111,8 +134,10 @@ export async function DELETE(
       );
     }
 
+    const client = supabaseAdmin || supabase;
+
     // Delete the tier
-    const { error } = await supabaseAdmin
+    const { error } = await client
       .from('payment_tiers')
       .delete()
       .eq('tier_name', tier);

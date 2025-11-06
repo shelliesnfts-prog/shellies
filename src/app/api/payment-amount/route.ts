@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin, supabase } from '@/lib/supabase';
 import { NFTService } from '@/lib/nft-service';
 
 /**
@@ -24,8 +24,11 @@ export async function GET(request: NextRequest) {
     const nftCount = await NFTService.getNFTCount(session.address);
     const isNFTHolder = nftCount > 0;
 
+    // Use admin client if available, otherwise fallback to regular client
+    const client = supabaseAdmin || supabase;
+
     // Fetch all active tiers and find the best match based on NFT count
-    const { data: allTiers, error } = await supabaseAdmin
+    const { data: allTiers, error } = await client
       .from('payment_tiers')
       .select('*')
       .eq('is_active', true)
@@ -66,15 +69,15 @@ export async function GET(request: NextRequest) {
 
     const data = matchedTier;
 
-    if (error || !data) {
-      console.error('Error fetching payment tier:', error);
+    if (!data) {
+      console.error('Error: No tier data found');
       
       // Fallback to default values if database fails
       const fallbackAmount = isNFTHolder ? '5000000000000' : '10000000000000';
       
       return NextResponse.json({
         payment_amount_wei: fallbackAmount,
-        tier: tierName,
+        tier: isNFTHolder ? 'bronze' : 'regular',
         is_nft_holder: isNFTHolder,
         nft_count: nftCount,
         fallback: true,
@@ -83,7 +86,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       payment_amount_wei: data.payment_amount_wei,
-      tier: tierName,
+      tier: data.tier_name,
       tier_description: data.description,
       is_nft_holder: isNFTHolder,
       nft_count: nftCount,

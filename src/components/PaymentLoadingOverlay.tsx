@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
+import { Loader2, CheckCircle, AlertCircle, ExternalLink, X } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { GamePaymentService } from '@/lib/contracts';
 import ErrorDisplay from '@/components/ErrorDisplay';
@@ -28,6 +28,7 @@ interface PaymentLoadingOverlayProps {
   errorMessage?: string | null;
   canRetry?: boolean;
   onRetry?: () => void;
+  onClose?: () => void;
 }
 
 /**
@@ -44,6 +45,7 @@ export default function PaymentLoadingOverlay({
   errorMessage,
   canRetry = true,
   onRetry,
+  onClose,
 }: PaymentLoadingOverlayProps) {
   const { isDarkMode } = useTheme();
 
@@ -122,6 +124,17 @@ export default function PaymentLoadingOverlay({
         >
           {/* Header with gradient */}
           <div className="relative bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 p-6">
+            {/* Close button */}
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="absolute top-4 right-4 p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors duration-200 group"
+                aria-label="Close payment overlay"
+              >
+                <X className="w-5 h-5 text-white group-hover:scale-110 transition-transform duration-200" />
+              </button>
+            )}
+            
             <div className="text-center">
               <h2 className="text-2xl font-bold text-white mb-1">
                 Processing Payment

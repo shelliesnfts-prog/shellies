@@ -464,12 +464,46 @@ export function useGamePayment(): UseGamePaymentReturn {
       return false;
     }
     
-    // Validate price is loaded
-    if (requiredEth === BigInt(0)) {
-      setPaymentError('Loading payment amount. Please wait...');
-      setPaymentErrorCode(ERROR_CODES.PRICE_FETCH_FAILED);
-      setCanRetryPayment(true);
-      return false;
+    // Wait for payment amount to load if it's still loading
+    let currentRequiredEth = requiredEth;
+    if (currentRequiredEth === BigInt(0)) {
+      setPaymentLoading(true);
+      setPaymentError(null);
+      
+      // Fetch payment amount directly if not loaded yet
+      try {
+        const response = await fetch('/api/payment-amount');
+        if (response.ok) {
+          const data = await response.json();
+          currentRequiredEth = BigInt(data.payment_amount_wei);
+          setRequiredEth(currentRequiredEth);
+          setIsNFTHolder(data.is_nft_holder);
+          setNftCount(data.nft_count);
+          setPaymentTier(data.tier);
+        } else {
+          // Fallback to contract amount
+          if (contractPaymentAmount && contractPaymentAmount > BigInt(0)) {
+            currentRequiredEth = contractPaymentAmount;
+            setRequiredEth(currentRequiredEth);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching payment amount:', error);
+        // Try to use contract amount as fallback
+        if (contractPaymentAmount && contractPaymentAmount > BigInt(0)) {
+          currentRequiredEth = contractPaymentAmount;
+          setRequiredEth(currentRequiredEth);
+        }
+      }
+      
+      // If still not loaded, show error
+      if (currentRequiredEth === BigInt(0)) {
+        setPaymentLoading(false);
+        setPaymentError('Failed to load payment amount. Please try again.');
+        setPaymentErrorCode(ERROR_CODES.PRICE_FETCH_FAILED);
+        setCanRetryPayment(true);
+        return false;
+      }
     }
 
     // Check if user has sufficient balance (payment + estimated gas)
@@ -477,13 +511,13 @@ export function useGamePayment(): UseGamePaymentReturn {
       const userBalance = balanceData.value;
       // Estimate gas cost (rough estimate: 50000 gas * gas price)
       // For safety, we'll check if user has at least payment amount + 20% buffer for gas
-      const estimatedGasBuffer = requiredEth / BigInt(5); // 20% buffer
-      const totalRequired = requiredEth + estimatedGasBuffer;
+      const estimatedGasBuffer = currentRequiredEth / BigInt(5); // 20% buffer
+      const totalRequired = currentRequiredEth + estimatedGasBuffer;
       
       if (userBalance < totalRequired) {
         const shortfall = totalRequired - userBalance;
         setPaymentError(
-          `Insufficient ETH balance. You need approximately ${GamePaymentService.formatEthAmount(totalRequired)} ETH (${GamePaymentService.formatEthAmount(requiredEth)} for payment + gas fees). You have ${GamePaymentService.formatEthAmount(userBalance)} ETH. Please add at least ${GamePaymentService.formatEthAmount(shortfall)} ETH to your wallet.`
+          `Insufficient ETH balance. You need approximately ${GamePaymentService.formatEthAmount(totalRequired)} ETH (${GamePaymentService.formatEthAmount(currentRequiredEth)} for payment + gas fees). You have ${GamePaymentService.formatEthAmount(userBalance)} ETH. Please add at least ${GamePaymentService.formatEthAmount(shortfall)} ETH to your wallet.`
         );
         setPaymentErrorCode(ERROR_CODES.INSUFFICIENT_BALANCE);
         setCanRetryPayment(false);
@@ -491,7 +525,7 @@ export function useGamePayment(): UseGamePaymentReturn {
         logger.error('Insufficient balance', undefined, {
           action: 'initiatePayment',
           userBalance: userBalance.toString(),
-          requiredEth: requiredEth.toString(),
+          requiredEth: currentRequiredEth.toString(),
           totalRequired: totalRequired.toString(),
           shortfall: shortfall.toString()
         });
@@ -511,12 +545,12 @@ export function useGamePayment(): UseGamePaymentReturn {
         address: GAME_PAYMENT_CONTRACT.address,
         abi: GAME_PAYMENT_CONTRACT.abi,
         functionName: 'payToPlay',
-        value: requiredEth,
+        value: currentRequiredEth,
       });
       
       logger.payment('Payment initiated', {
         address,
-        requiredEth: requiredEth.toString(),
+        requiredEth: currentRequiredEth.toString(),
         ethPrice
       });
       
@@ -534,12 +568,12 @@ export function useGamePayment(): UseGamePaymentReturn {
         code: parsedError.code,
         canRetry: parsedError.canRetry,
         address,
-        requiredEth: requiredEth.toString()
+        requiredEth: currentRequiredEth.toString()
       });
       
       return false;
     }
-  }, [isConnected, address, requiredEth, writeContract, balanceData]);
+  }, [isConnected, address, requiredEth, writeContract, balanceData, contractPaymentAmount, ethPrice]);
   
   /**
    * Clear payment session (exposed for external use)

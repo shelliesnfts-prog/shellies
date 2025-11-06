@@ -29,20 +29,22 @@ export function useAccountMonitor() {
     const lastAddress = lastAddressRef.current?.toLowerCase();
     const lastSessionAddress = lastSessionAddressRef.current?.toLowerCase();
 
-    // Mark as initialized once we have a connected wallet or no session
-    if (!hasInitializedRef.current && (isConnected || !sessionAddress)) {
-      hasInitializedRef.current = true;
-      wasConnectedRef.current = isConnected;
+    // Initialize on first run
+    if (!hasInitializedRef.current) {
+      // Wait a bit to allow wallet to auto-reconnect
+      const timer = setTimeout(() => {
+        hasInitializedRef.current = true;
+        wasConnectedRef.current = isConnected;
+        lastAddressRef.current = currentAddress || null;
+        lastSessionAddressRef.current = sessionAddress || null;
+      }, 1000); // Give wallet 1 second to reconnect
+
+      return () => clearTimeout(timer);
     }
 
     // Update refs with current values
     lastAddressRef.current = currentAddress || null;
     lastSessionAddressRef.current = sessionAddress || null;
-
-    // Skip all checks until we've initialized (prevents false positives during page load)
-    if (!hasInitializedRef.current) {
-      return;
-    }
 
     // Scenario 1: Wallet account switched while authenticated
     if (
@@ -67,7 +69,8 @@ export function useAccountMonitor() {
     if (
       sessionAddress &&
       !isConnected &&
-      wasConnectedRef.current
+      wasConnectedRef.current &&
+      hasInitializedRef.current
     ) {
       console.log('Wallet disconnected, clearing session...');
       handleAccountSwitch();
@@ -80,7 +83,8 @@ export function useAccountMonitor() {
       sessionAddress &&
       currentAddress &&
       isConnected &&
-      sessionAddress !== currentAddress
+      sessionAddress !== currentAddress &&
+      hasInitializedRef.current
     ) {
       console.log('Address mismatch detected, clearing session...', {
         sessionAddress,

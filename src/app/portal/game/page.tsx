@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useGamePayment } from '@/hooks/useGamePayment';
 import dynamic from 'next/dynamic';
 
 // Dynamically import the game component to ensure it only loads on client side
@@ -46,9 +45,6 @@ export default function GamePage() {
   const [isMounted, setIsMounted] = useState(false);
   const { isDarkMode } = useTheme();
 
-  // Use the payment hook to check active payment status
-  const { hasActivePayment } = useGamePayment();
-
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -64,7 +60,7 @@ export default function GamePage() {
       <div className="flex-1 flex flex-col lg:ml-4 min-h-screen">
         <main className="flex-1 p-3 sm:p-4 lg:p-6 mt-16 lg:mt-0 mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8">
           {/* Always show game console - payment happens immediately when user clicks play */}
-          {isMounted && <MarioGameConsoleV2 hasActivePayment={hasActivePayment} />}
+          {isMounted && <MarioGameConsoleV2 />}
         </main>
       </div>
     </div>

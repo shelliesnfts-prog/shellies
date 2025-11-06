@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin, supabase } from '@/lib/supabase';
 
 /**
  * GET /api/payment-tiers
@@ -12,7 +12,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const includeInactive = searchParams.get('includeInactive') === 'true';
 
-    let query = supabaseAdmin
+    const client = supabaseAdmin || supabase;
+
+    let query = client
       .from('payment_tiers')
       .select('*')
       .order('min_nfts', { ascending: true });
@@ -51,10 +53,21 @@ export async function POST(request: NextRequest) {
     // Check admin authentication
     const session = await getServerSession(authOptions);
     
-    if (!session?.isAdmin) {
+    if (!session?.address) {
+      return NextResponse.json(
+        { error: 'Not authenticated' },
+        { status: 401 }
+      );
+    }
+
+    // Check if user is admin
+    const { AdminService } = await import('@/lib/admin-service');
+    const isAdmin = await AdminService.isAdmin(session.address);
+    
+    if (!isAdmin) {
       return NextResponse.json(
         { error: 'Unauthorized. Admin access required.' },
-        { status: 401 }
+        { status: 403 }
       );
     }
 
@@ -91,8 +104,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const client = supabaseAdmin || supabase;
+
     // Insert new tier
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await client
       .from('payment_tiers')
       .insert({
         tier_name: tier_name.toLowerCase().replace(/\s+/g, '_'),

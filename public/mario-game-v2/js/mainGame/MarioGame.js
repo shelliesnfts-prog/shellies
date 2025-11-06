@@ -40,7 +40,7 @@ function MarioGame() {
   var instructionTick = 0; //showing instructions counter
   var that = this;
 
-  this.init = function(levelMaps, level, isRespawn) {
+  this.init = function (levelMaps, level, isRespawn) {
     height = 480;
     maxWidth = 0;
     viewPort = 1280;
@@ -65,7 +65,7 @@ function MarioGame() {
     }
     score.displayScore();
     score.updateLevelNum(currentLevel);
-    
+
     // Handle different types of game initialization
     if (level === 1 && !isRespawn) {
       // Brand new game - reset everything including lives and all coins
@@ -88,12 +88,12 @@ function MarioGame() {
         score.setCoinScore(coinCount); // Keep showing total coins accumulated
       }
     }
-    
+
     // Notify parent window that game started
     if (window.parent && window.parent !== window) {
       window.parent.postMessage({ type: 'GAME_STARTED' }, '*');
     }
-    
+
     // Listen for messages from parent window
     that.setupMessageListener();
 
@@ -115,7 +115,7 @@ function MarioGame() {
     that.startGame();
   };
 
-  that.calculateMaxWidth = function() {
+  that.calculateMaxWidth = function () {
     //calculates the max width of the game according to map size
     for (var row = 0; row < map.length; row++) {
       for (var column = 0; column < map[row].length; column++) {
@@ -126,7 +126,7 @@ function MarioGame() {
     }
   };
 
-  that.clearKeyStates = function() {
+  that.clearKeyStates = function () {
     // Clear all key states to prevent stuck keys
     keys = [];
     for (var i = 0; i < 256; i++) {
@@ -134,20 +134,20 @@ function MarioGame() {
     }
   };
 
-  that.bindKeyPress = function() {
+  that.bindKeyPress = function () {
     var canvas = gameUI.getCanvas(); //for use with touch events
 
     //key binding
-    document.body.addEventListener('keydown', function(e) {
+    document.body.addEventListener('keydown', function (e) {
       keys[e.keyCode] = true;
     });
 
-    document.body.addEventListener('keyup', function(e) {
+    document.body.addEventListener('keyup', function (e) {
       keys[e.keyCode] = false;
     });
 
     //key binding for touch events
-    canvas.addEventListener('touchstart', function(e) {
+    canvas.addEventListener('touchstart', function (e) {
       var touches = e.changedTouches;
       e.preventDefault();
 
@@ -168,7 +168,7 @@ function MarioGame() {
       }
     });
 
-    canvas.addEventListener('touchend', function(e) {
+    canvas.addEventListener('touchend', function (e) {
       var touches = e.changedTouches;
       e.preventDefault();
 
@@ -188,7 +188,7 @@ function MarioGame() {
       }
     });
 
-    canvas.addEventListener('touchmove', function(e) {
+    canvas.addEventListener('touchmove', function (e) {
       var touches = e.changedTouches;
       e.preventDefault();
 
@@ -214,7 +214,7 @@ function MarioGame() {
   };
 
   //Main Game Loop
-  this.startGame = function() {
+  this.startGame = function () {
     animationID = window.requestAnimationFrame(that.startGame);
 
     gameUI.clear(0, 0, maxWidth, height);
@@ -246,12 +246,12 @@ function MarioGame() {
     marioInGround = mario.grounded; //for use with flag sliding
   };
 
-  this.showInstructions = function() {
+  this.showInstructions = function () {
     gameUI.writeText('Controls: Arrow keys for direction, shift to run', 30, 30);
     gameUI.writeText('Tip: Jumping while running makes you jump higher', 30, 60);
   };
 
-  this.renderMap = function() {
+  this.renderMap = function () {
     //setting false each time the map renders so that elements fall off a platform and not hover around
     mario.grounded = false;
 
@@ -383,7 +383,7 @@ function MarioGame() {
     }
   };
 
-  this.collisionCheck = function(objA, objB) {
+  this.collisionCheck = function (objA, objB) {
     // get the vectors to check against
     var vX = objA.x + objA.width / 2 - (objB.x + objB.width / 2);
     var vY = objA.y + objA.height / 2 - (objB.y + objB.height / 2);
@@ -426,7 +426,7 @@ function MarioGame() {
     return collisionDirection;
   };
 
-  this.checkElementMarioCollision = function(element, row, column) {
+  this.checkElementMarioCollision = function (element, row, column) {
     var collisionDirection = that.collisionCheck(mario, element);
 
     if (collisionDirection == 'l' || collisionDirection == 'r') {
@@ -495,7 +495,7 @@ function MarioGame() {
     }
   };
 
-  this.checkElementPowerUpCollision = function(element) {
+  this.checkElementPowerUpCollision = function (element) {
     for (var i = 0; i < powerUps.length; i++) {
       var collisionDirection = that.collisionCheck(powerUps[i], element);
 
@@ -507,7 +507,7 @@ function MarioGame() {
     }
   };
 
-  this.checkElementEnemyCollision = function(element) {
+  this.checkElementEnemyCollision = function (element) {
     for (var i = 0; i < goombas.length; i++) {
       var collisionDirection = that.collisionCheck(goombas[i], element);
 
@@ -520,7 +520,7 @@ function MarioGame() {
   };
 
 
-  this.checkPowerUpMarioCollision = function() {
+  this.checkPowerUpMarioCollision = function () {
     for (var i = 0; i < powerUps.length; i++) {
       var collWithMario = that.collisionCheck(powerUps[i], mario);
       if (collWithMario) {
@@ -541,7 +541,7 @@ function MarioGame() {
     }
   };
 
-  this.checkEnemyMarioCollision = function() {
+  this.checkEnemyMarioCollision = function () {
     for (var i = 0; i < goombas.length; i++) {
       if (!mario.invulnerable && goombas[i].state != 'dead') {
         //if mario is invulnerable or goombas state is dead, collision doesnt occur
@@ -569,7 +569,7 @@ function MarioGame() {
             //sound when mario powerDowns
             gameSound.play('powerDown');
 
-            setTimeout(function() {
+            setTimeout(function () {
               mario.invulnerable = false;
             }, 1000);
           } else if (mario.type == 'fire') {
@@ -581,7 +581,7 @@ function MarioGame() {
             //sound when mario powerDowns
             gameSound.play('powerDown');
 
-            setTimeout(function() {
+            setTimeout(function () {
               mario.invulnerable = false;
             }, 1000);
           } else if (mario.type == 'small') {
@@ -597,12 +597,12 @@ function MarioGame() {
             // Check if we should show game over or just lose a life
             var shouldGameOver = score.loseLife();
             if (shouldGameOver <= 0) {
-              timeOutId = setTimeout(function() {
+              timeOutId = setTimeout(function () {
                 that.gameOver();
               }, 3000);
             } else {
               // Respawn at same level after delay
-              timeOutId = setTimeout(function() {
+              timeOutId = setTimeout(function () {
                 // Remove current level coins from total (player loses coins from level they died in)
                 coinCount -= currentLevelCoins;
                 var marioMaker = MarioMaker.getInstance();
@@ -617,7 +617,7 @@ function MarioGame() {
   };
 
 
-  this.wallCollision = function() {
+  this.wallCollision = function () {
     //for walls (vieport walls)
     if (mario.x >= maxWidth - mario.width) {
       mario.x = maxWidth - mario.width;
@@ -635,12 +635,12 @@ function MarioGame() {
       // Check if we should show game over or just lose a life
       var shouldGameOver = score.loseLife();
       if (shouldGameOver <= 0) {
-        timeOutId = setTimeout(function() {
+        timeOutId = setTimeout(function () {
           that.gameOver();
         }, 3000);
       } else {
         // Respawn at same level after delay
-        timeOutId = setTimeout(function() {
+        timeOutId = setTimeout(function () {
           // Remove current level coins from total (player loses coins from level they died in)
           coinCount -= currentLevelCoins;
           var marioMaker = MarioMaker.getInstance();
@@ -651,7 +651,7 @@ function MarioGame() {
   };
 
   //controlling mario with key events
-  this.updateMario = function() {
+  this.updateMario = function () {
     var friction = 0.9;
     var gravity = 0.2;
 
@@ -756,7 +756,7 @@ function MarioGame() {
     mario.y += mario.velY;
   };
 
-  this.checkMarioPos = function() {
+  this.checkMarioPos = function () {
     centerPos = translatedDist + viewPort / 2;
 
     //side scrolling as mario reaches center of the viewPort
@@ -766,7 +766,7 @@ function MarioGame() {
     }
   };
 
-  this.levelFinish = function(collisionDirection) {
+  this.levelFinish = function (collisionDirection) {
     //game finishes when mario slides the flagPole and collides with the ground
     if (collisionDirection == 'r') {
       mario.x += 10;
@@ -792,25 +792,25 @@ function MarioGame() {
         //sound when stage clears
         gameSound.play('stageClear');
 
-        timeOutId = setTimeout(function() {
+        timeOutId = setTimeout(function () {
           // Send level completion message to parent window before advancing
           if (window.parent && window.parent !== window) {
-            window.parent.postMessage({ 
-              type: 'LEVEL_COMPLETED', 
+            window.parent.postMessage({
+              type: 'LEVEL_COMPLETED',
               coins: coinCount, // Send total coins accumulated
               level: currentLevel
             }, '*');
           }
-          
+
           // Current level coins are already added to coinCount during collection
           // No need to add them again here
-          
+
           currentLevel++;
           if (originalMaps[currentLevel]) {
             // Update MarioMaker's level tracking
             var marioMaker = MarioMaker.getInstance();
             marioMaker.updateCurrentLevel(currentLevel);
-            
+
             that.init(originalMaps, currentLevel, false); // Not a respawn, level progression
             score.updateLevelNum(currentLevel);
           } else {
@@ -821,30 +821,30 @@ function MarioGame() {
     }
   };
 
-  this.pauseGame = function() {
+  this.pauseGame = function () {
     window.cancelAnimationFrame(animationID);
   };
 
-  this.setupMessageListener = function() {
-    window.addEventListener('message', function(event) {
+  this.setupMessageListener = function () {
+    window.addEventListener('message', function (event) {
       if (event.data.type === 'BEST_SCORE') {
         currentBestScore = event.data.bestScore || 0;
       }
     });
   };
 
-  this.gameOver = function() {
+  this.gameOver = function () {
     gameOverState = true;
-    
+
     // Send coin count to parent window for persistence FIRST
     if (window.parent && window.parent !== window) {
-      window.parent.postMessage({ 
-        type: 'GAME_OVER', 
-        coins: coinCount 
+      window.parent.postMessage({
+        type: 'GAME_OVER',
+        coins: coinCount
       }, '*');
-      
+
       // Wait a bit for the parent to update and send back the best score
-      setTimeout(function() {
+      setTimeout(function () {
         that.showGameOverScreen();
       }, 100);
     } else {
@@ -852,30 +852,30 @@ function MarioGame() {
       that.showGameOverScreen();
     }
   };
-  
-  this.showGameOverScreen = function() {
+
+  this.showGameOverScreen = function () {
     score.gameOverView();
     gameUI.makeBox(0, 0, maxWidth, height);
     gameUI.writeText('Game Over', centerPos - 80, height - 300);
     gameUI.writeText('Thanks For Playing', centerPos - 122, height / 2);
-    
+
     // Use the max of coin count and current best score to ensure we show the right value
     var displayScore = Math.max(coinCount, currentBestScore);
-    
+
     // Create restart and leaderboard buttons
     that.createGameOverButtons();
   };
-  
-  this.createGameOverButtons = function() {
+
+  this.createGameOverButtons = function () {
     var view = View.getInstance();
     var mainWrapper = view.getMainWrapper();
-    
-    // Create restart button
+
+    // Create restart button (big, prominent, full width)
     restartButton = view.create('button');
     view.addClass(restartButton, 'restart-btn');
-    view.setHTML(restartButton, 'Restart Game');
-    
-    restartButton.onclick = function() {
+    view.setHTML(restartButton, '🎮 Restart Game');
+
+    restartButton.onclick = function () {
       // Notify parent window that user wants to restart (payment check)
       if (window.parent && window.parent !== window) {
         window.parent.postMessage({ type: 'GAME_RESTART_ATTEMPT' }, '*');
@@ -884,40 +884,80 @@ function MarioGame() {
         that.restartGame();
       }
     };
-    
-    // Position restart button on the left
+
+    // Position restart button at top - full width
     view.style(restartButton, {
       position: 'absolute',
-      left: '42%',
-      top: '60%',
+      left: '50%',
+      top: '55%',
       transform: 'translate(-50%, -50%)',
-      zIndex: '1000'
+      zIndex: '1000',
+      width: '420px',
+      height: '70px',
+      fontSize: '24px'
     });
-    
+
     view.append(mainWrapper, restartButton);
-    
-    // Create leaderboard button
-    leaderboardButton = view.create('button');
-    view.addClass(leaderboardButton, 'leaderboard-btn');
-    view.setHTML(leaderboardButton, 'Check Leaderboard');
-    
-    leaderboardButton.onclick = function() {
+
+    // Create convert XP link (styled as link, not button)
+    var convertXPLink = view.create('a');
+    view.addClass(convertXPLink, 'convert-xp-link');
+    view.setHTML(convertXPLink, '💎 Convert Your XP');
+
+    convertXPLink.onclick = function (e) {
+      e.preventDefault();
+      that.navigateToProfile();
+    };
+
+    // Position convert XP link on the left below restart button
+    view.style(convertXPLink, {
+      position: 'absolute',
+      left: '32%',
+      top: '68%',
+      transform: 'translate(-50%, -50%)',
+      zIndex: '1000',
+      cursor: 'pointer',
+      textDecoration: 'underline',
+      color: '#FFD700',
+      fontFamily: 'SuperMario256',
+      fontSize: '16px',
+      textShadow: '-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000'
+    });
+
+    view.append(mainWrapper, convertXPLink);
+
+    // Create leaderboard link (styled as link, not button)
+    leaderboardButton = view.create('a');
+    view.addClass(leaderboardButton, 'leaderboard-link');
+    view.setHTML(leaderboardButton, '🏆 Check Leaderboard');
+
+    leaderboardButton.onclick = function (e) {
+      e.preventDefault();
       that.navigateToLeaderboard();
     };
-    
-    // Position leaderboard button on the right
+
+    // Position leaderboard link on the right below restart button
     view.style(leaderboardButton, {
       position: 'absolute',
-      left: '58%',
-      top: '60%',
+      left: '68%',
+      top: '68%',
       transform: 'translate(-50%, -50%)',
-      zIndex: '1000'
+      zIndex: '1000',
+      cursor: 'pointer',
+      textDecoration: 'underline',
+      color: '#FFD700',
+      fontFamily: 'SuperMario256',
+      fontSize: '16px',
+      textShadow: '-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000'
     });
-    
+
     view.append(mainWrapper, leaderboardButton);
+
+    // Store convertXPLink for cleanup
+    that.convertXPLink = convertXPLink;
   };
-  
-  this.navigateToLeaderboard = function() {
+
+  this.navigateToLeaderboard = function () {
     // Navigate to leaderboard page by communicating with parent window
     if (window.parent && window.parent !== window) {
       window.parent.postMessage({
@@ -929,64 +969,84 @@ function MarioGame() {
     }
   };
 
-  this.restartGame = function() {
+  this.navigateToProfile = function () {
+    // Navigate to profile page by communicating with parent window
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({
+        type: 'NAVIGATE_TO_PROFILE'
+      }, '*');
+    } else {
+      // Fallback for direct access
+      window.location.href = '/portal/profile';
+    }
+  };
+
+  this.restartGame = function () {
+    var view = View.getInstance();
+    var mainWrapper = view.getMainWrapper();
+
     if (restartButton) {
-      var view = View.getInstance();
-      var mainWrapper = view.getMainWrapper();
       view.remove(mainWrapper, restartButton);
       restartButton = null;
     }
-    
+
     if (leaderboardButton) {
-      var view = View.getInstance();
-      var mainWrapper = view.getMainWrapper();
       view.remove(mainWrapper, leaderboardButton);
       leaderboardButton = null;
     }
-    
+
+    if (that.convertXPLink) {
+      view.remove(mainWrapper, that.convertXPLink);
+      that.convertXPLink = null;
+    }
+
     gameOverState = false;
-    
+
     // Notify MarioMaker to restart
     var marioMaker = MarioMaker.getInstance();
     marioMaker.restartCurrentGame();
   };
 
-  this.resetGame = function() {
+  this.resetGame = function () {
     that.clearInstances();
     that.init(originalMaps, currentLevel, true); // Reset game is like respawning
   };
 
-  this.clearInstances = function() {
+  this.clearInstances = function () {
     mario = null;
     element = null;
     gameSound = null;
 
     goombas = [];
     powerUps = [];
-    
-    // Clean up buttons if they exist
+
+    var view = View.getInstance();
+    var mainWrapper = view.getMainWrapper();
+
+    // Clean up buttons and links if they exist
     if (restartButton) {
-      var view = View.getInstance();
-      var mainWrapper = view.getMainWrapper();
       view.remove(mainWrapper, restartButton);
       restartButton = null;
     }
-    
+
     if (leaderboardButton) {
-      var view = View.getInstance();
-      var mainWrapper = view.getMainWrapper();
       view.remove(mainWrapper, leaderboardButton);
       leaderboardButton = null;
     }
-    
+
+    if (that.convertXPLink) {
+      view.remove(mainWrapper, that.convertXPLink);
+      that.convertXPLink = null;
+    }
+
     gameOverState = false;
   };
 
-  this.clearTimeOut = function() {
+  this.clearTimeOut = function () {
     clearTimeout(timeOutId);
   };
 
-  this.removeGameScreen = function(preserveCoins) {
+  this.removeGameScreen = function (preserveCoins) {
     gameUI.hide();
 
     if (score) {
@@ -994,11 +1054,11 @@ function MarioGame() {
     }
   };
 
-  this.showGameScreen = function() {
+  this.showGameScreen = function () {
     gameUI.show();
   };
 
-  this.getScore = function() {
+  this.getScore = function () {
     return score;
   };
 }
