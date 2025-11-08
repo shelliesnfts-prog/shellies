@@ -402,6 +402,16 @@ html {
   animation: glitch 0.3s ease-in-out;
 }
 
+/* Shimmer Animation for XP Converter */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-shimmer {
+  animation: shimmer 3s infinite;
+}
+
 /* Mobile optimizations */
 @media (max-width: 768px) {
   .btn-primary, .btn-secondary {

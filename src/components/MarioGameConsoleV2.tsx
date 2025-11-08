@@ -431,23 +431,53 @@ export default function MarioGameConsoleV2() {
             </div>
             <div className="flex-1 space-y-4">
               <h3 className={`text-2xl font-extrabold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent`}>
-                Why Pay to Play?
+                Shellies Mario Game — Q&A About the New Play Fee System
               </h3>
-              <div className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <Shield className={`w-5 h-5 mt-0.5 flex-shrink-0 ${isDarkMode ? 'text-purple-400' : 'text-purple-600'
-                    }`} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
+                    Q: Why did we add a small payment fee to play Shellies Mario Game?
+                  </p>
                   <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    <span className="font-semibold">Authenticity First:</span> We value real players and prevent bots from gaming the system. This small fee ensures fair competition on the leaderboard.
+                    A: This system helps us make sure only real players join the game, not bots. It keeps the gameplay fair and fun for everyone in the community.
                   </p>
                 </div>
-                <div className="flex items-start gap-3">
-                  <Coins className={`w-5 h-5 mt-0.5 flex-shrink-0 ${isDarkMode ? 'text-purple-400' : 'text-purple-600'
-                    }`} />
+                
+                <div className="space-y-2">
+                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
+                    Q: Will Shellies holders have to pay the same fee as everyone else?
+                  </p>
                   <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    <span className="font-semibold">Community Benefits:</span> All collected funds are reinvested into more raffles and rewards to benefit our Shellies community.
+                    A: No! Shellies holders will pay a much lower fee, and stakers will pay even less. The goal is to reward our loyal holders and stakers.
                   </p>
                 </div>
+                
+                <div className="space-y-2">
+                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
+                    Q: What about public players?
+                  </p>
+                  <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    A: Public players will pay the regular play fee — but it's still small. This fee keeps the game's economy strong and fair.
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
+                    Q: What will we do with the collected fees?
+                  </p>
+                  <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    A: The fees will be used to: Run multiple raffles for the community • Add to our project's liquidity for the upcoming token • Encourage more on-chain activity and transactions on InkChain
+                  </p>
+                </div>
+              </div>
+              
+              <div className={`mt-4 p-4 rounded-lg border ${isDarkMode ? 'bg-purple-900/20 border-purple-700/50' : 'bg-purple-50 border-purple-200'}`}>
+                <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  This system isn't just about payments — it's about building a real, active community around Shellies and InkChain.
+                </p>
+                <p className={`text-sm font-bold mt-2 ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
+                  Real players. Real rewards. Real growth.
+                </p>
               </div>
 
               {/* NFT Holder Pricing Tiers */}

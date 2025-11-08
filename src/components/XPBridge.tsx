@@ -256,7 +256,22 @@ export default function XPBridge({
       ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
       : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
       }`}>
-      <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-pink-500/5 to-transparent" />
+      {/* Fire Animation Background */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-pink-500/5 to-transparent" />
+        {/* Animated fire glow effect */}
+        <div className="absolute -top-20 -right-20 w-40 h-40 bg-gradient-to-br from-orange-500/30 via-red-500/20 to-transparent rounded-full blur-3xl animate-pulse" 
+             style={{ animationDuration: '2s' }} />
+        <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-gradient-to-br from-yellow-500/30 via-orange-500/20 to-transparent rounded-full blur-3xl animate-pulse" 
+             style={{ animationDuration: '3s', animationDelay: '0.5s' }} />
+        {/* Floating fire particles */}
+        <div className="absolute top-1/4 right-1/4 w-2 h-2 bg-orange-400 rounded-full animate-ping" 
+             style={{ animationDuration: '2s' }} />
+        <div className="absolute bottom-1/3 left-1/3 w-2 h-2 bg-red-400 rounded-full animate-ping" 
+             style={{ animationDuration: '2.5s', animationDelay: '0.3s' }} />
+        <div className="absolute top-1/2 left-1/2 w-2 h-2 bg-yellow-400 rounded-full animate-ping" 
+             style={{ animationDuration: '3s', animationDelay: '0.7s' }} />
+      </div>
       <div className="relative p-6 h-full flex flex-col">
         <div className="flex items-start justify-between mb-4">
           <div>
@@ -309,32 +324,38 @@ export default function XPBridge({
               </div>
 
               {/* Convert Button Wrapper */}
-              <div className={`rounded-xl p-6 border ${isDarkMode 
+              <div className={`rounded-xl p-6 border relative overflow-hidden ${isDarkMode 
                 ? 'bg-white/5 backdrop-blur-md border-white/10' 
                 : 'bg-white/50 backdrop-blur-md border-gray-200/50'
               }`}>
+                {/* Fire shimmer effect on button container */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-orange-500/10 to-transparent animate-shimmer" 
+                     style={{ 
+                       backgroundSize: '200% 100%',
+                       animation: 'shimmer 3s infinite'
+                     }} />
+                
                 <button
-                  onClick={handleConvert}
-                  disabled={isConvertDisabled()}
-                  className={`w-full px-4 py-3 rounded-lg font-medium transition-all duration-200 transform ${isConvertDisabled()
-                    ? isDarkMode
-                      ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg hover:scale-105'
-                    }`}
+                  onClick={() => {
+                    // Show coming soon message
+                    setConversionError('🔥 Coming Soon! This feature is being prepared for launch.');
+                    setCanRetryConversion(false);
+                    setTimeout(() => setConversionError(null), 3000);
+                  }}
+                  className={`relative w-full px-4 py-3 rounded-lg font-medium transition-all duration-200 transform ${isDarkMode
+                    ? 'bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 border border-orange-500/50'
+                    : 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 border border-orange-400/50'
+                    } text-white shadow-lg hover:scale-105 hover:shadow-orange-500/50`}
                 >
-                  {isConverting ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                      Converting...
-                    </div>
-                  ) : (
-                    'Convert All XP'
-                  )}
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="text-xl animate-bounce" style={{ animationDuration: '1s' }}>🔥</span>
+                    <span className="font-bold">Coming Soon</span>
+                    <span className="text-xl animate-bounce" style={{ animationDuration: '1s', animationDelay: '0.2s' }}>🔥</span>
+                  </div>
                 </button>
                 
-                <div className={`text-xs mt-3 text-center ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                  Conversions are available once every 7 days
+                <div className={`text-xs mt-3 text-center font-medium ${isDarkMode ? 'text-orange-400' : 'text-orange-600'}`}>
+                  🚀 New feature launching soon! Stay tuned.
                 </div>
               </div>
             </>
