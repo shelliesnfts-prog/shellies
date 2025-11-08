@@ -577,17 +577,16 @@ export default function WithdrawalsPage() {
               : 'bg-white border-gray-200'
               }`}>
               <div className="flex justify-between items-center mb-4">
-                <h2 className={`text-sm font-semibold flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                  <Settings className="w-4 h-4" />
-                  Payment Tiers
-                </h2>
+                <div>
+                  <h2 className={`text-sm font-semibold flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    <Settings className="w-4 h-4" />
+                    Payment Tiers
+                  </h2>
+                  <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    3 static tiers: Regular, NFT Holder, Staker (priority: Staker &gt; NFT Holder &gt; Regular)
+                  </p>
+                </div>
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setShowAddTierModal(true)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white transition-all duration-200"
-                  >
-                    + Add Tier
-                  </button>
                   <button
                     onClick={fetchTiers}
                     disabled={loadingTiers}
@@ -607,14 +606,19 @@ export default function WithdrawalsPage() {
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600 mx-auto"></div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {paymentTiers.map((tier) => {
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {paymentTiers
+                    .filter(tier => ['regular', 'nft_holder', 'staker'].includes(tier.tier_name))
+                    .sort((a, b) => {
+                      const order = { regular: 0, nft_holder: 1, staker: 2 };
+                      return order[a.tier_name as keyof typeof order] - order[b.tier_name as keyof typeof order];
+                    })
+                    .map((tier) => {
                     const tierAmount = BigInt(tier.payment_amount_wei);
-                    const isRegular = tier.tier_name === 'regular';
                     
                     // Determine tier color and icon based on name
                     const getTierStyle = () => {
-                      if (isRegular) {
+                      if (tier.tier_name === 'regular') {
                         return {
                           gradient: isDarkMode 
                             ? 'bg-gradient-to-br from-gray-700/30 to-gray-800/30 border-gray-600/50'
@@ -623,48 +627,39 @@ export default function WithdrawalsPage() {
                           buttonGradient: 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800',
                           textColor: isDarkMode ? 'text-gray-300' : 'text-gray-600'
                         };
-                      } else if (tier.tier_name === 'bronze') {
+                      } else if (tier.tier_name === 'nft_holder') {
                         return {
                           gradient: isDarkMode
-                            ? 'bg-gradient-to-br from-orange-900/30 to-amber-900/30 border-orange-700/50'
-                            : 'bg-gradient-to-br from-orange-50 to-amber-50 border-orange-200',
-                          icon: '🥉',
-                          buttonGradient: 'bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700',
-                          textColor: isDarkMode ? 'text-orange-300' : 'text-orange-600'
+                            ? 'bg-gradient-to-br from-blue-900/30 to-indigo-900/30 border-blue-700/50'
+                            : 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200',
+                          icon: '🎨',
+                          buttonGradient: 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700',
+                          textColor: isDarkMode ? 'text-blue-300' : 'text-blue-600'
                         };
-                      } else if (tier.tier_name === 'silver') {
-                        return {
-                          gradient: isDarkMode
-                            ? 'bg-gradient-to-br from-slate-700/30 to-zinc-700/30 border-slate-600/50'
-                            : 'bg-gradient-to-br from-slate-100 to-zinc-100 border-slate-300',
-                          icon: '🥈',
-                          buttonGradient: 'bg-gradient-to-r from-slate-600 to-zinc-600 hover:from-slate-700 hover:to-zinc-700',
-                          textColor: isDarkMode ? 'text-slate-300' : 'text-slate-600'
-                        };
-                      } else if (tier.tier_name === 'gold') {
-                        return {
-                          gradient: isDarkMode
-                            ? 'bg-gradient-to-br from-yellow-900/30 to-amber-900/30 border-yellow-700/50'
-                            : 'bg-gradient-to-br from-yellow-50 to-amber-50 border-yellow-200',
-                          icon: '🥇',
-                          buttonGradient: 'bg-gradient-to-r from-yellow-600 to-amber-600 hover:from-yellow-700 hover:to-amber-700',
-                          textColor: isDarkMode ? 'text-yellow-300' : 'text-yellow-600'
-                        };
-                      } else {
+                      } else if (tier.tier_name === 'staker') {
                         return {
                           gradient: isDarkMode
                             ? 'bg-gradient-to-br from-purple-900/30 to-pink-900/30 border-purple-700/50'
                             : 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200',
-                          icon: '🎨',
+                          icon: '🔒',
                           buttonGradient: 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700',
                           textColor: isDarkMode ? 'text-purple-300' : 'text-purple-600'
+                        };
+                      } else {
+                        return {
+                          gradient: isDarkMode
+                            ? 'bg-gradient-to-br from-gray-700/30 to-gray-800/30 border-gray-600/50'
+                            : 'bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200',
+                          icon: '❓',
+                          buttonGradient: 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800',
+                          textColor: isDarkMode ? 'text-gray-300' : 'text-gray-600'
                         };
                       }
                     };
 
                     const style = getTierStyle();
                     const regularAmount = BigInt('10000000000000'); // 0.00001 ETH
-                    const discountPercent = isRegular ? 0 : Math.round((1 - Number(tierAmount) / Number(regularAmount)) * 100);
+                    const discountPercent = tier.tier_name === 'regular' ? 0 : Math.round((1 - Number(tierAmount) / Number(regularAmount)) * 100);
                     
                     return (
                       <div
@@ -676,9 +671,9 @@ export default function WithdrawalsPage() {
                             <div className="flex items-center gap-2 mb-1">
                               <span className="text-xl">{style.icon}</span>
                               <h3 className={`text-sm font-bold capitalize ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                                {tier.tier_name}
+                                {tier.tier_name === 'nft_holder' ? 'NFT Holder' : tier.tier_name}
                               </h3>
-                              {!isRegular && (
+                              {tier.tier_name !== 'regular' && (
                                 <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
                                   isDarkMode ? 'bg-green-700 text-green-100' : 'bg-green-500 text-white'
                                 }`}>
@@ -687,12 +682,9 @@ export default function WithdrawalsPage() {
                               )}
                             </div>
                             <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                              {tier.max_nfts === null 
-                                ? `${tier.min_nfts}+ NFTs`
-                                : tier.min_nfts === tier.max_nfts
-                                ? `${tier.min_nfts} NFT${tier.min_nfts > 1 ? 's' : ''}`
-                                : `${tier.min_nfts}-${tier.max_nfts} NFTs`
-                              }
+                              {tier.tier_name === 'regular' && 'No NFT or staking'}
+                              {tier.tier_name === 'nft_holder' && 'At least 1 NFT'}
+                              {tier.tier_name === 'staker' && 'At least 1 staked NFT'}
                             </p>
                             <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
                               {tier.description}
@@ -724,29 +716,6 @@ export default function WithdrawalsPage() {
                             >
                               {updatingTier === tier.tier_name ? 'Updating...' : 'Update'}
                             </button>
-                            
-                            {!isRegular && (
-                              <>
-                                <button
-                                  onClick={() => handleToggleTierActive(tier.tier_name, tier.is_active)}
-                                  className={`px-3 py-2 rounded-lg font-medium text-xs transition-all duration-200 ${
-                                    tier.is_active
-                                      ? 'bg-yellow-600 hover:bg-yellow-700'
-                                      : 'bg-green-600 hover:bg-green-700'
-                                  } text-white`}
-                                  title={tier.is_active ? 'Deactivate' : 'Activate'}
-                                >
-                                  {tier.is_active ? '⏸' : '▶'}
-                                </button>
-                                <button
-                                  onClick={() => setShowDeleteConfirm(tier.tier_name)}
-                                  className="px-3 py-2 rounded-lg font-medium text-xs transition-all duration-200 bg-red-600 hover:bg-red-700 text-white"
-                                  title="Delete"
-                                >
-                                  🗑
-                                </button>
-                              </>
-                            )}
                           </div>
                           
                           {!tier.is_active && (
@@ -763,6 +732,34 @@ export default function WithdrawalsPage() {
                 </div>
               )}
             </div>
+
+            {/* Info Box */}
+            <div className={`rounded-xl shadow-sm border p-4 ${isDarkMode
+              ? 'bg-blue-900/20 border-blue-700/50'
+              : 'bg-blue-50 border-blue-200'
+              }`}>
+              <div className="flex items-start gap-3">
+                <div className={`text-2xl ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>ℹ️</div>
+                <div className="flex-1">
+                  <h3 className={`text-sm font-semibold mb-1 ${isDarkMode ? 'text-blue-300' : 'text-blue-900'}`}>
+                    How Tier Priority Works
+                  </h3>
+                  <p className={`text-xs ${isDarkMode ? 'text-blue-200' : 'text-blue-800'}`}>
+                    Users are automatically assigned to the highest tier they qualify for:
+                  </p>
+                  <ul className={`text-xs mt-2 space-y-1 ${isDarkMode ? 'text-blue-200' : 'text-blue-800'}`}>
+                    <li>• <strong>Staker</strong> (highest priority): Any user with at least 1 staked NFT</li>
+                    <li>• <strong>NFT Holder</strong>: Any user with at least 1 NFT (not staked)</li>
+                    <li>• <strong>Regular</strong>: Users without NFTs or staking</li>
+                  </ul>
+                  <p className={`text-xs mt-2 ${isDarkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+                    <strong>Note:</strong> If a user has both NFTs and staked NFTs, they get the Staker tier (best discount).
+                  </p>
+                </div>
+              </div>
+            </div>
+
+
 
             {/* 2-Column Grid Layout */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -961,10 +958,10 @@ export default function WithdrawalsPage() {
             }`}>
             <div className={`p-6 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
               <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                Update {selectedTier === 'nft_holder' ? 'NFT Holder' : 'Regular User'} Payment Amount
+                Update {selectedTier === 'staker' ? 'Staker' : selectedTier === 'nft_holder' ? 'NFT Holder' : 'Regular User'} Payment Amount
               </h3>
               <p className={`text-sm mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Set a new payment amount for {selectedTier === 'nft_holder' ? 'NFT holders' : 'regular users'}. Use the converter to calculate the right ETH amount based on current USD value.
+                Set a new payment amount for {selectedTier === 'staker' ? 'stakers' : selectedTier === 'nft_holder' ? 'NFT holders' : 'regular users'}. Use the converter to calculate the right ETH amount based on current USD value.
               </p>
             </div>
             <div className="p-6 space-y-6">
@@ -1068,8 +1065,8 @@ export default function WithdrawalsPage() {
         </div>
       )}
 
-      {/* Add Tier Modal */}
-      {showAddTierModal && (
+      {/* Add Tier Modal - REMOVED: Tiers are now static */}
+      {false && showAddTierModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className={`rounded-2xl shadow-xl border max-w-md w-full ${isDarkMode
             ? 'bg-gray-800 border-gray-700'
@@ -1190,8 +1187,8 @@ export default function WithdrawalsPage() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
+      {/* Delete Confirmation Modal - REMOVED: Tiers are now static */}
+      {false && showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className={`rounded-2xl shadow-xl border max-w-md w-full ${isDarkMode
             ? 'bg-gray-800 border-gray-700'

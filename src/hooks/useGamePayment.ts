@@ -44,9 +44,10 @@ export interface UseGamePaymentReturn {
   retryPayment: () => Promise<boolean>;
   sessionCreating: boolean;  // New: Track session creation
   sessionCreated: boolean;   // New: Track session created
+  isStaker: boolean;         // Staker status
   isNFTHolder: boolean;      // NFT holder status
   nftCount: number;          // Number of NFTs owned
-  paymentTier: string;       // Payment tier (regular or nft_holder)
+  paymentTier: string;       // Payment tier (regular, nft_holder, or staker)
 }
 
 /**
@@ -156,7 +157,8 @@ export function useGamePayment(): UseGamePaymentReturn {
   const [sessionCreating, setSessionCreating] = useState<boolean>(false);
   const [sessionCreated, setSessionCreated] = useState<boolean>(false);
   
-  // NFT holder state
+  // User tier state
+  const [isStaker, setIsStaker] = useState<boolean>(false);
   const [isNFTHolder, setIsNFTHolder] = useState<boolean>(false);
   const [nftCount, setNftCount] = useState<number>(0);
   const [paymentTier, setPaymentTier] = useState<string>('regular');
@@ -244,12 +246,14 @@ export function useGamePayment(): UseGamePaymentReturn {
         
         // Update state with tier-specific data
         setRequiredEth(BigInt(data.payment_amount_wei));
+        setIsStaker(data.is_staker || false);
         setIsNFTHolder(data.is_nft_holder);
         setNftCount(data.nft_count);
         setPaymentTier(data.tier);
         
         logger.payment('Payment amount fetched', {
           tier: data.tier,
+          isStaker: data.is_staker,
           isNFTHolder: data.is_nft_holder,
           nftCount: data.nft_count,
           amount: data.payment_amount_wei,
@@ -262,6 +266,7 @@ export function useGamePayment(): UseGamePaymentReturn {
         if (contractPaymentAmount && contractPaymentAmount > BigInt(0)) {
           setRequiredEth(contractPaymentAmount);
           setPaymentTier('regular');
+          setIsStaker(false);
           setIsNFTHolder(false);
           setNftCount(0);
         }
@@ -477,6 +482,7 @@ export function useGamePayment(): UseGamePaymentReturn {
           const data = await response.json();
           currentRequiredEth = BigInt(data.payment_amount_wei);
           setRequiredEth(currentRequiredEth);
+          setIsStaker(data.is_staker || false);
           setIsNFTHolder(data.is_nft_holder);
           setNftCount(data.nft_count);
           setPaymentTier(data.tier);
@@ -618,6 +624,7 @@ export function useGamePayment(): UseGamePaymentReturn {
     retryPayment,
     sessionCreating,
     sessionCreated,
+    isStaker,
     isNFTHolder,
     nftCount,
     paymentTier,

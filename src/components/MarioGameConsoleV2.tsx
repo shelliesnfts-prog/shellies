@@ -63,6 +63,7 @@ export default function MarioGameConsoleV2() {
     sessionCreated,
     ethPrice,
     requiredEth,
+    isStaker,
     isNFTHolder,
     nftCount,
     paymentTier,
@@ -497,51 +498,38 @@ export default function MarioGameConsoleV2() {
                               priceColor: isDarkMode ? 'text-white' : 'text-gray-900',
                               labelColor: isDarkMode ? 'text-gray-500' : 'text-gray-500',
                             };
-                          case 'bronze':
+                          case 'nft_holder':
                             return {
                               bgGradient: isDarkMode 
-                                ? 'from-orange-950/50 to-amber-950/50' 
-                                : 'from-orange-50 to-amber-50',
-                              borderColor: isDarkMode ? 'border-orange-800/50' : 'border-orange-200',
-                              accentColor: isDarkMode ? 'bg-orange-600' : 'bg-orange-500',
-                              textColor: isDarkMode ? 'text-orange-300' : 'text-orange-700',
-                              priceColor: isDarkMode ? 'text-orange-200' : 'text-orange-800',
-                              labelColor: isDarkMode ? 'text-orange-400/70' : 'text-orange-600/70',
-                              badgeColor: isDarkMode ? 'bg-orange-600/20 text-orange-300 border-orange-500/30' : 'bg-orange-100 text-orange-700 border-orange-300',
+                                ? 'from-blue-950/50 to-indigo-950/50' 
+                                : 'from-blue-50 to-indigo-50',
+                              borderColor: isDarkMode ? 'border-blue-800/50' : 'border-blue-200',
+                              accentColor: isDarkMode ? 'bg-blue-600' : 'bg-blue-500',
+                              textColor: isDarkMode ? 'text-blue-300' : 'text-blue-700',
+                              priceColor: isDarkMode ? 'text-blue-200' : 'text-blue-800',
+                              labelColor: isDarkMode ? 'text-blue-400/70' : 'text-blue-600/70',
+                              badgeColor: isDarkMode ? 'bg-blue-600/20 text-blue-300 border-blue-500/30' : 'bg-blue-100 text-blue-700 border-blue-300',
                             };
-                          case 'silver':
+                          case 'staker':
                             return {
                               bgGradient: isDarkMode 
-                                ? 'from-slate-900/50 to-zinc-900/50' 
-                                : 'from-slate-50 to-zinc-50',
-                              borderColor: isDarkMode ? 'border-slate-700/50' : 'border-slate-300',
-                              accentColor: isDarkMode ? 'bg-slate-500' : 'bg-slate-400',
-                              textColor: isDarkMode ? 'text-slate-300' : 'text-slate-700',
-                              priceColor: isDarkMode ? 'text-slate-200' : 'text-slate-800',
-                              labelColor: isDarkMode ? 'text-slate-400/70' : 'text-slate-600/70',
-                              badgeColor: isDarkMode ? 'bg-slate-600/20 text-slate-300 border-slate-500/30' : 'bg-slate-100 text-slate-700 border-slate-300',
-                            };
-                          case 'gold':
-                            return {
-                              bgGradient: isDarkMode 
-                                ? 'from-yellow-950/50 to-amber-950/50' 
-                                : 'from-yellow-50 to-amber-50',
-                              borderColor: isDarkMode ? 'border-yellow-800/50' : 'border-yellow-200',
-                              accentColor: isDarkMode ? 'bg-yellow-600' : 'bg-yellow-500',
-                              textColor: isDarkMode ? 'text-yellow-300' : 'text-yellow-700',
-                              priceColor: isDarkMode ? 'text-yellow-200' : 'text-yellow-800',
-                              labelColor: isDarkMode ? 'text-yellow-400/70' : 'text-yellow-600/70',
-                              badgeColor: isDarkMode ? 'bg-yellow-600/20 text-yellow-300 border-yellow-500/30' : 'bg-yellow-100 text-yellow-700 border-yellow-300',
-                            };
-                          default:
-                            return {
-                              bgGradient: isDarkMode ? 'from-purple-950/50 to-pink-950/50' : 'from-purple-50 to-pink-50',
-                              borderColor: isDarkMode ? 'border-purple-700/50' : 'border-purple-200',
+                                ? 'from-purple-950/50 to-pink-950/50' 
+                                : 'from-purple-50 to-pink-50',
+                              borderColor: isDarkMode ? 'border-purple-800/50' : 'border-purple-200',
                               accentColor: isDarkMode ? 'bg-purple-600' : 'bg-purple-500',
                               textColor: isDarkMode ? 'text-purple-300' : 'text-purple-700',
                               priceColor: isDarkMode ? 'text-purple-200' : 'text-purple-800',
                               labelColor: isDarkMode ? 'text-purple-400/70' : 'text-purple-600/70',
                               badgeColor: isDarkMode ? 'bg-purple-600/20 text-purple-300 border-purple-500/30' : 'bg-purple-100 text-purple-700 border-purple-300',
+                            };
+                          default:
+                            return {
+                              bgGradient: isDarkMode ? 'from-gray-800 to-gray-900' : 'from-gray-50 to-gray-100',
+                              borderColor: isDarkMode ? 'border-gray-700' : 'border-gray-300',
+                              accentColor: isDarkMode ? 'bg-gray-700' : 'bg-gray-300',
+                              textColor: isDarkMode ? 'text-gray-300' : 'text-gray-700',
+                              priceColor: isDarkMode ? 'text-white' : 'text-gray-900',
+                              labelColor: isDarkMode ? 'text-gray-500' : 'text-gray-500',
                             };
                         }
                       };
@@ -597,49 +585,46 @@ export default function MarioGameConsoleV2() {
                   </div>
                 )}
               </div>
-              {/* NFT Holder Discount Badge */}
-              {isNFTHolder && (
-                <div className={`mt-4 p-3 rounded-lg border ${paymentTier === 'gold'
-                    ? isDarkMode
-                      ? 'bg-gradient-to-r from-yellow-900/30 to-amber-900/30 border-yellow-700/50'
-                      : 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200'
-                    : paymentTier === 'silver'
+              {/* Tier Discount Badge */}
+              {(paymentTier === 'staker' || paymentTier === 'nft_holder') && (
+                <div className={`mt-4 p-3 rounded-lg border ${
+                    paymentTier === 'staker'
                       ? isDarkMode
-                        ? 'bg-gradient-to-r from-slate-700/30 to-zinc-700/30 border-slate-600/50'
-                        : 'bg-gradient-to-r from-slate-100 to-zinc-100 border-slate-300'
+                        ? 'bg-gradient-to-r from-purple-900/30 to-pink-900/30 border-purple-700/50'
+                        : 'bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200'
                       : isDarkMode
-                        ? 'bg-gradient-to-r from-orange-900/30 to-amber-900/30 border-orange-700/50'
-                        : 'bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200'
+                        ? 'bg-gradient-to-r from-blue-900/30 to-indigo-900/30 border-blue-700/50'
+                        : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200'
                   }`}>
                   <div className="flex items-center gap-2">
                     <span className="text-2xl">
-                      {paymentTier === 'gold' ? '🥇' : paymentTier === 'silver' ? '🥈' : '🥉'}
+                      {paymentTier === 'staker' ? '🔒' : '🎨'}
                     </span>
                     <div className="flex-1">
-                      <p className={`text-sm font-bold capitalize ${paymentTier === 'gold'
-                          ? isDarkMode ? 'text-yellow-300' : 'text-yellow-700'
-                          : paymentTier === 'silver'
-                            ? isDarkMode ? 'text-slate-300' : 'text-slate-700'
-                            : isDarkMode ? 'text-orange-300' : 'text-orange-700'
+                      <p className={`text-sm font-bold capitalize ${
+                          paymentTier === 'staker'
+                            ? isDarkMode ? 'text-purple-300' : 'text-purple-700'
+                            : isDarkMode ? 'text-blue-300' : 'text-blue-700'
                         }`}>
-                        {paymentTier} Tier Active!
+                        {paymentTier === 'staker' ? 'Staker' : 'NFT Holder'} Tier Active!
                       </p>
-                      <p className={`text-xs ${paymentTier === 'gold'
-                          ? isDarkMode ? 'text-yellow-400' : 'text-yellow-600'
-                          : paymentTier === 'silver'
-                            ? isDarkMode ? 'text-slate-400' : 'text-slate-600'
-                            : isDarkMode ? 'text-orange-400' : 'text-orange-600'
+                      <p className={`text-xs ${
+                          paymentTier === 'staker'
+                            ? isDarkMode ? 'text-purple-400' : 'text-purple-600'
+                            : isDarkMode ? 'text-blue-400' : 'text-blue-600'
                         }`}>
-                        You own {nftCount} Shellies NFT{nftCount > 1 ? 's' : ''} - Enjoy your discount! 🎉
+                        {paymentTier === 'staker' 
+                          ? 'You have staked NFTs - Enjoy maximum discount! 🎉'
+                          : `You own ${nftCount} Shellies NFT${nftCount > 1 ? 's' : ''} - Enjoy your discount! 🎉`
+                        }
                       </p>
                     </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${paymentTier === 'gold'
-                        ? isDarkMode ? 'bg-yellow-700 text-yellow-100' : 'bg-yellow-500 text-white'
-                        : paymentTier === 'silver'
-                          ? isDarkMode ? 'bg-slate-700 text-slate-100' : 'bg-slate-500 text-white'
-                          : isDarkMode ? 'bg-orange-700 text-orange-100' : 'bg-orange-500 text-white'
+                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                        paymentTier === 'staker'
+                          ? isDarkMode ? 'bg-purple-700 text-purple-100' : 'bg-purple-500 text-white'
+                          : isDarkMode ? 'bg-blue-700 text-blue-100' : 'bg-blue-500 text-white'
                       }`}>
-                      {paymentTier === 'gold' ? '80%' : paymentTier === 'silver' ? '70%' : '50%'} OFF
+                      {paymentTier === 'staker' ? '80%' : '50%'} OFF
                     </span>
                   </div>
                 </div>
