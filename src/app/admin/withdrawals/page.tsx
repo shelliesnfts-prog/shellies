@@ -1224,7 +1224,7 @@ export default function WithdrawalsPage() {
                   Cancel
                 </button>
                 <button
-                  onClick={() => handleDeleteTier(showDeleteConfirm)}
+                  onClick={() => showDeleteConfirm && handleDeleteTier(showDeleteConfirm)}
                   className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors"
                 >
                   Delete
