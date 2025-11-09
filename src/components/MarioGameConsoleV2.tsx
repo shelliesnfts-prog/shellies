@@ -14,7 +14,6 @@ import { GamePaymentService } from '@/lib/contracts';
 import { Shield, Coins, Info } from 'lucide-react';
 import GameWalletPrompt from './GameWalletPrompt';
 import PaymentLoadingOverlay from './PaymentLoadingOverlay';
-import '@/styles/fire-animation.css';
 
 /**
  * Payment status states for the overlay
@@ -550,39 +549,8 @@ export default function MarioGameConsoleV2() {
                       return (
                         <div
                           key={tier.id}
-                          className={`relative p-4 rounded-lg border bg-gradient-to-br ${styles.bgGradient} ${styles.borderColor} transition-all duration-200 hover:shadow-lg hover:scale-[1.02] overflow-hidden ${shouldShowPlayButton ? 'fire-glow-border' : ''}`}
+                          className={`relative p-4 rounded-lg border bg-gradient-to-br ${styles.bgGradient} ${styles.borderColor} transition-all duration-200 hover:shadow-lg hover:scale-[1.02] overflow-hidden`}
                         >
-                          {/* Advanced Fire animation background for active tier */}
-                          {shouldShowPlayButton && (
-                            <>
-                              {/* Fire layers with different animations */}
-                              <div className="absolute inset-0 pointer-events-none fire-layer-1">
-                                <div className="absolute inset-0 bg-gradient-to-t from-orange-600 via-red-500 to-yellow-400" />
-                              </div>
-                              <div className="absolute inset-0 pointer-events-none fire-layer-2">
-                                <div className="absolute inset-0 bg-gradient-to-br from-red-600 via-orange-500 to-yellow-500" />
-                              </div>
-                              <div className="absolute inset-0 pointer-events-none fire-layer-3">
-                                <div className="absolute inset-0 bg-gradient-to-tl from-yellow-500 via-orange-600 to-red-500" />
-                              </div>
-                              
-                              {/* Heat wave distortion effect */}
-                              <div className="absolute inset-0 pointer-events-none heat-wave-effect">
-                                <div className="absolute inset-0 bg-gradient-to-t from-orange-400/20 to-transparent" />
-                              </div>
-                              
-                              {/* Floating ember particles */}
-                              <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                                <div className="ember-particle ember-delay-1 absolute bottom-0 left-[10%] w-1 h-1 bg-orange-400 rounded-full blur-sm" />
-                                <div className="ember-particle ember-delay-2 absolute bottom-0 left-[30%] w-1.5 h-1.5 bg-yellow-400 rounded-full blur-sm" />
-                                <div className="ember-particle ember-delay-3 absolute bottom-0 left-[50%] w-1 h-1 bg-red-400 rounded-full blur-sm" />
-                                <div className="ember-particle ember-delay-4 absolute bottom-0 left-[70%] w-1.5 h-1.5 bg-orange-400 rounded-full blur-sm" />
-                                <div className="ember-particle ember-delay-5 absolute bottom-0 left-[85%] w-1 h-1 bg-yellow-400 rounded-full blur-sm" />
-                                <div className="ember-particle ember-delay-6 absolute bottom-0 left-[20%] w-1 h-1 bg-red-400 rounded-full blur-sm" />
-                              </div>
-                            </>
-                          )}
-
                           {/* Accent bar */}
                           <div className={`absolute top-0 left-0 right-0 h-1 rounded-t-lg ${styles.accentColor}`} />
 
