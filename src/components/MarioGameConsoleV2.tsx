@@ -7,12 +7,14 @@ import { Gamepad2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Trophy, X } from '
 import { useGameScore } from '@/hooks/useGameScore';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useGamePayment } from '@/hooks/useGamePayment';
+import { useNFTAnalytics } from '@/hooks/useNFTAnalytics';
 import { useWriteContract } from 'wagmi';
 import { formatEther } from 'viem';
 import { GamePaymentService } from '@/lib/contracts';
 import { Shield, Coins, Info } from 'lucide-react';
 import GameWalletPrompt from './GameWalletPrompt';
 import PaymentLoadingOverlay from './PaymentLoadingOverlay';
+import '@/styles/fire-animation.css';
 
 /**
  * Payment status states for the overlay
@@ -68,6 +70,9 @@ export default function MarioGameConsoleV2() {
     nftCount,
     paymentTier,
   } = useGamePayment();
+
+  // Get NFT analytics for displaying counts on payment tiers
+  const { nftCount: userNftCount, stakedCount: userStakedCount } = useNFTAnalytics();
 
   // Get transaction hash from wagmi
   const { data: hash } = useWriteContract();
@@ -430,60 +435,60 @@ export default function MarioGameConsoleV2() {
               <Info className="w-6 h-6 text-purple-600" />
             </div>
             <div className="flex-1 space-y-4">
-              <h3 className={`text-2xl font-extrabold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent`}>
+              <h3 className={`text-3xl font-black bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent`}>
                 Shellies Mario Game — Q&A About the New Play Fee System
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
+                  <p className={`text-base font-bold ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
                     Q: Why did we add a small payment fee to play Shellies Mario Game?
                   </p>
-                  <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  <p className={`text-base ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
                     A: This system helps us make sure only real players join the game, not bots. It keeps the gameplay fair and fun for everyone in the community.
                   </p>
                 </div>
-                
+
                 <div className="space-y-2">
-                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
+                  <p className={`text-base font-bold ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
                     Q: Will Shellies holders have to pay the same fee as everyone else?
                   </p>
-                  <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  <p className={`text-base ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
                     A: No! Shellies holders will pay a much lower fee, and stakers will pay even less. The goal is to reward our loyal holders and stakers.
                   </p>
                 </div>
-                
+
                 <div className="space-y-2">
-                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
+                  <p className={`text-base font-bold ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
                     Q: What about public players?
                   </p>
-                  <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  <p className={`text-base ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
                     A: Public players will pay the regular play fee — but it's still small. This fee keeps the game's economy strong and fair.
                   </p>
                 </div>
-                
+
                 <div className="space-y-2">
-                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
+                  <p className={`text-base font-bold ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
                     Q: What will we do with the collected fees?
                   </p>
-                  <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  <p className={`text-base ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
                     A: The fees will be used to: Run multiple raffles for the community • Add to our project's liquidity for the upcoming token • Encourage more on-chain activity and transactions on InkChain
                   </p>
                 </div>
               </div>
-              
+
               <div className={`mt-4 p-4 rounded-lg border ${isDarkMode ? 'bg-purple-900/20 border-purple-700/50' : 'bg-purple-50 border-purple-200'}`}>
-                <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                <p className={`text-base font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
                   This system isn't just about payments — it's about building a real, active community around Shellies and InkChain.
                 </p>
-                <p className={`text-sm font-bold mt-2 ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
+                <p className={`text-base font-bold mt-2 ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
                   Real players. Real rewards. Real growth.
                 </p>
               </div>
 
               {/* NFT Holder Pricing Tiers */}
               <div className={`mt-6 p-5 rounded-xl border backdrop-blur-sm ${isDarkMode
-                  ? 'bg-gray-800/40 border-gray-700/50'
-                  : 'bg-white/60 border-gray-200'
+                ? 'bg-gray-800/40 border-gray-700/50'
+                : 'bg-white/60 border-gray-200'
                 }`}>
                 <div className="mb-4">
                   <h4 className={`text-lg font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -493,7 +498,7 @@ export default function MarioGameConsoleV2() {
                     The more Shellies NFTs you hold, the less you pay per game
                   </p>
                 </div>
-                
+
                 {tiersLoading ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     {[1, 2, 3, 4].map((i) => (
@@ -507,20 +512,27 @@ export default function MarioGameConsoleV2() {
                       const minNfts = tier.min_nfts ?? 0;
                       const maxNfts = tier.max_nfts;
                       const ethAmount = parseFloat(formatEther(BigInt(tier.payment_amount_wei))).toFixed(8);
-                      
+
                       // Calculate discount percentage
                       const regularTier = paymentTiers.find(t => t.tier_name === 'regular');
-                      const discountPercent = regularTier 
+                      const discountPercent = regularTier
                         ? Math.round((1 - parseFloat(tier.payment_amount_wei) / parseFloat(regularTier.payment_amount_wei)) * 100)
                         : 0;
+
+                      // Determine if this card should show the Play button
+                      // Priority: Staker > NFT Holder > Regular
+                      const shouldShowPlayButton =
+                        (tierName === 'staker' && userStakedCount > 0) ||
+                        (tierName === 'nft_holder' && userNftCount > 0 && userStakedCount === 0) ||
+                        (tierName === 'regular' && userNftCount === 0 && userStakedCount === 0);
 
                       // Tier styling
                       const getTierStyles = () => {
                         switch (tierName) {
                           case 'regular':
                             return {
-                              bgGradient: isDarkMode 
-                                ? 'from-gray-800 to-gray-900' 
+                              bgGradient: isDarkMode
+                                ? 'from-gray-800 to-gray-900'
                                 : 'from-gray-50 to-gray-100',
                               borderColor: isDarkMode ? 'border-gray-700' : 'border-gray-300',
                               accentColor: isDarkMode ? 'bg-gray-700' : 'bg-gray-300',
@@ -530,8 +542,8 @@ export default function MarioGameConsoleV2() {
                             };
                           case 'nft_holder':
                             return {
-                              bgGradient: isDarkMode 
-                                ? 'from-blue-950/50 to-indigo-950/50' 
+                              bgGradient: isDarkMode
+                                ? 'from-blue-950/50 to-indigo-950/50'
                                 : 'from-blue-50 to-indigo-50',
                               borderColor: isDarkMode ? 'border-blue-800/50' : 'border-blue-200',
                               accentColor: isDarkMode ? 'bg-blue-600' : 'bg-blue-500',
@@ -542,8 +554,8 @@ export default function MarioGameConsoleV2() {
                             };
                           case 'staker':
                             return {
-                              bgGradient: isDarkMode 
-                                ? 'from-purple-950/50 to-pink-950/50' 
+                              bgGradient: isDarkMode
+                                ? 'from-purple-950/50 to-pink-950/50'
                                 : 'from-purple-50 to-pink-50',
                               borderColor: isDarkMode ? 'border-purple-800/50' : 'border-purple-200',
                               accentColor: isDarkMode ? 'bg-purple-600' : 'bg-purple-500',
@@ -568,15 +580,30 @@ export default function MarioGameConsoleV2() {
                       const nftRange = maxNfts ? `${minNfts}-${maxNfts}` : minNfts === 0 ? '0' : `${minNfts}+`;
 
                       return (
-                        <div 
-                          key={tier.id} 
-                          className={`relative p-4 rounded-lg border bg-gradient-to-br ${styles.bgGradient} ${styles.borderColor} transition-all duration-200 hover:shadow-lg hover:scale-[1.02]`}
+                        <div
+                          key={tier.id}
+                          className={`relative p-4 rounded-lg border bg-gradient-to-br ${styles.bgGradient} ${styles.borderColor} transition-all duration-200 hover:shadow-lg hover:scale-[1.02] overflow-hidden ${shouldShowPlayButton ? 'fire-glow-border' : ''}`}
                         >
+                          {/* Fire animation background for active tier */}
+                          {shouldShowPlayButton && (
+                            <>
+                              <div className="absolute inset-0 pointer-events-none fire-animation-bg">
+                                <div className="absolute inset-0 bg-gradient-to-t from-orange-500 via-red-500 to-yellow-500 opacity-20" />
+                              </div>
+                              <div className="absolute inset-0 pointer-events-none fire-animation-bg" style={{ animationDelay: '0.7s' }}>
+                                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-orange-400/30 to-red-600/50 opacity-15" />
+                              </div>
+                              <div className="absolute inset-0 pointer-events-none fire-animation-bg" style={{ animationDelay: '1.4s' }}>
+                                <div className="absolute inset-0 bg-gradient-to-tr from-yellow-500/20 via-orange-500/20 to-red-500/20 opacity-10" />
+                              </div>
+                            </>
+                          )}
+
                           {/* Accent bar */}
                           <div className={`absolute top-0 left-0 right-0 h-1 rounded-t-lg ${styles.accentColor}`} />
-                          
+
                           {/* Tier name */}
-                          <div className="flex items-center justify-between mb-3 mt-1">
+                          <div className="relative flex items-center justify-between mb-3 mt-1">
                             <h5 className={`text-sm font-bold uppercase tracking-wide ${styles.textColor}`}>
                               {tierName}
                             </h5>
@@ -588,17 +615,28 @@ export default function MarioGameConsoleV2() {
                           </div>
 
                           {/* NFT requirement */}
-                          <div className="mb-3">
+                          <div className="relative mb-3">
                             <p className={`text-xs font-medium uppercase tracking-wider ${styles.labelColor}`}>
                               NFT Requirement
                             </p>
                             <p className={`text-lg font-bold ${styles.textColor}`}>
                               {nftRange} {parseInt(nftRange) === 1 ? 'NFT' : 'NFTs'}
                             </p>
+                            {/* Show user's NFT count for this tier */}
+                            {tierName === 'nft_holder' && userNftCount > 0 && (
+                              <p className={`text-xs mt-1 ${styles.labelColor}`}>
+                                You have: {userNftCount} NFT{userNftCount > 1 ? 's' : ''}
+                              </p>
+                            )}
+                            {tierName === 'staker' && userStakedCount > 0 && (
+                              <p className={`text-xs mt-1 ${styles.labelColor}`}>
+                                You staked: {userStakedCount} NFT{userStakedCount > 1 ? 's' : ''}
+                              </p>
+                            )}
                           </div>
 
                           {/* Price */}
-                          <div>
+                          <div className="relative mb-3">
                             <p className={`text-xs font-medium uppercase tracking-wider ${styles.labelColor}`}>
                               Price per Game
                             </p>
@@ -609,6 +647,26 @@ export default function MarioGameConsoleV2() {
                               ETH
                             </p>
                           </div>
+
+                          {/* Play Button - Shows on active tier */}
+                          {shouldShowPlayButton && (
+                            <button
+                              onClick={() => {
+                                setShowPaymentInfo(false);
+                                if (typeof window !== 'undefined') {
+                                  localStorage.setItem('hidePaymentInfoBanner', 'true');
+                                }
+                              }}
+                              className={`relative w-full mt-2 py-2 px-4 rounded-lg font-bold text-white transition-all duration-200 hover:scale-105 shadow-lg ${tierName === 'staker'
+                                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
+                                  : tierName === 'nft_holder'
+                                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'
+                                    : 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800'
+                                }`}
+                            >
+                              Play Now
+                            </button>
+                          )}
                         </div>
                       );
                     })}
@@ -617,42 +675,38 @@ export default function MarioGameConsoleV2() {
               </div>
               {/* Tier Discount Badge */}
               {(paymentTier === 'staker' || paymentTier === 'nft_holder') && (
-                <div className={`mt-4 p-3 rounded-lg border ${
-                    paymentTier === 'staker'
-                      ? isDarkMode
-                        ? 'bg-gradient-to-r from-purple-900/30 to-pink-900/30 border-purple-700/50'
-                        : 'bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200'
-                      : isDarkMode
-                        ? 'bg-gradient-to-r from-blue-900/30 to-indigo-900/30 border-blue-700/50'
-                        : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200'
+                <div className={`mt-4 p-3 rounded-lg border ${paymentTier === 'staker'
+                    ? isDarkMode
+                      ? 'bg-gradient-to-r from-purple-900/30 to-pink-900/30 border-purple-700/50'
+                      : 'bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200'
+                    : isDarkMode
+                      ? 'bg-gradient-to-r from-blue-900/30 to-indigo-900/30 border-blue-700/50'
+                      : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200'
                   }`}>
                   <div className="flex items-center gap-2">
                     <span className="text-2xl">
                       {paymentTier === 'staker' ? '🔒' : '🎨'}
                     </span>
                     <div className="flex-1">
-                      <p className={`text-sm font-bold capitalize ${
-                          paymentTier === 'staker'
-                            ? isDarkMode ? 'text-purple-300' : 'text-purple-700'
-                            : isDarkMode ? 'text-blue-300' : 'text-blue-700'
+                      <p className={`text-sm font-bold capitalize ${paymentTier === 'staker'
+                          ? isDarkMode ? 'text-purple-300' : 'text-purple-700'
+                          : isDarkMode ? 'text-blue-300' : 'text-blue-700'
                         }`}>
                         {paymentTier === 'staker' ? 'Staker' : 'NFT Holder'} Tier Active!
                       </p>
-                      <p className={`text-xs ${
-                          paymentTier === 'staker'
-                            ? isDarkMode ? 'text-purple-400' : 'text-purple-600'
-                            : isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                      <p className={`text-xs ${paymentTier === 'staker'
+                          ? isDarkMode ? 'text-purple-400' : 'text-purple-600'
+                          : isDarkMode ? 'text-blue-400' : 'text-blue-600'
                         }`}>
-                        {paymentTier === 'staker' 
+                        {paymentTier === 'staker'
                           ? 'You have staked NFTs - Enjoy maximum discount! 🎉'
                           : `You own ${nftCount} Shellies NFT${nftCount > 1 ? 's' : ''} - Enjoy your discount! 🎉`
                         }
                       </p>
                     </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                        paymentTier === 'staker'
-                          ? isDarkMode ? 'bg-purple-700 text-purple-100' : 'bg-purple-500 text-white'
-                          : isDarkMode ? 'bg-blue-700 text-blue-100' : 'bg-blue-500 text-white'
+                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${paymentTier === 'staker'
+                        ? isDarkMode ? 'bg-purple-700 text-purple-100' : 'bg-purple-500 text-white'
+                        : isDarkMode ? 'bg-blue-700 text-blue-100' : 'bg-blue-500 text-white'
                       }`}>
                       {paymentTier === 'staker' ? '80%' : '50%'} OFF
                     </span>
@@ -670,8 +724,8 @@ export default function MarioGameConsoleV2() {
                   {ethPrice && requiredEth > BigInt(0) ? (
                     <>
                       <span className={`text-lg font-bold ${isNFTHolder
-                          ? isDarkMode ? 'text-green-300' : 'text-green-600'
-                          : isDarkMode ? 'text-white' : 'text-gray-900'
+                        ? isDarkMode ? 'text-green-300' : 'text-green-600'
+                        : isDarkMode ? 'text-white' : 'text-gray-900'
                         }`}>
                         ${GamePaymentService.convertEthToUsd(requiredEth, ethPrice).toFixed(4)} USD
                       </span>

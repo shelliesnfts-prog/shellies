@@ -1,0 +1,36 @@
+/* Fire animation for active payment tier card */
+@keyframes fire-flicker {
+  0%, 100% {
+    opacity: 0.15;
+    transform: scale(1) translateY(0);
+  }
+  25% {
+    opacity: 0.25;
+    transform: scale(1.05) translateY(-2px);
+  }
+  50% {
+    opacity: 0.2;
+    transform: scale(0.98) translateY(1px);
+  }
+  75% {
+    opacity: 0.3;
+    transform: scale(1.03) translateY(-1px);
+  }
+}
+
+@keyframes fire-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(251, 146, 60, 0.3), 0 0 40px rgba(239, 68, 68, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(251, 146, 60, 0.4), 0 0 60px rgba(239, 68, 68, 0.3);
+  }
+}
+
+.fire-animation-bg {
+  animation: fire-flicker 2s ease-in-out infinite;
+}
+
+.fire-glow-border {
+  animation: fire-glow 2s ease-in-out infinite;
+}
