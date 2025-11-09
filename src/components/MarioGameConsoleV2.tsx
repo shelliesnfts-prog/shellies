@@ -584,17 +584,33 @@ export default function MarioGameConsoleV2() {
                           key={tier.id}
                           className={`relative p-4 rounded-lg border bg-gradient-to-br ${styles.bgGradient} ${styles.borderColor} transition-all duration-200 hover:shadow-lg hover:scale-[1.02] overflow-hidden ${shouldShowPlayButton ? 'fire-glow-border' : ''}`}
                         >
-                          {/* Fire animation background for active tier */}
+                          {/* Advanced Fire animation background for active tier */}
                           {shouldShowPlayButton && (
                             <>
-                              <div className="absolute inset-0 pointer-events-none fire-animation-bg">
-                                <div className="absolute inset-0 bg-gradient-to-t from-orange-500 via-red-500 to-yellow-500 opacity-20" />
+                              {/* Fire layers with different animations */}
+                              <div className="absolute inset-0 pointer-events-none fire-layer-1">
+                                <div className="absolute inset-0 bg-gradient-to-t from-orange-600 via-red-500 to-yellow-400" />
                               </div>
-                              <div className="absolute inset-0 pointer-events-none fire-animation-bg" style={{ animationDelay: '0.7s' }}>
-                                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-orange-400/30 to-red-600/50 opacity-15" />
+                              <div className="absolute inset-0 pointer-events-none fire-layer-2">
+                                <div className="absolute inset-0 bg-gradient-to-br from-red-600 via-orange-500 to-yellow-500" />
                               </div>
-                              <div className="absolute inset-0 pointer-events-none fire-animation-bg" style={{ animationDelay: '1.4s' }}>
-                                <div className="absolute inset-0 bg-gradient-to-tr from-yellow-500/20 via-orange-500/20 to-red-500/20 opacity-10" />
+                              <div className="absolute inset-0 pointer-events-none fire-layer-3">
+                                <div className="absolute inset-0 bg-gradient-to-tl from-yellow-500 via-orange-600 to-red-500" />
+                              </div>
+                              
+                              {/* Heat wave distortion effect */}
+                              <div className="absolute inset-0 pointer-events-none heat-wave-effect">
+                                <div className="absolute inset-0 bg-gradient-to-t from-orange-400/20 to-transparent" />
+                              </div>
+                              
+                              {/* Floating ember particles */}
+                              <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                                <div className="ember-particle ember-delay-1 absolute bottom-0 left-[10%] w-1 h-1 bg-orange-400 rounded-full blur-sm" />
+                                <div className="ember-particle ember-delay-2 absolute bottom-0 left-[30%] w-1.5 h-1.5 bg-yellow-400 rounded-full blur-sm" />
+                                <div className="ember-particle ember-delay-3 absolute bottom-0 left-[50%] w-1 h-1 bg-red-400 rounded-full blur-sm" />
+                                <div className="ember-particle ember-delay-4 absolute bottom-0 left-[70%] w-1.5 h-1.5 bg-orange-400 rounded-full blur-sm" />
+                                <div className="ember-particle ember-delay-5 absolute bottom-0 left-[85%] w-1 h-1 bg-yellow-400 rounded-full blur-sm" />
+                                <div className="ember-particle ember-delay-6 absolute bottom-0 left-[20%] w-1 h-1 bg-red-400 rounded-full blur-sm" />
                               </div>
                             </>
                           )}
@@ -614,38 +630,47 @@ export default function MarioGameConsoleV2() {
                             )}
                           </div>
 
-                          {/* NFT requirement */}
-                          <div className="relative mb-3">
-                            <p className={`text-xs font-medium uppercase tracking-wider ${styles.labelColor}`}>
-                              NFT Requirement
-                            </p>
-                            <p className={`text-lg font-bold ${styles.textColor}`}>
-                              {nftRange} {parseInt(nftRange) === 1 ? 'NFT' : 'NFTs'}
-                            </p>
-                            {/* Show user's NFT count for this tier */}
-                            {tierName === 'nft_holder' && userNftCount > 0 && (
-                              <p className={`text-xs mt-1 ${styles.labelColor}`}>
-                                You have: {userNftCount} NFT{userNftCount > 1 ? 's' : ''}
+                          {/* User's NFT/Staked count - Only show for holder and staker */}
+                          {tierName === 'nft_holder' && (
+                            <div className="relative mb-3">
+                              <p className={`text-xs font-medium uppercase tracking-wider ${styles.labelColor}`}>
+                                Your NFTs
                               </p>
-                            )}
-                            {tierName === 'staker' && userStakedCount > 0 && (
-                              <p className={`text-xs mt-1 ${styles.labelColor}`}>
-                                You staked: {userStakedCount} NFT{userStakedCount > 1 ? 's' : ''}
+                              <p className={`text-lg font-bold ${styles.textColor}`}>
+                                {userNftCount} NFT{userNftCount !== 1 ? 's' : ''}
                               </p>
-                            )}
-                          </div>
+                            </div>
+                          )}
+                          {tierName === 'staker' && (
+                            <div className="relative mb-3">
+                              <p className={`text-xs font-medium uppercase tracking-wider ${styles.labelColor}`}>
+                                Your Staked NFTs
+                              </p>
+                              <p className={`text-lg font-bold ${styles.textColor}`}>
+                                {userStakedCount} NFT{userStakedCount !== 1 ? 's' : ''}
+                              </p>
+                            </div>
+                          )}
 
-                          {/* Price */}
+                          {/* Price in USD */}
                           <div className="relative mb-3">
                             <p className={`text-xs font-medium uppercase tracking-wider ${styles.labelColor}`}>
                               Price per Game
                             </p>
-                            <p className={`text-xl font-bold ${styles.priceColor}`}>
-                              {parseFloat(ethAmount).toFixed(6)}
-                            </p>
-                            <p className={`text-xs ${styles.labelColor}`}>
-                              ETH
-                            </p>
+                            {ethPrice ? (
+                              <>
+                                <p className={`text-xl font-bold ${styles.priceColor}`}>
+                                  ${GamePaymentService.convertEthToUsd(BigInt(tier.payment_amount_wei), ethPrice).toFixed(4)}
+                                </p>
+                                <p className={`text-xs ${styles.labelColor}`}>
+                                  ({parseFloat(ethAmount).toFixed(6)} ETH)
+                                </p>
+                              </>
+                            ) : (
+                              <p className={`text-sm ${styles.labelColor}`}>
+                                Loading price...
+                              </p>
+                            )}
                           </div>
 
                           {/* Play Button - Shows on active tier */}
@@ -664,7 +689,7 @@ export default function MarioGameConsoleV2() {
                                     : 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800'
                                 }`}
                             >
-                              Play Now
+                              🎮 Play Now
                             </button>
                           )}
                         </div>
