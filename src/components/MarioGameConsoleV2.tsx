@@ -526,58 +526,26 @@ export default function MarioGameConsoleV2() {
                         (tierName === 'nft_holder' && userNftCount > 0 && userStakedCount === 0) ||
                         (tierName === 'regular' && userNftCount === 0 && userStakedCount === 0);
 
-                      // Tier styling
-                      const getTierStyles = () => {
-                        switch (tierName) {
-                          case 'regular':
-                            return {
-                              bgGradient: isDarkMode
-                                ? 'from-gray-800 to-gray-900'
-                                : 'from-gray-50 to-gray-100',
-                              borderColor: isDarkMode ? 'border-gray-700' : 'border-gray-300',
-                              accentColor: isDarkMode ? 'bg-gray-700' : 'bg-gray-300',
-                              textColor: isDarkMode ? 'text-gray-300' : 'text-gray-700',
-                              priceColor: isDarkMode ? 'text-white' : 'text-gray-900',
-                              labelColor: isDarkMode ? 'text-gray-500' : 'text-gray-500',
-                            };
-                          case 'nft_holder':
-                            return {
-                              bgGradient: isDarkMode
-                                ? 'from-blue-950/50 to-indigo-950/50'
-                                : 'from-blue-50 to-indigo-50',
-                              borderColor: isDarkMode ? 'border-blue-800/50' : 'border-blue-200',
-                              accentColor: isDarkMode ? 'bg-blue-600' : 'bg-blue-500',
-                              textColor: isDarkMode ? 'text-blue-300' : 'text-blue-700',
-                              priceColor: isDarkMode ? 'text-blue-200' : 'text-blue-800',
-                              labelColor: isDarkMode ? 'text-blue-400/70' : 'text-blue-600/70',
-                              badgeColor: isDarkMode ? 'bg-blue-600/20 text-blue-300 border-blue-500/30' : 'bg-blue-100 text-blue-700 border-blue-300',
-                            };
-                          case 'staker':
-                            return {
-                              bgGradient: isDarkMode
-                                ? 'from-purple-950/50 to-pink-950/50'
-                                : 'from-purple-50 to-pink-50',
-                              borderColor: isDarkMode ? 'border-purple-800/50' : 'border-purple-200',
-                              accentColor: isDarkMode ? 'bg-purple-600' : 'bg-purple-500',
-                              textColor: isDarkMode ? 'text-purple-300' : 'text-purple-700',
-                              priceColor: isDarkMode ? 'text-purple-200' : 'text-purple-800',
-                              labelColor: isDarkMode ? 'text-purple-400/70' : 'text-purple-600/70',
-                              badgeColor: isDarkMode ? 'bg-purple-600/20 text-purple-300 border-purple-500/30' : 'bg-purple-100 text-purple-700 border-purple-300',
-                            };
-                          default:
-                            return {
-                              bgGradient: isDarkMode ? 'from-gray-800 to-gray-900' : 'from-gray-50 to-gray-100',
-                              borderColor: isDarkMode ? 'border-gray-700' : 'border-gray-300',
-                              accentColor: isDarkMode ? 'bg-gray-700' : 'bg-gray-300',
-                              textColor: isDarkMode ? 'text-gray-300' : 'text-gray-700',
-                              priceColor: isDarkMode ? 'text-white' : 'text-gray-900',
-                              labelColor: isDarkMode ? 'text-gray-500' : 'text-gray-500',
-                            };
-                        }
+                      // Uniform styling for all cards
+                      const baseStyles = {
+                        bgGradient: isDarkMode ? 'from-gray-800 to-gray-900' : 'from-white to-gray-50',
+                        borderColor: isDarkMode ? 'border-gray-700' : 'border-gray-200',
+                        accentColor: isDarkMode ? 'bg-purple-600' : 'bg-purple-500',
+                        textColor: isDarkMode ? 'text-gray-300' : 'text-gray-700',
+                        priceColor: isDarkMode ? 'text-white' : 'text-gray-900',
+                        labelColor: isDarkMode ? 'text-gray-500' : 'text-gray-600',
+                        badgeColor: isDarkMode ? 'bg-purple-600/20 text-purple-300 border-purple-500/30' : 'bg-purple-100 text-purple-700 border-purple-300',
                       };
 
-                      const styles = getTierStyles();
-                      const nftRange = maxNfts ? `${minNfts}-${maxNfts}` : minNfts === 0 ? '0' : `${minNfts}+`;
+                      // Active card gets special background
+                      const activeStyles = shouldShowPlayButton ? {
+                        bgGradient: isDarkMode 
+                          ? 'from-purple-900/40 to-pink-900/40' 
+                          : 'from-purple-50 to-pink-50',
+                        borderColor: isDarkMode ? 'border-purple-600/50' : 'border-purple-300',
+                      } : {};
+
+                      const styles = { ...baseStyles, ...activeStyles };
 
                       return (
                         <div
@@ -620,8 +588,8 @@ export default function MarioGameConsoleV2() {
 
                           {/* Tier name */}
                           <div className="relative flex items-center justify-between mb-3 mt-1">
-                            <h5 className={`text-sm font-bold uppercase tracking-wide ${styles.textColor}`}>
-                              {tierName}
+                            <h5 className={`text-sm font-bold uppercase tracking-wide ${shouldShowPlayButton ? (isDarkMode ? 'text-purple-300' : 'text-purple-700') : styles.textColor}`}>
+                              {tierName.replace('_', ' ')}
                             </h5>
                             {discountPercent > 0 && (
                               <span className={`px-2 py-0.5 rounded-md text-xs font-semibold border ${styles.badgeColor}`}>
@@ -636,7 +604,7 @@ export default function MarioGameConsoleV2() {
                               <p className={`text-xs font-medium uppercase tracking-wider ${styles.labelColor}`}>
                                 Your NFTs
                               </p>
-                              <p className={`text-lg font-bold ${styles.textColor}`}>
+                              <p className={`text-lg font-bold ${shouldShowPlayButton ? (isDarkMode ? 'text-purple-200' : 'text-purple-800') : styles.textColor}`}>
                                 {userNftCount} NFT{userNftCount !== 1 ? 's' : ''}
                               </p>
                             </div>
@@ -646,7 +614,7 @@ export default function MarioGameConsoleV2() {
                               <p className={`text-xs font-medium uppercase tracking-wider ${styles.labelColor}`}>
                                 Your Staked NFTs
                               </p>
-                              <p className={`text-lg font-bold ${styles.textColor}`}>
+                              <p className={`text-lg font-bold ${shouldShowPlayButton ? (isDarkMode ? 'text-purple-200' : 'text-purple-800') : styles.textColor}`}>
                                 {userStakedCount} NFT{userStakedCount !== 1 ? 's' : ''}
                               </p>
                             </div>
@@ -659,7 +627,7 @@ export default function MarioGameConsoleV2() {
                             </p>
                             {ethPrice ? (
                               <>
-                                <p className={`text-xl font-bold ${styles.priceColor}`}>
+                                <p className={`text-xl font-bold ${shouldShowPlayButton ? (isDarkMode ? 'text-purple-200' : 'text-purple-800') : styles.priceColor}`}>
                                   ${GamePaymentService.convertEthToUsd(BigInt(tier.payment_amount_wei), ethPrice).toFixed(4)}
                                 </p>
                                 <p className={`text-xs ${styles.labelColor}`}>
