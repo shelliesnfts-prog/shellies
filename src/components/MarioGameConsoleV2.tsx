@@ -84,11 +84,15 @@ export default function MarioGameConsoleV2() {
         const response = await fetch('/api/payment-tiers');
         const data = await response.json();
         if (data.tiers) {
-          // Sort tiers by min_nfts to display in order
+          // Sort tiers in static order: regular -> nft_holder -> staker
+          const tierOrder = ['regular', 'nft_holder', 'staker'];
           const sortedTiers = data.tiers.sort((a: any, b: any) => {
-            const aMin = a.min_nfts ?? 0;
-            const bMin = b.min_nfts ?? 0;
-            return aMin - bMin;
+            const aIndex = tierOrder.indexOf(a.tier_name);
+            const bIndex = tierOrder.indexOf(b.tier_name);
+            // If tier not in order list, put it at the end
+            const aPos = aIndex === -1 ? 999 : aIndex;
+            const bPos = bIndex === -1 ? 999 : bIndex;
+            return aPos - bPos;
           });
           setPaymentTiers(sortedTiers);
         }
