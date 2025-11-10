@@ -613,9 +613,10 @@ export default function MarioGameConsoleV2() {
                           {shouldShowPlayButton && (
                             <button
                               onClick={() => {
-                                setShowPaymentInfo(false);
-                                if (typeof window !== 'undefined') {
-                                  localStorage.setItem('hidePaymentInfoBanner', 'true');
+                                // Scroll to game console instead of hiding description
+                                const gameConsole = document.querySelector('.rounded-2xl.border.overflow-hidden');
+                                if (gameConsole) {
+                                  gameConsole.scrollIntoView({ behavior: 'smooth', block: 'start' });
                                 }
                               }}
                               className={`relative w-full mt-2 py-2 px-4 rounded-lg font-bold text-white transition-all duration-200 hover:scale-105 shadow-lg ${tierName === 'staker'

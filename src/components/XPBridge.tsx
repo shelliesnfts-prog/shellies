@@ -279,7 +279,7 @@ export default function XPBridge({
               XP Converter
             </h3>
             <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Convert XP to points • Rate: 10 XP = 1 Point
+              Convert XP to points
             </p>
           </div>
           <div className={`p-2.5 rounded-xl ${isDarkMode ? 'bg-gradient-to-br from-purple-500/20 to-pink-500/20' : 'bg-gradient-to-br from-purple-100 to-pink-100'
@@ -302,7 +302,7 @@ export default function XPBridge({
               <div className="space-y-2 flex-1">
                 <div className="flex items-center justify-between">
                   <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                    Available: {currentXP.toLocaleString()} XP → {calculatedPoints.toLocaleString()} points
+                    Available: {currentXP.toLocaleString()} XP
                   </span>
                   <div className={`flex items-center space-x-1 text-xs ${canConvert && currentXP > 0
                     ? 'text-green-600'
