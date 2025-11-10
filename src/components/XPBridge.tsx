@@ -279,7 +279,7 @@ export default function XPBridge({
               XP Converter
             </h3>
             <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Convert XP to points • Rate: 10 XP = 1 Point
+              Convert XP to points • Rate: 1 XP = X Point
             </p>
           </div>
           <div className={`p-2.5 rounded-xl ${isDarkMode ? 'bg-gradient-to-br from-purple-500/20 to-pink-500/20' : 'bg-gradient-to-br from-purple-100 to-pink-100'
