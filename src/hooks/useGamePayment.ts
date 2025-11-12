@@ -163,16 +163,6 @@ export function useGamePayment(): UseGamePaymentReturn {
   const [nftCount, setNftCount] = useState<number>(0);
   const [paymentTier, setPaymentTier] = useState<string>('regular');
   
-  // Read payment amount from contract
-  const {
-    data: contractPaymentAmount,
-    isLoading: isLoadingPaymentAmount,
-  } = useReadContract({
-    address: GAME_PAYMENT_CONTRACT.address,
-    abi: GAME_PAYMENT_CONTRACT.abi,
-    functionName: 'getPaymentAmount',
-  });
-
   // Get user's ETH balance
   const { data: balanceData } = useBalance({
     address: address,
@@ -227,10 +217,7 @@ export function useGamePayment(): UseGamePaymentReturn {
   useEffect(() => {
     const fetchPaymentAmount = async () => {
       if (!address) {
-        // No wallet connected, use contract amount as fallback
-        if (contractPaymentAmount && contractPaymentAmount > BigInt(0)) {
-          setRequiredEth(contractPaymentAmount);
-        }
+        // No wallet connected, fetch default payment amount
         return;
       }
       
@@ -261,20 +248,15 @@ export function useGamePayment(): UseGamePaymentReturn {
         
       } catch (error) {
         console.error('Error fetching payment amount:', error);
-        
-        // Fallback to contract amount
-        if (contractPaymentAmount && contractPaymentAmount > BigInt(0)) {
-          setRequiredEth(contractPaymentAmount);
-          setPaymentTier('regular');
-          setIsStaker(false);
-          setIsNFTHolder(false);
-          setNftCount(0);
-        }
+        setPaymentTier('regular');
+        setIsStaker(false);
+        setIsNFTHolder(false);
+        setNftCount(0);
       }
     };
     
     fetchPaymentAmount();
-  }, [address, contractPaymentAmount]);
+  }, [address]);
   
   /**
    * Check payment status on mount and when wallet changes
@@ -486,20 +468,9 @@ export function useGamePayment(): UseGamePaymentReturn {
           setIsNFTHolder(data.is_nft_holder);
           setNftCount(data.nft_count);
           setPaymentTier(data.tier);
-        } else {
-          // Fallback to contract amount
-          if (contractPaymentAmount && contractPaymentAmount > BigInt(0)) {
-            currentRequiredEth = contractPaymentAmount;
-            setRequiredEth(currentRequiredEth);
-          }
         }
       } catch (error) {
         console.error('Error fetching payment amount:', error);
-        // Try to use contract amount as fallback
-        if (contractPaymentAmount && contractPaymentAmount > BigInt(0)) {
-          currentRequiredEth = contractPaymentAmount;
-          setRequiredEth(currentRequiredEth);
-        }
       }
       
       // If still not loaded, show error
@@ -579,7 +550,7 @@ export function useGamePayment(): UseGamePaymentReturn {
       
       return false;
     }
-  }, [isConnected, address, requiredEth, writeContract, balanceData, contractPaymentAmount, ethPrice]);
+  }, [isConnected, address, requiredEth, writeContract, balanceData, ethPrice]);
   
   /**
    * Clear payment session (exposed for external use)
