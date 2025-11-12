@@ -305,6 +305,18 @@ export default function MarioGameConsoleV2() {
     }
   }, [clearPaymentSession]);
 
+  // Prevent arrow keys from scrolling the page
+  useEffect(() => {
+    const preventArrowKeyScroll = (e: KeyboardEvent) => {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.key)) {
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener('keydown', preventArrowKeyScroll);
+    return () => window.removeEventListener('keydown', preventArrowKeyScroll);
+  }, []);
+
   // Handle level navigation
   const handleLevelNavigation = () => {
     const level = parseInt(levelInput, 10);
@@ -716,12 +728,6 @@ export default function MarioGameConsoleV2() {
         ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
         : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
         }`}>
-        {/* Debug: Contract Address */}
-        <div className={`p-3 border-b ${isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-300' : 'bg-gray-100 border-gray-200 text-gray-700'}`}>
-          <p className="text-xs font-mono">
-            <span className="font-semibold">Contract Address:</span> {process.env.NEXT_PUBLIC_GAME_PAYMENT_CONTRACT_ADDRESS || 'Not set'}
-          </p>
-        </div>
         {/* Game Iframe */}
         <div className="relative w-full bg-black flex items-center justify-center overflow-hidden">
           <div className="relative" style={{ width: '1282px', height: '532px', maxWidth: '100%' }}>
