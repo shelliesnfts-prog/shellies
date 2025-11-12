@@ -228,6 +228,9 @@ export default function MarioGameConsoleV2() {
           break;
 
         case 'GAME_OVER':
+          // Set game as not started to allow page scrolling again
+          setGameStarted(false);
+
           // Update score if it's a new best (immediate update)
           // IMPORTANT: Wait for score update to complete BEFORE clearing session
           // The API requires an active session to accept score updates
@@ -305,17 +308,24 @@ export default function MarioGameConsoleV2() {
     }
   }, [clearPaymentSession]);
 
-  // Prevent arrow keys from scrolling the page
+  // Prevent arrow keys from scrolling the page when game is active
   useEffect(() => {
-    const preventArrowKeyScroll = (e: KeyboardEvent) => {
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.key)) {
-        e.preventDefault();
-      }
-    };
+    if (gameStarted) {
+      // Prevent default scrolling behavior for arrow keys
+      const preventArrowKeyScroll = (e: KeyboardEvent) => {
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.key)) {
+          e.preventDefault();
+        }
+      };
 
-    window.addEventListener('keydown', preventArrowKeyScroll);
-    return () => window.removeEventListener('keydown', preventArrowKeyScroll);
-  }, []);
+      // Add event listener with capture phase to catch it early
+      window.addEventListener('keydown', preventArrowKeyScroll, { capture: true });
+      
+      return () => {
+        window.removeEventListener('keydown', preventArrowKeyScroll, { capture: true });
+      };
+    }
+  }, [gameStarted]);
 
   // Handle level navigation
   const handleLevelNavigation = () => {
