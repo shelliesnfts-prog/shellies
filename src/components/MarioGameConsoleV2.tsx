@@ -542,8 +542,8 @@ export default function MarioGameConsoleV2() {
 
                       // Active card gets special background
                       const activeStyles = shouldShowPlayButton ? {
-                        bgGradient: isDarkMode 
-                          ? 'from-purple-900/40 to-pink-900/40' 
+                        bgGradient: isDarkMode
+                          ? 'from-purple-900/40 to-pink-900/40'
                           : 'from-purple-50 to-pink-50',
                         borderColor: isDarkMode ? 'border-purple-600/50' : 'border-purple-300',
                       } : {};
@@ -624,10 +624,10 @@ export default function MarioGameConsoleV2() {
                                 }
                               }}
                               className={`relative w-full mt-2 py-2 px-4 rounded-lg font-bold text-white transition-all duration-200 hover:scale-105 shadow-lg ${tierName === 'staker'
-                                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
-                                  : tierName === 'nft_holder'
-                                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'
-                                    : 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800'
+                                ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
+                                : tierName === 'nft_holder'
+                                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'
+                                  : 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800'
                                 }`}
                             >
                               🎮 Play Now
@@ -642,12 +642,12 @@ export default function MarioGameConsoleV2() {
               {/* Tier Discount Badge */}
               {(paymentTier === 'staker' || paymentTier === 'nft_holder') && (
                 <div className={`mt-4 p-3 rounded-lg border ${paymentTier === 'staker'
-                    ? isDarkMode
-                      ? 'bg-gradient-to-r from-purple-900/30 to-pink-900/30 border-purple-700/50'
-                      : 'bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200'
-                    : isDarkMode
-                      ? 'bg-gradient-to-r from-blue-900/30 to-indigo-900/30 border-blue-700/50'
-                      : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200'
+                  ? isDarkMode
+                    ? 'bg-gradient-to-r from-purple-900/30 to-pink-900/30 border-purple-700/50'
+                    : 'bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200'
+                  : isDarkMode
+                    ? 'bg-gradient-to-r from-blue-900/30 to-indigo-900/30 border-blue-700/50'
+                    : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200'
                   }`}>
                   <div className="flex items-center gap-2">
                     <span className="text-2xl">
@@ -655,14 +655,14 @@ export default function MarioGameConsoleV2() {
                     </span>
                     <div className="flex-1">
                       <p className={`text-sm font-bold capitalize ${paymentTier === 'staker'
-                          ? isDarkMode ? 'text-purple-300' : 'text-purple-700'
-                          : isDarkMode ? 'text-blue-300' : 'text-blue-700'
+                        ? isDarkMode ? 'text-purple-300' : 'text-purple-700'
+                        : isDarkMode ? 'text-blue-300' : 'text-blue-700'
                         }`}>
                         {paymentTier === 'staker' ? 'Staker' : 'NFT Holder'} Tier Active!
                       </p>
                       <p className={`text-xs ${paymentTier === 'staker'
-                          ? isDarkMode ? 'text-purple-400' : 'text-purple-600'
-                          : isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                        ? isDarkMode ? 'text-purple-400' : 'text-purple-600'
+                        : isDarkMode ? 'text-blue-400' : 'text-blue-600'
                         }`}>
                         {paymentTier === 'staker'
                           ? 'You have staked NFTs - Enjoy maximum discount! 🎉'
@@ -671,8 +671,8 @@ export default function MarioGameConsoleV2() {
                       </p>
                     </div>
                     <span className={`px-2 py-1 rounded-full text-xs font-bold ${paymentTier === 'staker'
-                        ? isDarkMode ? 'bg-purple-700 text-purple-100' : 'bg-purple-500 text-white'
-                        : isDarkMode ? 'bg-blue-700 text-blue-100' : 'bg-blue-500 text-white'
+                      ? isDarkMode ? 'bg-purple-700 text-purple-100' : 'bg-purple-500 text-white'
+                      : isDarkMode ? 'bg-blue-700 text-blue-100' : 'bg-blue-500 text-white'
                       }`}>
                       {paymentTier === 'staker' ? '80%' : '50%'} OFF
                     </span>
@@ -716,6 +716,12 @@ export default function MarioGameConsoleV2() {
         ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
         : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
         }`}>
+        {/* Debug: Contract Address */}
+        <div className={`p-3 border-b ${isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-300' : 'bg-gray-100 border-gray-200 text-gray-700'}`}>
+          <p className="text-xs font-mono">
+            <span className="font-semibold">Contract Address:</span> {process.env.NEXT_PUBLIC_GAME_PAYMENT_CONTRACT_ADDRESS || 'Not set'}
+          </p>
+        </div>
         {/* Game Iframe */}
         <div className="relative w-full bg-black flex items-center justify-center overflow-hidden">
           <div className="relative" style={{ width: '1282px', height: '532px', maxWidth: '100%' }}>
