@@ -517,11 +517,8 @@ export default function MarioGameConsoleV2() {
                 }`}>
                 <div className="mb-4">
                   <h4 className={`text-lg font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                    NFT Holder Benefits
+                    Payment Categories
                   </h4>
-                  <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                    The more Shellies NFTs you hold, the less you pay per game
-                  </p>
                 </div>
 
                 {tiersLoading ? (

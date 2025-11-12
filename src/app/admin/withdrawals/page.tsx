@@ -35,7 +35,7 @@ export default function WithdrawalsPage() {
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
   const [showUpdateAmountModal, setShowUpdateAmountModal] = useState<boolean>(false);
   const [newPaymentAmount, setNewPaymentAmount] = useState<bigint>(BigInt(0));
-  
+
   // Payment tiers state
   const [paymentTiers, setPaymentTiers] = useState<any[]>([]);
   const [loadingTiers, setLoadingTiers] = useState(false);
@@ -43,7 +43,7 @@ export default function WithdrawalsPage() {
   const [updatingTier, setUpdatingTier] = useState<string | null>(null);
   const [showAddTierModal, setShowAddTierModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
-  
+
   // New tier form state
   const [newTierName, setNewTierName] = useState('');
   const [newTierMinNfts, setNewTierMinNfts] = useState<number>(1);
@@ -68,19 +68,7 @@ export default function WithdrawalsPage() {
     }
   });
 
-  // Read current payment amount - disable auto-polling to prevent rate limits
-  const {
-    data: currentPaymentAmount,
-    isLoading: paymentAmountLoading,
-    refetch: refetchPaymentAmount
-  } = useReadContract({
-    address: GAME_PAYMENT_CONTRACT.address,
-    abi: GAME_PAYMENT_CONTRACT.abi,
-    functionName: 'getPaymentAmount',
-    query: {
-      refetchInterval: false, // Disable automatic polling
-    }
-  });
+
 
   // Withdrawal transaction
   const {
@@ -90,14 +78,6 @@ export default function WithdrawalsPage() {
     error: withdrawError,
   } = useWriteContract();
 
-  // Update payment amount transaction
-  const {
-    writeContract: writeUpdateAmount,
-    data: updateAmountHash,
-    isPending: isUpdateAmountPending,
-    error: updateAmountError,
-  } = useWriteContract();
-
   // Transaction confirmation
   const {
     isLoading: isConfirming,
@@ -105,15 +85,6 @@ export default function WithdrawalsPage() {
     error: confirmError,
   } = useWaitForTransactionReceipt({
     hash: withdrawHash,
-  });
-
-  // Update amount transaction confirmation
-  const {
-    isLoading: isUpdateAmountConfirming,
-    isSuccess: isUpdateAmountSuccess,
-    error: updateAmountConfirmError,
-  } = useWaitForTransactionReceipt({
-    hash: updateAmountHash,
   });
 
 
@@ -162,15 +133,7 @@ export default function WithdrawalsPage() {
     }
   }, [isWithdrawSuccess, refetchBalance]);
 
-  /**
-   * Refresh payment amount after successful update
-   */
-  useEffect(() => {
-    if (isUpdateAmountSuccess) {
-      refetchPaymentAmount();
-      setShowUpdateAmountModal(false);
-    }
-  }, [isUpdateAmountSuccess, refetchPaymentAmount]);
+
 
   /**
    * Handle withdrawal execution
@@ -191,25 +154,7 @@ export default function WithdrawalsPage() {
     }
   };
 
-  /**
-   * Handle payment amount update (contract - kept for backward compatibility)
-   */
-  const handleUpdatePaymentAmount = () => {
-    if (!newPaymentAmount || newPaymentAmount === BigInt(0)) {
-      return;
-    }
 
-    try {
-      writeUpdateAmount({
-        address: GAME_PAYMENT_CONTRACT.address,
-        abi: GAME_PAYMENT_CONTRACT.abi,
-        functionName: 'updatePaymentAmount',
-        args: [newPaymentAmount],
-      });
-    } catch (error) {
-      console.error('Error updating payment amount:', error);
-    }
-  };
 
   /**
    * Handle tier payment amount update (database)
@@ -220,7 +165,7 @@ export default function WithdrawalsPage() {
     }
 
     setUpdatingTier(tierName);
-    
+
     try {
       const response = await fetch(`/api/payment-tiers/${tierName}`, {
         method: 'PUT',
@@ -233,7 +178,7 @@ export default function WithdrawalsPage() {
       }
 
       await fetchTiers();
-      
+
       setShowUpdateAmountModal(false);
       setSelectedTier(null);
       setNewPaymentAmount(BigInt(0));
@@ -317,7 +262,7 @@ export default function WithdrawalsPage() {
       }
 
       await fetchTiers();
-      
+
       // Reset form
       setShowAddTierModal(false);
       setNewTierName('');
@@ -614,121 +559,119 @@ export default function WithdrawalsPage() {
                       return order[a.tier_name as keyof typeof order] - order[b.tier_name as keyof typeof order];
                     })
                     .map((tier) => {
-                    const tierAmount = BigInt(tier.payment_amount_wei);
-                    
-                    // Determine tier color and icon based on name
-                    const getTierStyle = () => {
-                      if (tier.tier_name === 'regular') {
-                        return {
-                          gradient: isDarkMode 
-                            ? 'bg-gradient-to-br from-gray-700/30 to-gray-800/30 border-gray-600/50'
-                            : 'bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200',
-                          icon: '👤',
-                          buttonGradient: 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800',
-                          textColor: isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                        };
-                      } else if (tier.tier_name === 'nft_holder') {
-                        return {
-                          gradient: isDarkMode
-                            ? 'bg-gradient-to-br from-blue-900/30 to-indigo-900/30 border-blue-700/50'
-                            : 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200',
-                          icon: '🎨',
-                          buttonGradient: 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700',
-                          textColor: isDarkMode ? 'text-blue-300' : 'text-blue-600'
-                        };
-                      } else if (tier.tier_name === 'staker') {
-                        return {
-                          gradient: isDarkMode
-                            ? 'bg-gradient-to-br from-purple-900/30 to-pink-900/30 border-purple-700/50'
-                            : 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200',
-                          icon: '🔒',
-                          buttonGradient: 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700',
-                          textColor: isDarkMode ? 'text-purple-300' : 'text-purple-600'
-                        };
-                      } else {
-                        return {
-                          gradient: isDarkMode
-                            ? 'bg-gradient-to-br from-gray-700/30 to-gray-800/30 border-gray-600/50'
-                            : 'bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200',
-                          icon: '❓',
-                          buttonGradient: 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800',
-                          textColor: isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                        };
-                      }
-                    };
+                      const tierAmount = BigInt(tier.payment_amount_wei);
 
-                    const style = getTierStyle();
-                    const regularAmount = BigInt('10000000000000'); // 0.00001 ETH
-                    const discountPercent = tier.tier_name === 'regular' ? 0 : Math.round((1 - Number(tierAmount) / Number(regularAmount)) * 100);
-                    
-                    return (
-                      <div
-                        key={tier.id}
-                        className={`rounded-lg p-4 border ${style.gradient}`}
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-xl">{style.icon}</span>
-                              <h3 className={`text-sm font-bold capitalize ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                                {tier.tier_name === 'nft_holder' ? 'NFT Holder' : tier.tier_name}
-                              </h3>
-                              {tier.tier_name !== 'regular' && (
-                                <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
-                                  isDarkMode ? 'bg-green-700 text-green-100' : 'bg-green-500 text-white'
-                                }`}>
-                                  {discountPercent}% OFF
-                                </span>
+                      // Determine tier color and icon based on name
+                      const getTierStyle = () => {
+                        if (tier.tier_name === 'regular') {
+                          return {
+                            gradient: isDarkMode
+                              ? 'bg-gradient-to-br from-gray-700/30 to-gray-800/30 border-gray-600/50'
+                              : 'bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200',
+                            icon: '👤',
+                            buttonGradient: 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800',
+                            textColor: isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                          };
+                        } else if (tier.tier_name === 'nft_holder') {
+                          return {
+                            gradient: isDarkMode
+                              ? 'bg-gradient-to-br from-blue-900/30 to-indigo-900/30 border-blue-700/50'
+                              : 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200',
+                            icon: '🎨',
+                            buttonGradient: 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700',
+                            textColor: isDarkMode ? 'text-blue-300' : 'text-blue-600'
+                          };
+                        } else if (tier.tier_name === 'staker') {
+                          return {
+                            gradient: isDarkMode
+                              ? 'bg-gradient-to-br from-purple-900/30 to-pink-900/30 border-purple-700/50'
+                              : 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200',
+                            icon: '🔒',
+                            buttonGradient: 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700',
+                            textColor: isDarkMode ? 'text-purple-300' : 'text-purple-600'
+                          };
+                        } else {
+                          return {
+                            gradient: isDarkMode
+                              ? 'bg-gradient-to-br from-gray-700/30 to-gray-800/30 border-gray-600/50'
+                              : 'bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200',
+                            icon: '❓',
+                            buttonGradient: 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800',
+                            textColor: isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                          };
+                        }
+                      };
+
+                      const style = getTierStyle();
+                      const regularAmount = BigInt('10000000000000'); // 0.00001 ETH
+                      const discountPercent = tier.tier_name === 'regular' ? 0 : Math.round((1 - Number(tierAmount) / Number(regularAmount)) * 100);
+
+                      return (
+                        <div
+                          key={tier.id}
+                          className={`rounded-lg p-4 border ${style.gradient}`}
+                        >
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-xl">{style.icon}</span>
+                                <h3 className={`text-sm font-bold capitalize ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                  {tier.tier_name === 'nft_holder' ? 'NFT Holder' : tier.tier_name}
+                                </h3>
+                                {tier.tier_name !== 'regular' && (
+                                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${isDarkMode ? 'bg-green-700 text-green-100' : 'bg-green-500 text-white'
+                                    }`}>
+                                    {discountPercent}% OFF
+                                  </span>
+                                )}
+                              </div>
+                              <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                {tier.tier_name === 'regular' && 'No NFT or staking'}
+                                {tier.tier_name === 'nft_holder' && 'At least 1 NFT'}
+                                {tier.tier_name === 'staker' && 'At least 1 staked NFT'}
+                              </p>
+                              <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                                {tier.description}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <div>
+                              <p className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                {GamePaymentService.formatEthWithDecimals(tierAmount, 8)} ETH
+                              </p>
+                              {ethPrice && (
+                                <p className={`text-sm font-medium ${style.textColor}`}>
+                                  ≈ ${GamePaymentService.convertEthToUsd(tierAmount, ethPrice).toFixed(4)} USD
+                                </p>
                               )}
                             </div>
-                            <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                              {tier.tier_name === 'regular' && 'No NFT or staking'}
-                              {tier.tier_name === 'nft_holder' && 'At least 1 NFT'}
-                              {tier.tier_name === 'staker' && 'At least 1 staked NFT'}
-                            </p>
-                            <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                              {tier.description}
-                            </p>
-                          </div>
-                        </div>
 
-                        <div className="space-y-2">
-                          <div>
-                            <p className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                              {GamePaymentService.formatEthWithDecimals(tierAmount, 8)} ETH
-                            </p>
-                            {ethPrice && (
-                              <p className={`text-sm font-medium ${style.textColor}`}>
-                                ≈ ${GamePaymentService.convertEthToUsd(tierAmount, ethPrice).toFixed(4)} USD
-                              </p>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => {
+                                  setSelectedTier(tier.tier_name);
+                                  setNewPaymentAmount(tierAmount);
+                                  setShowUpdateAmountModal(true);
+                                }}
+                                disabled={updatingTier === tier.tier_name}
+                                className={`flex-1 px-3 py-2 rounded-lg font-medium text-xs transition-all duration-200 ${style.buttonGradient} text-white disabled:opacity-50 disabled:cursor-not-allowed`}
+                              >
+                                {updatingTier === tier.tier_name ? 'Updating...' : 'Update'}
+                              </button>
+                            </div>
+
+                            {!tier.is_active && (
+                              <div className={`mt-2 text-xs text-center px-2 py-1 rounded ${isDarkMode ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-100 text-yellow-700'
+                                }`}>
+                                ⚠️ Inactive
+                              </div>
                             )}
                           </div>
-
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => {
-                                setSelectedTier(tier.tier_name);
-                                setNewPaymentAmount(tierAmount);
-                                setShowUpdateAmountModal(true);
-                              }}
-                              disabled={updatingTier === tier.tier_name}
-                              className={`flex-1 px-3 py-2 rounded-lg font-medium text-xs transition-all duration-200 ${style.buttonGradient} text-white disabled:opacity-50 disabled:cursor-not-allowed`}
-                            >
-                              {updatingTier === tier.tier_name ? 'Updating...' : 'Update'}
-                            </button>
-                          </div>
-                          
-                          {!tier.is_active && (
-                            <div className={`mt-2 text-xs text-center px-2 py-1 rounded ${
-                              isDarkMode ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-100 text-yellow-700'
-                            }`}>
-                              ⚠️ Inactive
-                            </div>
-                          )}
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
                 </div>
               )}
             </div>
@@ -965,73 +908,13 @@ export default function WithdrawalsPage() {
               </p>
             </div>
             <div className="p-6 space-y-6">
-              <EthUsdConverter 
+              <EthUsdConverter
                 isDarkMode={isDarkMode}
                 onEthAmountChange={setNewPaymentAmount}
                 initialEthAmount={newPaymentAmount ? Number(newPaymentAmount) / 1e18 : 0.00001}
               />
 
-              {isUpdateAmountPending || isUpdateAmountConfirming ? (
-                <div className={`p-4 rounded-lg border ${
-                  isDarkMode ? 'bg-purple-900/20 border-purple-700' : 'bg-purple-50 border-purple-200'
-                }`}>
-                  <div className="flex items-center gap-3">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-600"></div>
-                    <span className={`text-sm ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
-                      {isUpdateAmountPending ? 'Waiting for signature...' : 'Confirming transaction...'}
-                    </span>
-                  </div>
-                </div>
-              ) : null}
 
-              {updateAmountError && (
-                <div className={`p-4 rounded-lg border ${
-                  isDarkMode ? 'bg-red-900/20 border-red-800' : 'bg-red-50 border-red-200'
-                }`}>
-                  <p className={`text-sm font-semibold mb-1 ${isDarkMode ? 'text-red-300' : 'text-red-700'}`}>
-                    {updateAmountError.message.includes('User rejected') 
-                      ? 'Transaction Cancelled' 
-                      : updateAmountError.message.includes('circuit breaker')
-                      ? 'Network Rate Limit'
-                      : 'Transaction Failed'}
-                  </p>
-                  <p className={`text-xs ${isDarkMode ? 'text-red-400' : 'text-red-600'}`}>
-                    {updateAmountError.message.includes('User rejected') 
-                      ? 'You cancelled the transaction in MetaMask.' 
-                      : updateAmountError.message.includes('circuit breaker')
-                      ? 'The RPC network is rate-limiting requests. Please wait a moment and try again.'
-                      : 'Failed to update payment amount. Please try again.'}
-                  </p>
-                </div>
-              )}
-
-              {isUpdateAmountSuccess && updateAmountHash && (
-                <div className={`p-4 rounded-lg border ${
-                  isDarkMode ? 'bg-green-900/20 border-green-800' : 'bg-green-50 border-green-200'
-                }`}>
-                  <div className="flex items-start gap-3">
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
-                      isDarkMode ? 'bg-green-700' : 'bg-green-500'
-                    }`}>
-                      <span className="text-white text-xs">✓</span>
-                    </div>
-                    <div className="flex-1">
-                      <p className={`text-sm font-medium mb-1 ${isDarkMode ? 'text-green-300' : 'text-green-800'}`}>
-                        Payment amount updated successfully!
-                      </p>
-                      <a
-                        href={GamePaymentService.getExplorerTxUrl(updateAmountHash)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700"
-                      >
-                        View on Ink Explorer
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               <div className="flex gap-3">
                 <button
@@ -1151,7 +1034,7 @@ export default function WithdrawalsPage() {
                 <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                   Payment Amount *
                 </label>
-                <EthUsdConverter 
+                <EthUsdConverter
                   isDarkMode={isDarkMode}
                   onEthAmountChange={setNewTierAmount}
                   initialEthAmount={0.000001}
