@@ -320,7 +320,7 @@ export default function MarioGameConsoleV2() {
 
       // Add event listener with capture phase to catch it early
       window.addEventListener('keydown', preventArrowKeyScroll, { capture: true });
-      
+
       return () => {
         window.removeEventListener('keydown', preventArrowKeyScroll, { capture: true });
       };
