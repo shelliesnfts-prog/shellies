@@ -275,7 +275,7 @@ export default function MarioGameConsoleV2() {
           break;
 
         case 'NAVIGATE_TO_LEADERBOARD':
-          router.push('/portal/leaderboard');
+          router.push('/portal/leaderboard?tab=gameXP');
           break;
 
         case 'NAVIGATE_TO_PROFILE':

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useAccount } from 'wagmi';
+import { useSearchParams } from 'next/navigation';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LeaderboardPageSkeleton } from '@/components/portal/LeaderboardPageSkeleton';
@@ -15,10 +16,12 @@ import { useToast } from '@/hooks/useToast';
 import { ToastContainer } from '@/components/Toast';
 
 export default function LeaderboardPage() {
+  const searchParams = useSearchParams();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
-  // Active leaderboard toggle state
-  const [activeLeaderboard, setActiveLeaderboard] = useState<'points' | 'gameXP'>('points');
+  // Active leaderboard toggle state - check URL parameter for initial value
+  const initialTab = searchParams.get('tab') === 'gameXP' ? 'gameXP' : 'points';
+  const [activeLeaderboard, setActiveLeaderboard] = useState<'points' | 'gameXP'>(initialTab);
   
   // Transition state for smooth animations
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -329,7 +332,13 @@ export default function LeaderboardPage() {
     // Invalidate cache when wallet changes
     setPointsCacheTimestamp(null);
     setGameXPCacheTimestamp(null);
-    fetchPointsLeaderboard();
+    
+    // Fetch appropriate leaderboard based on initial tab
+    if (initialTab === 'gameXP') {
+      fetchGameXPLeaderboard();
+    } else {
+      fetchPointsLeaderboard();
+    }
   }, [walletAddress]);
 
   useEffect(() => {
