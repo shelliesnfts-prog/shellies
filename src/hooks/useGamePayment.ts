@@ -444,9 +444,9 @@ export function useGamePayment(): UseGamePaymentReturn {
     
     if (connector) {
       try {
-        const provider = await connector.getProvider();
+        const provider = await connector.getProvider() as any;
         if (provider && typeof provider.request === 'function') {
-          const chainIdHex = await provider.request({ method: 'eth_chainId' });
+          const chainIdHex = await provider.request({ method: 'eth_chainId' }) as string;
           actualChainId = parseInt(chainIdHex, 16);
           
           // Try to get chain name if available
