@@ -11,6 +11,7 @@ import { PriceOracle } from '@/lib/price-oracle';
 import { GAME_PAYMENT_CONTRACT, GamePaymentService } from '@/lib/contracts';
 import { parsePaymentError, ERROR_CODES } from '@/lib/errors';
 import { logger, logPaymentError } from '@/lib/logger';
+import { inkChain } from '@/lib/wagmi';
 
 /**
  * Payment session data structure stored in sessionStorage
@@ -144,7 +145,7 @@ export function getPaymentSession(): PaymentSession | null {
  * Manages payment state and blockchain interactions for game entry payments
  */
 export function useGamePayment(): UseGamePaymentReturn {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chain, connector } = useAccount();
   
   // State management
   const [hasActivePayment, setHasActivePayment] = useState<boolean>(false);
@@ -437,6 +438,68 @@ export function useGamePayment(): UseGamePaymentReturn {
       return false;
     }
     
+    // Get actual chain ID from connector - CRITICAL for detecting real network
+    let actualChainId: number | undefined;
+    let actualChainName = 'Unknown Network';
+    
+    if (connector) {
+      try {
+        const provider = await connector.getProvider();
+        if (provider && typeof provider.request === 'function') {
+          const chainIdHex = await provider.request({ method: 'eth_chainId' });
+          actualChainId = parseInt(chainIdHex, 16);
+          
+          // Try to get chain name if available
+          if (chain && chain.id === actualChainId) {
+            actualChainName = chain.name;
+          } else {
+            actualChainName = `Chain ${actualChainId}`;
+          }
+        }
+      } catch (error) {
+        console.error('Error getting chain ID from connector:', error);
+        actualChainId = chain?.id;
+        actualChainName = chain?.name || 'Unknown Network';
+      }
+    } else {
+      actualChainId = chain?.id;
+      actualChainName = chain?.name || 'Unknown Network';
+    }
+    
+    // Validate network - CRITICAL: Must be on Ink Chain
+    // In wagmi v2, we MUST check the actual chain from connector before calling writeContract
+    if (!actualChainId || actualChainId !== inkChain.id) {
+      console.error('❌ PAYMENT BLOCKED - Wrong Network:', {
+        actualChainId,
+        actualChainName,
+        expectedChain: inkChain.name,
+        expectedChainId: inkChain.id,
+        message: 'User must switch to Ink Chain before payment'
+      });
+      
+      setPaymentError(
+        `Wrong network detected. You are on ${actualChainName} (Chain ID: ${actualChainId}). Please switch to Ink Chain (Chain ID: ${inkChain.id}) to make payments.`
+      );
+      setPaymentErrorCode(ERROR_CODES.WRONG_NETWORK);
+      setCanRetryPayment(false);
+      setPaymentLoading(false);
+      
+      logger.error('Wrong network detected', undefined, {
+        action: 'initiatePayment',
+        actualChainId,
+        actualChainName,
+        expectedChain: inkChain.name,
+        expectedChainId: inkChain.id
+      });
+      
+      return false;
+    }
+    
+    console.log('✅ Network validation passed - Ink Chain detected:', {
+      actualChainId,
+      actualChainName
+    });
+    
     // Validate contract configuration
     if (!GamePaymentService.isContractConfigured()) {
       setPaymentError('Payment contract is not configured');
@@ -518,6 +581,8 @@ export function useGamePayment(): UseGamePaymentReturn {
       setCanRetryPayment(true);
       
       // Call payToPlay function with required ETH value
+      // Note: In wagmi v2, writeContract uses the currently connected chain
+      // Network validation is done above to prevent wrong network transactions
       writeContract({
         address: GAME_PAYMENT_CONTRACT.address,
         abi: GAME_PAYMENT_CONTRACT.abi,
@@ -550,7 +615,7 @@ export function useGamePayment(): UseGamePaymentReturn {
       
       return false;
     }
-  }, [isConnected, address, requiredEth, writeContract, balanceData, ethPrice]);
+  }, [isConnected, address, chain, connector, requiredEth, writeContract, balanceData, ethPrice]);
   
   /**
    * Clear payment session (exposed for external use)

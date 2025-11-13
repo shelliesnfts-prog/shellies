@@ -8,12 +8,13 @@ import { useGameScore } from '@/hooks/useGameScore';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useGamePayment } from '@/hooks/useGamePayment';
 import { useNFTAnalytics } from '@/hooks/useNFTAnalytics';
-import { useWriteContract } from 'wagmi';
+import { useWriteContract, useAccount, useSwitchChain } from 'wagmi';
 import { formatEther } from 'viem';
 import { GamePaymentService } from '@/lib/contracts';
 import { Shield, Coins, Info } from 'lucide-react';
 import GameWalletPrompt from './GameWalletPrompt';
 import PaymentLoadingOverlay from './PaymentLoadingOverlay';
+import { inkChain } from '@/lib/wagmi';
 
 /**
  * Payment status states for the overlay
@@ -33,6 +34,8 @@ export default function MarioGameConsoleV2() {
   const router = useRouter();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { isDarkMode } = useTheme();
+  const { chain, chainId: accountChainId, connector } = useAccount();
+  const { switchChain } = useSwitchChain();
 
   const [gameStarted, setGameStarted] = useState(false);
   const [levelInput, setLevelInput] = useState('');
@@ -50,6 +53,8 @@ export default function MarioGameConsoleV2() {
   });
   const [paymentTiers, setPaymentTiers] = useState<any[]>([]);
   const [tiersLoading, setTiersLoading] = useState(true);
+  const [isWrongNetwork, setIsWrongNetwork] = useState(false);
+  const [actualChainName, setActualChainName] = useState<string>('Unknown Network');
 
   const { bestScore, updateScore, isLoading: scoreLoading } = useGameScore();
   const {
@@ -106,6 +111,80 @@ export default function MarioGameConsoleV2() {
     fetchPaymentTiers();
   }, []);
 
+  // Monitor network changes - updates whenever user switches network in wallet
+  // IMPORTANT: Use connector to get actual chain ID, not chain object
+  // When connected to unsupported chain, chain object may be undefined but connector has the real chainId
+  useEffect(() => {
+    const checkNetwork = async () => {
+      if (!connector) {
+        setIsWrongNetwork(false);
+        return;
+      }
+
+      try {
+        // Get the actual chain ID from the connector's provider
+        const provider = await connector.getProvider() as any;
+        if (provider && typeof provider.request === 'function') {
+          const chainIdHex = await provider.request({ method: 'eth_chainId' }) as string;
+          const actualChainId = parseInt(chainIdHex, 16);
+          
+          const wrongNetwork = actualChainId !== inkChain.id;
+          setIsWrongNetwork(wrongNetwork);
+          
+          // Determine chain name
+          let chainName = 'Unknown Network';
+          if (chain && chain.id === actualChainId) {
+            chainName = chain.name;
+          } else {
+            // Common chain names for better UX
+            const knownChains: Record<number, string> = {
+              1: 'Ethereum Mainnet',
+              8453: 'Base',
+              10: 'Optimism',
+              42161: 'Arbitrum One',
+              137: 'Polygon',
+              56: 'BNB Chain',
+              43114: 'Avalanche',
+              250: 'Fantom',
+              57073: 'Ink Chain'
+            };
+            chainName = knownChains[actualChainId] || `Chain ${actualChainId}`;
+          }
+          setActualChainName(chainName);
+          
+          console.log('🔍 Network check:', {
+            actualChainId,
+            chainName,
+            expectedChainId: inkChain.id,
+            isWrongNetwork: wrongNetwork,
+            chainFromUseAccount: chain?.id,
+            chainIdFromUseAccount: accountChainId
+          });
+          
+          if (wrongNetwork) {
+            console.warn('❌ Wrong network detected:', {
+              actualChainId,
+              chainName,
+              expectedChainId: inkChain.id
+            });
+          } else {
+            console.log('✅ Correct network detected: Ink Chain');
+          }
+        }
+      } catch (error) {
+        console.error('Error checking network:', error);
+        // Fallback to chain object if provider check fails
+        if (chain) {
+          const wrongNetwork = chain.id !== inkChain.id;
+          setIsWrongNetwork(wrongNetwork);
+          setActualChainName(chain.name);
+        }
+      }
+    };
+
+    checkNetwork();
+  }, [connector, chain, accountChainId]);
+
   // Update payment status based on loading state with detailed steps
   useEffect(() => {
     if (paymentError) {
@@ -161,6 +240,41 @@ export default function MarioGameConsoleV2() {
 
   // Handle payment initiation
   const handlePaymentInitiation = async (action: 'start' | 'restart') => {
+    // Get actual chain ID from connector
+    let actualChainId: number | undefined;
+    
+    if (connector) {
+      try {
+        const provider = await connector.getProvider() as any;
+        if (provider && typeof provider.request === 'function') {
+          const chainIdHex = await provider.request({ method: 'eth_chainId' }) as string;
+          actualChainId = parseInt(chainIdHex, 16);
+        }
+      } catch (error) {
+        console.error('Error getting chain ID from connector:', error);
+        actualChainId = chain?.id;
+      }
+    } else {
+      actualChainId = chain?.id;
+    }
+    
+    console.log('🎮 Payment initiation requested:', {
+      action,
+      actualChainId,
+      expectedChainId: inkChain.id,
+      isCorrectNetwork: actualChainId === inkChain.id
+    });
+    
+    // Check if user is on the correct network using actual chain ID
+    if (actualChainId !== inkChain.id) {
+      console.error('❌ Payment blocked at component level - wrong network');
+      setIsWrongNetwork(true);
+      setShowPaymentOverlay(true);
+      setPaymentStatus('error');
+      return;
+    }
+
+    console.log('✅ Network check passed at component level, proceeding with payment...');
     setPendingGameAction(action);
     setShowPaymentOverlay(true);
     setPaymentStatus('signing');
@@ -730,6 +844,36 @@ export default function MarioGameConsoleV2() {
         </div>
       )}
 
+      {/* Wrong Network Warning */}
+      {isWrongNetwork && (
+        <div className={`rounded-xl border p-6 ${isDarkMode
+          ? 'bg-red-900/20 border-red-700/50'
+          : 'bg-red-50 border-red-200'
+          }`}>
+          <div className="flex items-start gap-4">
+            <div className={`p-3 rounded-xl flex-shrink-0 ${isDarkMode ? 'bg-red-500/20' : 'bg-red-100'
+              }`}>
+              <Shield className="w-6 h-6 text-red-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className={`text-lg font-bold mb-2 ${isDarkMode ? 'text-red-300' : 'text-red-700'}`}>
+                Wrong Network Detected
+              </h3>
+              <p className={`text-sm mb-4 ${isDarkMode ? 'text-red-200' : 'text-red-600'}`}>
+                You are currently on <span className="font-semibold">{actualChainName}</span>. 
+                Please switch to the <span className="font-semibold">Ink Chain</span> network to play the game and make payments.
+              </p>
+              <button
+                onClick={() => switchChain?.({ chainId: inkChain.id })}
+                className="px-6 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
+              >
+                Switch to Ink Chain
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Game Console */}
       <div className={`rounded-2xl border overflow-hidden transition-all duration-300 relative ${isDarkMode
         ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
@@ -755,10 +899,22 @@ export default function MarioGameConsoleV2() {
           paymentStatus={paymentStatus === 'idle' ? 'signing' : paymentStatus}
           currentStep={currentStep}
           transactionHash={hash || null}
-          errorMessage={paymentError}
-          canRetry={canRetryPayment}
-          onRetry={handleRetryPayment}
-          onClose={() => setShowPaymentOverlay(false)}
+          errorMessage={isWrongNetwork 
+            ? `Wrong network detected. You are on ${chain?.name || 'Unknown Network'}. Please switch to Ink Chain to continue.`
+            : paymentError
+          }
+          canRetry={isWrongNetwork || canRetryPayment}
+          onRetry={isWrongNetwork 
+            ? () => switchChain?.({ chainId: inkChain.id })
+            : handleRetryPayment
+          }
+          retryButtonText={isWrongNetwork ? 'Switch to Ink Chain' : undefined}
+          onClose={() => {
+            setShowPaymentOverlay(false);
+            if (isWrongNetwork) {
+              setIsWrongNetwork(false);
+            }
+          }}
         />
 
         {/* Game Controls */}

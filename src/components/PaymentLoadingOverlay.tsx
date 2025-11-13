@@ -29,6 +29,7 @@ interface PaymentLoadingOverlayProps {
   canRetry?: boolean;
   onRetry?: () => void;
   onClose?: () => void;
+  retryButtonText?: string;
 }
 
 /**
@@ -46,6 +47,7 @@ export default function PaymentLoadingOverlay({
   canRetry = true,
   onRetry,
   onClose,
+  retryButtonText,
 }: PaymentLoadingOverlayProps) {
   const { isDarkMode } = useTheme();
 
@@ -261,6 +263,7 @@ export default function PaymentLoadingOverlay({
                 severity="error"
                 onRetry={canRetry ? onRetry : undefined}
                 canRetry={canRetry}
+                retryButtonText={retryButtonText}
               />
             )}
           </div>
