@@ -247,7 +247,17 @@ export class UserService {
       const totalPlayers = data.length;
       const totalXP = data.reduce((sum, user) => sum + (user.game_score || 0), 0);
       const averageXP = totalXP / totalPlayers;
-      const topScore = Math.max(...data.map(user => user.game_score || 0));
+
+      // Get the top score by querying the first entry ordered by game_score descending
+      const { data: topScoreData, error: topScoreError } = await client
+        .from('shellies_raffle_users')
+        .select('game_score')
+        .gt('game_score', 0)
+        .order('game_score', { ascending: false })
+        .limit(1)
+        .single();
+
+      const topScore = topScoreError || !topScoreData ? 0 : topScoreData.game_score;
 
       return {
         totalPlayers,
