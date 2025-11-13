@@ -761,7 +761,64 @@ export default function MarioGameConsoleV2() {
           onClose={() => setShowPaymentOverlay(false)}
         />
 
+        {/* Game Controls */}
+        <div className="p-6">
+          <div className={`border rounded-xl p-6 ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'
+            }`}>
+            <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}>
+              <Gamepad2 className="w-5 h-5 text-purple-600" />
+              Game Controls
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className={`flex items-center gap-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
+                  }`}>
+                  <ArrowDown className="w-5 h-5 text-purple-600 -ml-5" />
+                  <ArrowLeft className="w-5 h-5 text-purple-600 -ml-5" />
+                  <ArrowRight className="w-5 h-5 text-purple-600 -ml-5" />
+                </div>
+                <div>
+                  <div className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Arrow Keys</div>
+                  <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Move</div>
+                </div>
+              </div>
 
+              <div className={`flex items-center gap-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
+                  }`}>
+                  <span className="text-purple-600 font-bold">␣</span>
+                </div>
+                <div>
+                  <div className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Space</div>
+                  <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Jump</div>
+                </div>
+              </div>
+
+              <div className={`flex items-center gap-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
+                  }`}>
+                  <span className="text-purple-600 font-bold text-xs">Shift</span>
+                </div>
+                <div>
+                  <div className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Shift</div>
+                  <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Run</div>
+                </div>
+              </div>
+
+              <div className={`flex items-center gap-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
+                  }`}>
+                  <span className="text-purple-600 font-bold text-xs">Ctrl</span>
+                </div>
+                <div>
+                  <div className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Ctrl</div>
+                  <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Fire</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
