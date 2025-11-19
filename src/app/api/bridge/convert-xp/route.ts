@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';
 import { ValidationError, NotFoundError, createErrorResponse, createSuccessResponse, ERROR_CODES } from '@/lib/errors';
+import { verifyConversionPayment } from '@/lib/services/transaction-verification';
 
 // Create a service role client for atomic operations
 const supabaseService = createClient(
@@ -16,8 +19,8 @@ const supabaseService = createClient(
 
 // Request and response interfaces
 interface ConvertXPRequest {
-  walletAddress: string;
   xpAmount: number;
+  txHash: string;
 }
 
 interface ConvertXPResponse {
@@ -29,24 +32,39 @@ interface ConvertXPResponse {
 // Conversion rate: 1000 XP = 100 points (divide by 10)
 const CONVERSION_RATE = 10;
 
-// Conversion cooldown: 7 days (in milliseconds)
-const CONVERSION_COOLDOWN = 7 * 24 * 60 * 60 * 1000;
+// Payment amount tolerance (20% to handle ETH price fluctuations)
+const MIN_PAYMENT_USD = 0.08;
+const MAX_PAYMENT_USD = 0.12;
 
 export async function POST(request: NextRequest) {
   try {
-    // Step 1: Parse and validate request body
-    const body: ConvertXPRequest = await request.json();
-    const { walletAddress, xpAmount } = body;
-
-    // Validate required fields
-    if (!walletAddress || typeof walletAddress !== 'string') {
+    // STEP 1: Authenticate user via session
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.address) {
       throw new ValidationError(
-        'Wallet address is required',
+        'Not authenticated. Please connect your wallet.',
+        ERROR_CODES.UNAUTHORIZED,
+        401
+      );
+    }
+    
+    const authenticatedWallet = session.address as string;
+    
+    // STEP 2: Parse and validate request body
+    const body: ConvertXPRequest = await request.json();
+    const { txHash, xpAmount } = body;
+    
+    // Validate txHash
+    if (!txHash || typeof txHash !== 'string') {
+      throw new ValidationError(
+        'Transaction hash is required',
         ERROR_CODES.INVALID_REQUEST,
         400
       );
     }
-
+    
+    // Validate XP amount
     if (!xpAmount || typeof xpAmount !== 'number' || xpAmount <= 0) {
       throw new ValidationError(
         'XP amount must be a positive number',
@@ -54,8 +72,7 @@ export async function POST(request: NextRequest) {
         400
       );
     }
-
-    // Validate XP amount is an integer
+    
     if (!Number.isInteger(xpAmount)) {
       throw new ValidationError(
         'XP amount must be a whole number',
@@ -63,14 +80,38 @@ export async function POST(request: NextRequest) {
         400
       );
     }
-
-    // Step 2: Query current user data including last_convert
+    
+    // STEP 3: Verify transaction on blockchain
+    // This checks:
+    // - Transaction exists and was successful
+    // - Transaction sender = authenticatedWallet (CRITICAL!)
+    // - Transaction recipient = payment contract
+    const txData = await verifyConversionPayment(txHash, authenticatedWallet);
+    
+    if (!txData.isValid) {
+      throw new ValidationError(
+        'Invalid transaction. Please ensure you paid with your connected wallet to the correct contract.',
+        'INVALID_TRANSACTION',
+        400
+      );
+    }
+    
+    // STEP 4: Verify payment amount (~0.1 USD with 20% tolerance)
+    if (txData.amountInUSD < MIN_PAYMENT_USD || txData.amountInUSD > MAX_PAYMENT_USD) {
+      throw new ValidationError(
+        `Payment amount must be approximately 0.1 USD (received ${txData.amountInUSD.toFixed(4)} USD). Please pay the correct amount.`,
+        'INVALID_PAYMENT_AMOUNT',
+        400
+      );
+    }
+    
+    // STEP 5: Get user data
     const { data: user, error: fetchError } = await supabaseService
       .from('shellies_raffle_users')
       .select('wallet_address, game_score, points, last_convert')
-      .eq('wallet_address', walletAddress)
+      .eq('wallet_address', authenticatedWallet)
       .single();
-
+    
     if (fetchError || !user) {
       console.error('User not found:', fetchError);
       throw new NotFoundError(
@@ -78,27 +119,8 @@ export async function POST(request: NextRequest) {
         ERROR_CODES.USER_NOT_FOUND
       );
     }
-
-    // Step 2.5: Check if user can convert (7-day cooldown)
-    if (user.last_convert) {
-      const lastConvertTime = new Date(user.last_convert).getTime();
-      const now = Date.now();
-      const timeSinceLastConvert = now - lastConvertTime;
-
-      if (timeSinceLastConvert < CONVERSION_COOLDOWN) {
-        const secondsUntilNextConvert = Math.ceil((CONVERSION_COOLDOWN - timeSinceLastConvert) / 1000);
-        const daysRemaining = Math.floor(secondsUntilNextConvert / (24 * 60 * 60));
-        const hoursRemaining = Math.floor((secondsUntilNextConvert % (24 * 60 * 60)) / 3600);
-        
-        throw new ValidationError(
-          `You can convert XP once per week. Next conversion available in ${daysRemaining}d ${hoursRemaining}h.`,
-          'CONVERSION_COOLDOWN_ACTIVE',
-          400
-        );
-      }
-    }
-
-    // Step 3: Verify user has sufficient game_score (XP)
+    
+    // STEP 6: Verify sufficient XP
     const currentXP = user.game_score || 0;
     if (currentXP < xpAmount) {
       throw new ValidationError(
@@ -107,24 +129,49 @@ export async function POST(request: NextRequest) {
         400
       );
     }
-
-    // Step 4: Calculate points to add
+    
+    // STEP 7: Check timestamp (prevent replay attacks)
+    // NOTE: 7-day cooldown is REMOVED - users can convert anytime if they pay
+    if (user.last_convert) {
+      // IMPORTANT: Timezone-safe comparison
+      // - Blockchain timestamp: Unix seconds (UTC)
+      // - Database TIMESTAMPTZ: Stored as UTC internally
+      // - .getTime(): Returns UTC milliseconds since epoch
+      // - Both converted to UTC milliseconds for safe comparison
+      
+      const lastConvertTime = new Date(user.last_convert).getTime(); // UTC milliseconds
+      const txTime = txData.timestamp * 1000; // Convert blockchain seconds to milliseconds
+      
+      // Only check if transaction is NEWER than last conversion (prevent replay)
+      if (txTime <= lastConvertTime) {
+        throw new ValidationError(
+          'This transaction is older than your last conversion. Payment already used.',
+          'PAYMENT_ALREADY_USED',
+          400
+        );
+      }
+      // NO 7-day cooldown check - payment is the rate limiter
+    }
+    
+    // STEP 8: Calculate points
     const pointsAdded = xpAmount / CONVERSION_RATE;
-
-    // Step 5: Execute atomic UPDATE query with last_convert timestamp
+    
+    // STEP 9: Execute conversion (atomic operation)
+    const txTimestamp = new Date(txData.timestamp * 1000).toISOString();
     const now = new Date().toISOString();
+    
     const { data: updatedUser, error: updateError } = await supabaseService
       .from('shellies_raffle_users')
       .update({
         game_score: currentXP - xpAmount,
         points: (user.points || 0) + pointsAdded,
-        last_convert: now,
+        last_convert: txTimestamp, // Use blockchain timestamp (for replay prevention)
         updated_at: now
       })
-      .eq('wallet_address', walletAddress)
+      .eq('wallet_address', authenticatedWallet)
       .select('game_score, points')
       .single();
-
+    
     if (updateError || !updatedUser) {
       console.error('Database error during conversion:', updateError);
       throw new ValidationError(
@@ -133,31 +180,27 @@ export async function POST(request: NextRequest) {
         500
       );
     }
-
-    // Step 6: Return updated balances
-    const response: ConvertXPResponse = {
-      newXP: updatedUser.game_score || 0,
-      newPoints: updatedUser.points || 0,
-      pointsAdded
-    };
-
+    
+    // STEP 10: Return success
     return NextResponse.json(
       createSuccessResponse(
         `Successfully converted ${xpAmount} XP to ${pointsAdded} points!`,
-        response
+        {
+          newXP: updatedUser.game_score || 0,
+          newPoints: updatedUser.points || 0,
+          pointsAdded
+        }
       )
     );
-
+    
   } catch (error) {
     console.error('Error in XP conversion:', error);
-
-    // Handle known validation errors
+    
     if (error instanceof ValidationError || error instanceof NotFoundError) {
       const errorResponse = createErrorResponse(error);
       return NextResponse.json(errorResponse, { status: error.statusCode });
     }
-
-    // Handle unexpected errors
+    
     const unexpectedError = new ValidationError(
       'An unexpected error occurred during XP conversion',
       ERROR_CODES.INTERNAL_ERROR,
@@ -165,81 +208,11 @@ export async function POST(request: NextRequest) {
     );
     
     return NextResponse.json(
-      createErrorResponse(unexpectedError), 
+      createErrorResponse(unexpectedError),
       { status: 500 }
     );
   }
 }
 
 
-// GET endpoint to check conversion status without converting
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const walletAddress = searchParams.get('walletAddress');
-
-    if (!walletAddress) {
-      throw new ValidationError(
-        'Wallet address is required',
-        ERROR_CODES.INVALID_REQUEST,
-        400
-      );
-    }
-
-    // Query user data
-    const { data: user, error: fetchError } = await supabaseService
-      .from('shellies_raffle_users')
-      .select('wallet_address, game_score, points, last_convert')
-      .eq('wallet_address', walletAddress)
-      .single();
-
-    if (fetchError || !user) {
-      throw new NotFoundError(
-        'User not found',
-        ERROR_CODES.USER_NOT_FOUND
-      );
-    }
-
-    // Calculate time until next conversion
-    let canConvert = true;
-    let secondsUntilNextConvert = 0;
-
-    if (user.last_convert) {
-      const lastConvertTime = new Date(user.last_convert).getTime();
-      const now = Date.now();
-      const timeSinceLastConvert = now - lastConvertTime;
-
-      if (timeSinceLastConvert < CONVERSION_COOLDOWN) {
-        canConvert = false;
-        secondsUntilNextConvert = Math.ceil((CONVERSION_COOLDOWN - timeSinceLastConvert) / 1000);
-      }
-    }
-
-    return NextResponse.json({
-      canConvert,
-      secondsUntilNextConvert,
-      currentXP: user.game_score || 0,
-      currentPoints: user.points || 0,
-      lastConvert: user.last_convert || null
-    });
-
-  } catch (error) {
-    console.error('Error checking conversion status:', error);
-
-    if (error instanceof ValidationError || error instanceof NotFoundError) {
-      const errorResponse = createErrorResponse(error);
-      return NextResponse.json(errorResponse, { status: error.statusCode });
-    }
-
-    const unexpectedError = new ValidationError(
-      'An unexpected error occurred',
-      ERROR_CODES.INTERNAL_ERROR,
-      500
-    );
-    
-    return NextResponse.json(
-      createErrorResponse(unexpectedError), 
-      { status: 500 }
-    );
-  }
-}
+// GET endpoint removed - use /api/bridge/convert-xp/status instead

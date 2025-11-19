@@ -4,19 +4,18 @@ pragma solidity ^0.8.20;
 /**
  * @title GamePaymentContract
  * @dev Smart contract for handling game entry payments on Ink network
- * Players pay a dynamic amount in ETH to play the game
- * Owner can withdraw collected funds and update payment amount
+ * Players pay any amount in ETH to play the game
+ * Owner can withdraw collected funds
  */
 contract GamePaymentContract {
     // State variables
     address public owner;
     uint256 public totalCollected;
-    uint256 public paymentAmount; // Dynamic payment amount
     
     // Events
     event PaymentReceived(address indexed player, uint256 amount, uint256 timestamp);
+    event XPConversionPayment(address indexed player, uint256 amount, uint256 timestamp);
     event FundsWithdrawn(address indexed owner, uint256 amount, uint256 timestamp);
-    event PaymentAmountUpdated(uint256 oldAmount, uint256 newAmount, uint256 timestamp);
     
     /**
      * @dev Modifier to restrict function access to owner only
@@ -28,45 +27,33 @@ contract GamePaymentContract {
     
     /**
      * @dev Constructor sets the contract deployer as the owner
-     * Initializes payment amount to 0.00001 ether
      */
     constructor() {
         owner = msg.sender;
-        paymentAmount = 0.00001 ether;
     }
     
     /**
      * @dev Payable function for players to pay the game entry fee
-     * Validates that the payment amount meets the minimum requirement
+     * Accepts any payment amount sent from the application
      * Emits PaymentReceived event on success
      */
     function payToPlay() external payable {
-        require(msg.value >= paymentAmount, "Insufficient payment amount");
         totalCollected += msg.value;
         emit PaymentReceived(msg.sender, msg.value, block.timestamp);
     }
     
     /**
-     * @dev Allows the owner to update the payment amount
-     * Only callable by the owner address
-     * @param newAmount The new payment amount in wei
-     * Emits PaymentAmountUpdated event on success
+     * @dev Payable function for players to pay for XP to Points conversion
+     * Accepts any payment amount (typically ~0.1 USD in ETH)
+     * Emits XPConversionPayment event on success
+     * The event allows backend to track conversion payments separately from game payments
      */
-    function updatePaymentAmount(uint256 newAmount) external onlyOwner {
-        require(newAmount > 0, "Payment amount must be greater than 0");
-        uint256 oldAmount = paymentAmount;
-        paymentAmount = newAmount;
-        emit PaymentAmountUpdated(oldAmount, newAmount, block.timestamp);
+    function payToConvertXP() external payable {
+        require(msg.value > 0, "Payment amount must be greater than 0");
+        totalCollected += msg.value;
+        emit XPConversionPayment(msg.sender, msg.value, block.timestamp);
     }
-    
-    /**
-     * @dev Returns the current payment amount
-     * @return The payment amount in wei
-     */
-    function getPaymentAmount() external view returns (uint256) {
-        return paymentAmount;
-    }
-    
+
     /**
      * @dev Allows the owner to withdraw all collected funds from the contract
      * Only callable by the owner address

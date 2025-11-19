@@ -55,6 +55,31 @@ export const game_payment_abi = [
         "type": "event"
     },
     {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "player",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "amount",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "timestamp",
+                "type": "uint256"
+            }
+        ],
+        "name": "XPConversionPayment",
+        "type": "event"
+    },
+    {
         "inputs": [],
         "name": "PAYMENT_AMOUNT",
         "outputs": [
@@ -96,6 +121,13 @@ export const game_payment_abi = [
     {
         "inputs": [],
         "name": "payToPlay",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "payToConvertXP",
         "outputs": [],
         "stateMutability": "payable",
         "type": "function"
