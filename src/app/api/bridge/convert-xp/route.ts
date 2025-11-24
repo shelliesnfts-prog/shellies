@@ -40,21 +40,21 @@ export async function POST(request: NextRequest) {
   try {
     // STEP 1: Authenticate user via session
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.address) {
       throw new ValidationError(
         'Not authenticated. Please connect your wallet.',
-        ERROR_CODES.UNAUTHORIZED,
+        ERROR_CODES.NOT_AUTHENTICATED,
         401
       );
     }
-    
+
     const authenticatedWallet = session.address as string;
-    
+
     // STEP 2: Parse and validate request body
     const body: ConvertXPRequest = await request.json();
     const { txHash, xpAmount } = body;
-    
+
     // Validate txHash
     if (!txHash || typeof txHash !== 'string') {
       throw new ValidationError(
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
         400
       );
     }
-    
+
     // Validate XP amount
     if (!xpAmount || typeof xpAmount !== 'number' || xpAmount <= 0) {
       throw new ValidationError(
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
         400
       );
     }
-    
+
     if (!Number.isInteger(xpAmount)) {
       throw new ValidationError(
         'XP amount must be a whole number',
@@ -80,14 +80,14 @@ export async function POST(request: NextRequest) {
         400
       );
     }
-    
+
     // STEP 3: Verify transaction on blockchain
     // This checks:
     // - Transaction exists and was successful
     // - Transaction sender = authenticatedWallet (CRITICAL!)
     // - Transaction recipient = payment contract
     const txData = await verifyConversionPayment(txHash, authenticatedWallet);
-    
+
     if (!txData.isValid) {
       throw new ValidationError(
         'Invalid transaction. Please ensure you paid with your connected wallet to the correct contract.',
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
         400
       );
     }
-    
+
     // STEP 4: Verify payment amount (~0.1 USD with 20% tolerance)
     if (txData.amountInUSD < MIN_PAYMENT_USD || txData.amountInUSD > MAX_PAYMENT_USD) {
       throw new ValidationError(
@@ -104,14 +104,14 @@ export async function POST(request: NextRequest) {
         400
       );
     }
-    
+
     // STEP 5: Get user data
     const { data: user, error: fetchError } = await supabaseService
       .from('shellies_raffle_users')
       .select('wallet_address, game_score, points, last_convert')
       .eq('wallet_address', authenticatedWallet)
       .single();
-    
+
     if (fetchError || !user) {
       console.error('User not found:', fetchError);
       throw new NotFoundError(
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
         ERROR_CODES.USER_NOT_FOUND
       );
     }
-    
+
     // STEP 6: Verify sufficient XP
     const currentXP = user.game_score || 0;
     if (currentXP < xpAmount) {
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
         400
       );
     }
-    
+
     // STEP 7: Check timestamp (prevent replay attacks)
     // NOTE: 7-day cooldown is REMOVED - users can convert anytime if they pay
     if (user.last_convert) {
@@ -138,10 +138,10 @@ export async function POST(request: NextRequest) {
       // - Database TIMESTAMPTZ: Stored as UTC internally
       // - .getTime(): Returns UTC milliseconds since epoch
       // - Both converted to UTC milliseconds for safe comparison
-      
+
       const lastConvertTime = new Date(user.last_convert).getTime(); // UTC milliseconds
       const txTime = txData.timestamp * 1000; // Convert blockchain seconds to milliseconds
-      
+
       // Only check if transaction is NEWER than last conversion (prevent replay)
       if (txTime <= lastConvertTime) {
         throw new ValidationError(
@@ -152,14 +152,14 @@ export async function POST(request: NextRequest) {
       }
       // NO 7-day cooldown check - payment is the rate limiter
     }
-    
+
     // STEP 8: Calculate points
     const pointsAdded = xpAmount / CONVERSION_RATE;
-    
+
     // STEP 9: Execute conversion (atomic operation)
     const txTimestamp = new Date(txData.timestamp * 1000).toISOString();
     const now = new Date().toISOString();
-    
+
     const { data: updatedUser, error: updateError } = await supabaseService
       .from('shellies_raffle_users')
       .update({
@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
       .eq('wallet_address', authenticatedWallet)
       .select('game_score, points')
       .single();
-    
+
     if (updateError || !updatedUser) {
       console.error('Database error during conversion:', updateError);
       throw new ValidationError(
@@ -180,7 +180,7 @@ export async function POST(request: NextRequest) {
         500
       );
     }
-    
+
     // STEP 10: Return success
     return NextResponse.json(
       createSuccessResponse(
@@ -192,21 +192,21 @@ export async function POST(request: NextRequest) {
         }
       )
     );
-    
+
   } catch (error) {
     console.error('Error in XP conversion:', error);
-    
+
     if (error instanceof ValidationError || error instanceof NotFoundError) {
       const errorResponse = createErrorResponse(error);
       return NextResponse.json(errorResponse, { status: error.statusCode });
     }
-    
+
     const unexpectedError = new ValidationError(
       'An unexpected error occurred during XP conversion',
       ERROR_CODES.INTERNAL_ERROR,
       500
     );
-    
+
     return NextResponse.json(
       createErrorResponse(unexpectedError),
       { status: 500 }

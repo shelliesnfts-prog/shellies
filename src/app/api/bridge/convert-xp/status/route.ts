@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     if (!session?.address) {
       throw new ValidationError(
         'Not authenticated. Please connect your wallet.',
-        ERROR_CODES.UNAUTHORIZED,
+        ERROR_CODES.NOT_AUTHENTICATED,
         401
       );
     }
