@@ -7,8 +7,9 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50');
     const userWallet = searchParams.get('userWallet') || undefined;
     const cursor = searchParams.get('cursor') ? parseFloat(searchParams.get('cursor')!) : undefined;
+    const searchWallet = searchParams.get('searchWallet') || undefined;
     
-    const leaderboard = await UserService.getLeaderboard(limit, userWallet, cursor);
+    const leaderboard = await UserService.getLeaderboard(limit, userWallet, cursor, searchWallet);
     
     return NextResponse.json(leaderboard);
   } catch (error) {
