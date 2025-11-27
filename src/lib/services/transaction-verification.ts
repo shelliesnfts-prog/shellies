@@ -48,10 +48,35 @@ export async function verifyConversionPayment(
       hash: txHash as `0x${string}` 
     });
     
-    // Get block timestamp
-    const block = await client.getBlock({ 
-      blockNumber: receipt.blockNumber 
-    });
+    // Get block timestamp with retry logic (handles "block out of range" errors)
+    let blockTimestamp: bigint;
+    const maxRetries = 5;
+    const baseDelay = 1000; // 1 second
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const block = await client.getBlock({ 
+          blockNumber: receipt.blockNumber 
+        });
+        blockTimestamp = block.timestamp;
+        break;
+      } catch (error: any) {
+        const isLastAttempt = attempt === maxRetries - 1;
+        const isBlockOutOfRange = error?.message?.includes('block is out of range') || 
+                                   error?.details?.includes('block is out of range');
+        
+        if (isBlockOutOfRange && !isLastAttempt) {
+          // Wait with exponential backoff before retrying
+          const delay = baseDelay * Math.pow(2, attempt);
+          console.log(`Block not indexed yet, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        
+        // If it's the last attempt or a different error, throw
+        throw error;
+      }
+    }
     
     // CRITICAL SECURITY CHECKS:
     // 1. Transaction was successful
@@ -72,7 +97,7 @@ export async function verifyConversionPayment(
     
     return {
       isValid,
-      timestamp: Number(block.timestamp),
+      timestamp: Number(blockTimestamp!),
       amount: tx.value,
       amountInUSD,
       from: tx.from,

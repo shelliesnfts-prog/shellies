@@ -66,9 +66,34 @@ export async function getTransactionTimestamp(txHash: string): Promise<number> {
     throw new Error('Transaction not found');
   }
   
-  const block = await client.getBlock({ 
-    blockNumber: receipt.blockNumber 
-  });
+  // Retry logic for fetching block (handles "block out of range" errors)
+  const maxRetries = 5;
+  const baseDelay = 1000; // 1 second
   
-  return Number(block.timestamp);
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const block = await client.getBlock({ 
+        blockNumber: receipt.blockNumber 
+      });
+      
+      return Number(block.timestamp);
+    } catch (error: any) {
+      const isLastAttempt = attempt === maxRetries - 1;
+      const isBlockOutOfRange = error?.message?.includes('block is out of range') || 
+                                 error?.details?.includes('block is out of range');
+      
+      if (isBlockOutOfRange && !isLastAttempt) {
+        // Wait with exponential backoff before retrying
+        const delay = baseDelay * Math.pow(2, attempt);
+        console.log(`Block not indexed yet, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      
+      // If it's the last attempt or a different error, throw
+      throw new Error(`Failed to fetch block timestamp: ${error?.message || 'Unknown error'}`);
+    }
+  }
+  
+  throw new Error('Failed to fetch block timestamp after multiple retries');
 }
