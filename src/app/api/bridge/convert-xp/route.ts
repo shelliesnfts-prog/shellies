@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';
 import { ValidationError, NotFoundError, createErrorResponse, createSuccessResponse, ERROR_CODES } from '@/lib/errors';
 import { verifyConversionPayment } from '@/lib/services/transaction-verification';
+import { AppSettingsService } from '@/lib/services/app-settings-service';
 
 // Create a service role client for atomic operations
 const supabaseService = createClient(
@@ -29,12 +30,8 @@ interface ConvertXPResponse {
   pointsAdded: number;
 }
 
-// Conversion rate: 1000 XP = 100 points (divide by 10)
-const CONVERSION_RATE = 10;
-
 // Payment amount tolerance (20% to handle ETH price fluctuations)
-const MIN_PAYMENT_USD = 0.08;
-const MAX_PAYMENT_USD = 0.12;
+const PAYMENT_TOLERANCE = 0.20; // 20%
 
 export async function POST(request: NextRequest) {
   try {
@@ -81,7 +78,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // STEP 3: Verify transaction on blockchain
+    // STEP 3: Fetch dynamic XP conversion settings
+    const settings = await AppSettingsService.getXPConversionSettings();
+    const conversionRate = settings.conversionRate;
+    const expectedPaymentUsd = settings.feeUsd;
+    const minimumXp = settings.minXp;
+
+    // Calculate payment tolerance range
+    const minPaymentUsd = expectedPaymentUsd * (1 - PAYMENT_TOLERANCE);
+    const maxPaymentUsd = expectedPaymentUsd * (1 + PAYMENT_TOLERANCE);
+
+    // STEP 4: Verify transaction on blockchain
     // This checks:
     // - Transaction exists and was successful
     // - Transaction sender = authenticatedWallet (CRITICAL!)
@@ -96,16 +103,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // STEP 4: Verify payment amount (~0.1 USD with 20% tolerance)
-    if (txData.amountInUSD < MIN_PAYMENT_USD || txData.amountInUSD > MAX_PAYMENT_USD) {
+    // STEP 5: Verify payment amount (with tolerance for ETH price fluctuations)
+    if (txData.amountInUSD < minPaymentUsd || txData.amountInUSD > maxPaymentUsd) {
       throw new ValidationError(
-        `Payment amount must be approximately 0.1 USD (received ${txData.amountInUSD.toFixed(4)} USD). Please pay the correct amount.`,
+        `Payment amount must be approximately ${expectedPaymentUsd} USD (received ${txData.amountInUSD.toFixed(4)} USD). Please pay the correct amount.`,
         'INVALID_PAYMENT_AMOUNT',
         400
       );
     }
 
-    // STEP 5: Get user data
+    // STEP 6: Get user data
     const { data: user, error: fetchError } = await supabaseService
       .from('shellies_raffle_users')
       .select('wallet_address, game_score, points, last_convert')
@@ -120,7 +127,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // STEP 6: Verify sufficient XP
+    // STEP 7: Verify minimum XP requirement
+    if (xpAmount < minimumXp) {
+      throw new ValidationError(
+        `Minimum ${minimumXp} XP required to convert.`,
+        'INSUFFICIENT_XP',
+        400
+      );
+    }
+
+    // STEP 8: Verify sufficient XP
     const currentXP = user.game_score || 0;
     if (currentXP < xpAmount) {
       throw new ValidationError(
@@ -130,7 +146,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // STEP 7: Check timestamp (prevent replay attacks)
+    // STEP 9: Check timestamp (prevent replay attacks)
     // NOTE: 7-day cooldown is REMOVED - users can convert anytime if they pay
     if (user.last_convert) {
       // IMPORTANT: Timezone-safe comparison
@@ -153,10 +169,10 @@ export async function POST(request: NextRequest) {
       // NO 7-day cooldown check - payment is the rate limiter
     }
 
-    // STEP 8: Calculate points
-    const pointsAdded = xpAmount / CONVERSION_RATE;
+    // STEP 10: Calculate points using dynamic conversion rate
+    const pointsAdded = xpAmount / conversionRate;
 
-    // STEP 9: Execute conversion (atomic operation)
+    // STEP 11: Execute conversion (atomic operation)
     const txTimestamp = new Date(txData.timestamp * 1000).toISOString();
     const now = new Date().toISOString();
 
@@ -181,7 +197,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // STEP 10: Return success
+    // STEP 12: Return success
     return NextResponse.json(
       createSuccessResponse(
         `Successfully converted ${xpAmount} XP to ${pointsAdded} points!`,
