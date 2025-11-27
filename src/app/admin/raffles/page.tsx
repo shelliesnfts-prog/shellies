@@ -494,6 +494,19 @@ export default function AdminRafflesPage() {
                 </button>
               </li>
               
+              {/* XP Settings */}
+              <li>
+                <button
+                  onClick={() => router.push('/admin/xp-settings')}
+                  className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
+                    isDarkMode ? 'text-gray-400 hover:bg-gray-700 hover:text-gray-300' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                  }`}
+                >
+                  <Square className="w-5 h-5 mr-3" />
+                  <span className="font-medium text-sm">XP Settings</span>
+                </button>
+              </li>
+              
               {/* Portal Link */}
               <li>
                 <a

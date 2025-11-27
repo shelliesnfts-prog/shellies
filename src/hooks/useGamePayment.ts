@@ -11,6 +11,7 @@ import { PriceOracle } from '@/lib/price-oracle';
 import { GAME_PAYMENT_CONTRACT, GamePaymentService } from '@/lib/contracts';
 import { parsePaymentError, ERROR_CODES } from '@/lib/errors';
 import { logger, logPaymentError } from '@/lib/logger';
+import { inkChain } from '@/lib/wagmi';
 
 /**
  * Payment session data structure stored in sessionStorage
@@ -44,6 +45,10 @@ export interface UseGamePaymentReturn {
   retryPayment: () => Promise<boolean>;
   sessionCreating: boolean;  // New: Track session creation
   sessionCreated: boolean;   // New: Track session created
+  isStaker: boolean;         // Staker status
+  isNFTHolder: boolean;      // NFT holder status
+  nftCount: number;          // Number of NFTs owned
+  paymentTier: string;       // Payment tier (regular, nft_holder, or staker)
 }
 
 /**
@@ -140,7 +145,7 @@ export function getPaymentSession(): PaymentSession | null {
  * Manages payment state and blockchain interactions for game entry payments
  */
 export function useGamePayment(): UseGamePaymentReturn {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chain, connector } = useAccount();
   
   // State management
   const [hasActivePayment, setHasActivePayment] = useState<boolean>(false);
@@ -153,16 +158,12 @@ export function useGamePayment(): UseGamePaymentReturn {
   const [sessionCreating, setSessionCreating] = useState<boolean>(false);
   const [sessionCreated, setSessionCreated] = useState<boolean>(false);
   
-  // Read payment amount from contract
-  const {
-    data: contractPaymentAmount,
-    isLoading: isLoadingPaymentAmount,
-  } = useReadContract({
-    address: GAME_PAYMENT_CONTRACT.address,
-    abi: GAME_PAYMENT_CONTRACT.abi,
-    functionName: 'getPaymentAmount',
-  });
-
+  // User tier state
+  const [isStaker, setIsStaker] = useState<boolean>(false);
+  const [isNFTHolder, setIsNFTHolder] = useState<boolean>(false);
+  const [nftCount, setNftCount] = useState<number>(0);
+  const [paymentTier, setPaymentTier] = useState<string>('regular');
+  
   // Get user's ETH balance
   const { data: balanceData } = useBalance({
     address: address,
@@ -211,13 +212,52 @@ export function useGamePayment(): UseGamePaymentReturn {
   }, []);
 
   /**
-   * Update required ETH when contract payment amount is loaded
+   * Fetch payment amount based on user's NFT ownership (tier-based pricing)
+   * Falls back to contract amount if API fails
    */
   useEffect(() => {
-    if (contractPaymentAmount && contractPaymentAmount > BigInt(0)) {
-      setRequiredEth(contractPaymentAmount);
-    }
-  }, [contractPaymentAmount]);
+    const fetchPaymentAmount = async () => {
+      if (!address) {
+        // No wallet connected, fetch default payment amount
+        return;
+      }
+      
+      try {
+        // Fetch user-specific payment amount from API
+        const response = await fetch('/api/payment-amount');
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch payment amount');
+        }
+        
+        const data = await response.json();
+        
+        // Update state with tier-specific data
+        setRequiredEth(BigInt(data.payment_amount_wei));
+        setIsStaker(data.is_staker || false);
+        setIsNFTHolder(data.is_nft_holder);
+        setNftCount(data.nft_count);
+        setPaymentTier(data.tier);
+        
+        logger.payment('Payment amount fetched', {
+          tier: data.tier,
+          isStaker: data.is_staker,
+          isNFTHolder: data.is_nft_holder,
+          nftCount: data.nft_count,
+          amount: data.payment_amount_wei,
+        });
+        
+      } catch (error) {
+        console.error('Error fetching payment amount:', error);
+        setPaymentTier('regular');
+        setIsStaker(false);
+        setIsNFTHolder(false);
+        setNftCount(0);
+      }
+    };
+    
+    fetchPaymentAmount();
+  }, [address]);
   
   /**
    * Check payment status on mount and when wallet changes
@@ -277,34 +317,13 @@ export function useGamePayment(): UseGamePaymentReturn {
   }, [isConnected, address]);
   
   /**
-   * Listen for GAME_OVER postMessage event to clear session
-   * Also clears server-side session
+   * NOTE: GAME_OVER session clearing is now handled in MarioGameConsoleV2
+   * to ensure proper sequencing - score must be saved BEFORE session is cleared.
+   * This prevents race conditions where the session gets deleted before the score
+   * update API call completes (which requires an active session).
+   * 
+   * The hook still provides clearPaymentSession() for manual clearing when needed.
    */
-  useEffect(() => {
-    const handleGameOver = async (event: MessageEvent) => {
-      // Validate message origin if needed
-      if (event.data && event.data.type === 'GAME_OVER') {
-        try {
-          // Clear server-side session
-          await fetch('/api/game-session', { method: 'DELETE' });
-        } catch (error) {
-          console.error('Error clearing server session:', error);
-        }
-        
-        // Clear local session
-        clearPaymentSession();
-        setHasActivePayment(false);
-      }
-    };
-    
-    if (typeof window !== 'undefined') {
-      window.addEventListener('message', handleGameOver);
-      
-      return () => {
-        window.removeEventListener('message', handleGameOver);
-      };
-    }
-  }, []);
   
   /**
    * Handle transaction confirmation and create server-side session
@@ -419,6 +438,68 @@ export function useGamePayment(): UseGamePaymentReturn {
       return false;
     }
     
+    // Get actual chain ID from connector - CRITICAL for detecting real network
+    let actualChainId: number | undefined;
+    let actualChainName = 'Unknown Network';
+    
+    if (connector) {
+      try {
+        const provider = await connector.getProvider() as any;
+        if (provider && typeof provider.request === 'function') {
+          const chainIdHex = await provider.request({ method: 'eth_chainId' }) as string;
+          actualChainId = parseInt(chainIdHex, 16);
+          
+          // Try to get chain name if available
+          if (chain && chain.id === actualChainId) {
+            actualChainName = chain.name;
+          } else {
+            actualChainName = `Chain ${actualChainId}`;
+          }
+        }
+      } catch (error) {
+        console.error('Error getting chain ID from connector:', error);
+        actualChainId = chain?.id;
+        actualChainName = chain?.name || 'Unknown Network';
+      }
+    } else {
+      actualChainId = chain?.id;
+      actualChainName = chain?.name || 'Unknown Network';
+    }
+    
+    // Validate network - CRITICAL: Must be on Ink Chain
+    // In wagmi v2, we MUST check the actual chain from connector before calling writeContract
+    if (!actualChainId || actualChainId !== inkChain.id) {
+      console.error('❌ PAYMENT BLOCKED - Wrong Network:', {
+        actualChainId,
+        actualChainName,
+        expectedChain: inkChain.name,
+        expectedChainId: inkChain.id,
+        message: 'User must switch to Ink Chain before payment'
+      });
+      
+      setPaymentError(
+        `Wrong network detected. You are on ${actualChainName} (Chain ID: ${actualChainId}). Please switch to Ink Chain (Chain ID: ${inkChain.id}) to make payments.`
+      );
+      setPaymentErrorCode(ERROR_CODES.WRONG_NETWORK);
+      setCanRetryPayment(false);
+      setPaymentLoading(false);
+      
+      logger.error('Wrong network detected', undefined, {
+        action: 'initiatePayment',
+        actualChainId,
+        actualChainName,
+        expectedChain: inkChain.name,
+        expectedChainId: inkChain.id
+      });
+      
+      return false;
+    }
+    
+    console.log('✅ Network validation passed - Ink Chain detected:', {
+      actualChainId,
+      actualChainName
+    });
+    
     // Validate contract configuration
     if (!GamePaymentService.isContractConfigured()) {
       setPaymentError('Payment contract is not configured');
@@ -433,12 +514,36 @@ export function useGamePayment(): UseGamePaymentReturn {
       return false;
     }
     
-    // Validate price is loaded
-    if (requiredEth === BigInt(0)) {
-      setPaymentError('Loading payment amount. Please wait...');
-      setPaymentErrorCode(ERROR_CODES.PRICE_FETCH_FAILED);
-      setCanRetryPayment(true);
-      return false;
+    // Wait for payment amount to load if it's still loading
+    let currentRequiredEth = requiredEth;
+    if (currentRequiredEth === BigInt(0)) {
+      setPaymentLoading(true);
+      setPaymentError(null);
+      
+      // Fetch payment amount directly if not loaded yet
+      try {
+        const response = await fetch('/api/payment-amount');
+        if (response.ok) {
+          const data = await response.json();
+          currentRequiredEth = BigInt(data.payment_amount_wei);
+          setRequiredEth(currentRequiredEth);
+          setIsStaker(data.is_staker || false);
+          setIsNFTHolder(data.is_nft_holder);
+          setNftCount(data.nft_count);
+          setPaymentTier(data.tier);
+        }
+      } catch (error) {
+        console.error('Error fetching payment amount:', error);
+      }
+      
+      // If still not loaded, show error
+      if (currentRequiredEth === BigInt(0)) {
+        setPaymentLoading(false);
+        setPaymentError('Failed to load payment amount. Please try again.');
+        setPaymentErrorCode(ERROR_CODES.PRICE_FETCH_FAILED);
+        setCanRetryPayment(true);
+        return false;
+      }
     }
 
     // Check if user has sufficient balance (payment + estimated gas)
@@ -446,13 +551,13 @@ export function useGamePayment(): UseGamePaymentReturn {
       const userBalance = balanceData.value;
       // Estimate gas cost (rough estimate: 50000 gas * gas price)
       // For safety, we'll check if user has at least payment amount + 20% buffer for gas
-      const estimatedGasBuffer = requiredEth / BigInt(5); // 20% buffer
-      const totalRequired = requiredEth + estimatedGasBuffer;
+      const estimatedGasBuffer = currentRequiredEth / BigInt(5); // 20% buffer
+      const totalRequired = currentRequiredEth + estimatedGasBuffer;
       
       if (userBalance < totalRequired) {
         const shortfall = totalRequired - userBalance;
         setPaymentError(
-          `Insufficient ETH balance. You need approximately ${GamePaymentService.formatEthAmount(totalRequired)} ETH (${GamePaymentService.formatEthAmount(requiredEth)} for payment + gas fees). You have ${GamePaymentService.formatEthAmount(userBalance)} ETH. Please add at least ${GamePaymentService.formatEthAmount(shortfall)} ETH to your wallet.`
+          `Insufficient ETH balance. You need approximately ${GamePaymentService.formatEthAmount(totalRequired)} ETH (${GamePaymentService.formatEthAmount(currentRequiredEth)} for payment + gas fees). You have ${GamePaymentService.formatEthAmount(userBalance)} ETH. Please add at least ${GamePaymentService.formatEthAmount(shortfall)} ETH to your wallet.`
         );
         setPaymentErrorCode(ERROR_CODES.INSUFFICIENT_BALANCE);
         setCanRetryPayment(false);
@@ -460,7 +565,7 @@ export function useGamePayment(): UseGamePaymentReturn {
         logger.error('Insufficient balance', undefined, {
           action: 'initiatePayment',
           userBalance: userBalance.toString(),
-          requiredEth: requiredEth.toString(),
+          requiredEth: currentRequiredEth.toString(),
           totalRequired: totalRequired.toString(),
           shortfall: shortfall.toString()
         });
@@ -476,16 +581,18 @@ export function useGamePayment(): UseGamePaymentReturn {
       setCanRetryPayment(true);
       
       // Call payToPlay function with required ETH value
+      // Note: In wagmi v2, writeContract uses the currently connected chain
+      // Network validation is done above to prevent wrong network transactions
       writeContract({
         address: GAME_PAYMENT_CONTRACT.address,
         abi: GAME_PAYMENT_CONTRACT.abi,
         functionName: 'payToPlay',
-        value: requiredEth,
+        value: currentRequiredEth,
       });
       
       logger.payment('Payment initiated', {
         address,
-        requiredEth: requiredEth.toString(),
+        requiredEth: currentRequiredEth.toString(),
         ethPrice
       });
       
@@ -503,12 +610,12 @@ export function useGamePayment(): UseGamePaymentReturn {
         code: parsedError.code,
         canRetry: parsedError.canRetry,
         address,
-        requiredEth: requiredEth.toString()
+        requiredEth: currentRequiredEth.toString()
       });
       
       return false;
     }
-  }, [isConnected, address, requiredEth, writeContract, balanceData]);
+  }, [isConnected, address, chain, connector, requiredEth, writeContract, balanceData, ethPrice]);
   
   /**
    * Clear payment session (exposed for external use)
@@ -553,5 +660,9 @@ export function useGamePayment(): UseGamePaymentReturn {
     retryPayment,
     sessionCreating,
     sessionCreated,
+    isStaker,
+    isNFTHolder,
+    nftCount,
+    paymentTier,
   };
 }

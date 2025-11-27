@@ -149,7 +149,7 @@ export function ProfilePageSkeleton({ isDarkMode }: ProfilePageSkeletonProps) {
         </div>
 
         {/* Unified Daily Claim Card Skeleton */}
-        <div className="sm:col-span-4 col-span-2">
+        <div className="sm:col-span-2 col-span-1">
           <div className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 ${
             isDarkMode ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700' : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
           }`}>
@@ -190,6 +190,55 @@ export function ProfilePageSkeleton({ isDarkMode }: ProfilePageSkeletonProps) {
                   }`} />
                 </div>
                 <div className={`h-10 w-full rounded-lg animate-pulse ${
+                  isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
+                }`} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* XP Bridge Card Skeleton */}
+        <div className="sm:col-span-2 col-span-1 h-full">
+          <div className={`h-full group relative overflow-hidden rounded-2xl border transition-all duration-300 ${
+            isDarkMode ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700' : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
+          }`}>
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-pink-500/5 to-transparent" />
+            <div className="relative p-6 h-full flex flex-col">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <div className={`h-5 w-28 rounded animate-pulse mb-1 ${
+                    isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
+                  }`} />
+                  <div className={`h-3 w-48 rounded animate-pulse ${
+                    isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
+                  }`} />
+                </div>
+                <div className={`p-2.5 rounded-xl animate-pulse ${
+                  isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
+                }`}>
+                  <div className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="space-y-3 flex-1 flex flex-col justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className={`h-3 w-48 rounded animate-pulse ${
+                      isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
+                    }`} />
+                    <div className="flex items-center space-x-1">
+                      <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${
+                        isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
+                      }`} />
+                      <div className={`h-3 w-24 rounded animate-pulse ${
+                        isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
+                      }`} />
+                    </div>
+                  </div>
+                  <div className={`h-3 w-40 rounded animate-pulse ${
+                    isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
+                  }`} />
+                </div>
+                <div className={`h-12 w-full rounded-xl animate-pulse ${
                   isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
                 }`} />
               </div>

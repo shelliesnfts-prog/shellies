@@ -18,6 +18,7 @@ interface ErrorDisplayProps {
   onDismiss?: () => void;
   canRetry?: boolean;
   className?: string;
+  retryButtonText?: string;
 }
 
 /**
@@ -37,6 +38,7 @@ export default function ErrorDisplay({
   onDismiss,
   canRetry = true,
   className = '',
+  retryButtonText = 'Try Again',
 }: ErrorDisplayProps) {
   
   /**
@@ -112,7 +114,7 @@ export default function ErrorDisplay({
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors duration-200 ${styles.button}`}
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
-                    Try Again
+                    {retryButtonText}
                   </button>
                 )}
                 

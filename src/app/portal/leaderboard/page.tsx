@@ -3,22 +3,25 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useAccount } from 'wagmi';
+import { useSearchParams } from 'next/navigation';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LeaderboardPageSkeleton } from '@/components/portal/LeaderboardPageSkeleton';
 import { GameStatsCards } from '@/components/portal/GameStatsCards';
 import { StunningToggleSwitcher } from '@/components/portal/StunningToggleSwitcher';
-import { Trophy, Medal, Award, Crown, Star, ChevronDown, Users, TrendingUp, Lock, Calendar, Clock, AlertCircle, RefreshCw } from 'lucide-react';
+import { Trophy, Medal, Award, Crown, Star, ChevronDown, Users, TrendingUp, Lock, Calendar, Clock, AlertCircle, RefreshCw, Search, X } from 'lucide-react';
 import { StakingService } from '@/lib/staking-service';
 import { formatXP } from '@/lib/format-utils';
 import { useToast } from '@/hooks/useToast';
 import { ToastContainer } from '@/components/Toast';
 
 export default function LeaderboardPage() {
+  const searchParams = useSearchParams();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
-  // Active leaderboard toggle state
-  const [activeLeaderboard, setActiveLeaderboard] = useState<'points' | 'gameXP'>('points');
+  // Active leaderboard toggle state - check URL parameter for initial value
+  const initialTab = searchParams.get('tab') === 'gameXP' ? 'gameXP' : 'points';
+  const [activeLeaderboard, setActiveLeaderboard] = useState<'points' | 'gameXP'>(initialTab);
   
   // Transition state for smooth animations
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -40,6 +43,26 @@ export default function LeaderboardPage() {
   const [gameXPCacheTimestamp, setGameXPCacheTimestamp] = useState<number | null>(null);
   const [gameXPError, setGameXPError] = useState<string | null>(null);
   
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Current user rank state
+  const [currentUserPointsRank, setCurrentUserPointsRank] = useState<{
+    rank: number;
+    wallet_address: string;
+    points: number;
+    game_score: number;
+  } | null>(null);
+  const [currentUserGameXPRank, setCurrentUserGameXPRank] = useState<{
+    rank: number;
+    wallet_address: string;
+    points: number;
+    game_score: number;
+  } | null>(null);
+  const [userRankLoading, setUserRankLoading] = useState(false);
+
   // Shared state
   const [loadingMore, setLoadingMore] = useState(false);
   const [stakingStats, setStakingStats] = useState({
@@ -70,11 +93,14 @@ export default function LeaderboardPage() {
     return Date.now() - timestamp < CACHE_DURATION;
   };
 
-  const fetchPointsLeaderboard = async (cursorValue: number | null = null, append = false, forceRefresh = false) => {
+  const fetchPointsLeaderboard = async (cursorValue: number | null = null, append = false, forceRefresh = false, searchWallet?: string) => {
     try {
       if (!append) {
         setPointsLoading(true);
         setPointsError(null);
+        if (searchWallet !== undefined) {
+          setIsSearching(searchWallet.length > 0);
+        }
       } else {
         setLoadingMore(true);
       }
@@ -85,6 +111,11 @@ export default function LeaderboardPage() {
       }
       if (cursorValue !== null) {
         params.append('cursor', cursorValue.toString());
+      }
+      // Use provided searchWallet or fall back to current debounced query
+      const searchTerm = searchWallet !== undefined ? searchWallet : debouncedSearchQuery;
+      if (searchTerm) {
+        params.append('searchWallet', searchTerm);
       }
       
       const response = await fetch(`/api/leaderboard/points?${params.toString()}`);
@@ -140,11 +171,14 @@ export default function LeaderboardPage() {
     }
   };
 
-  const fetchGameXPLeaderboard = async (cursorValue: number | null = null, append = false, forceRefresh = false) => {
+  const fetchGameXPLeaderboard = async (cursorValue: number | null = null, append = false, forceRefresh = false, searchWallet?: string) => {
     try {
       if (!append) {
         setGameXPLoading(true);
         setGameXPError(null);
+        if (searchWallet !== undefined) {
+          setIsSearching(searchWallet.length > 0);
+        }
       } else {
         setLoadingMore(true);
       }
@@ -155,6 +189,11 @@ export default function LeaderboardPage() {
       }
       if (cursorValue !== null) {
         params.append('cursor', cursorValue.toString());
+      }
+      // Use provided searchWallet or fall back to current debounced query
+      const searchTerm = searchWallet !== undefined ? searchWallet : debouncedSearchQuery;
+      if (searchTerm) {
+        params.append('searchWallet', searchTerm);
       }
       
       const response = await fetch(`/api/leaderboard/game-xp?${params.toString()}`);
@@ -237,7 +276,12 @@ export default function LeaderboardPage() {
     
     const transitionDuration = prefersReducedMotion ? 0 : 300;
     
-    // Check if we have valid cached data for the target leaderboard
+    // Reset search when switching tabs
+    setSearchQuery('');
+    setDebouncedSearchQuery('');
+    setIsSearching(false);
+    
+    // Check if we have valid cached data for the target leaderboard (only when not searching)
     const hasValidCache = type === 'gameXP' 
       ? gameXPLeaderboard.length > 0 && isCacheValid(gameXPCacheTimestamp)
       : pointsLeaderboard.length > 0 && isCacheValid(pointsCacheTimestamp);
@@ -258,12 +302,12 @@ export default function LeaderboardPage() {
       setTimeout(() => {
         setActiveLeaderboard(type);
         
-        // Fetch data if not cached or cache expired
+        // Fetch data if not cached or cache expired (without search filter)
         if (type === 'gameXP') {
-          fetchGameXPLeaderboard();
+          fetchGameXPLeaderboard(null, false, false, '');
           fetchGameStats();
         } else if (type === 'points') {
-          fetchPointsLeaderboard();
+          fetchPointsLeaderboard(null, false, false, '');
         }
         
         // End transition after fade-in
@@ -276,9 +320,9 @@ export default function LeaderboardPage() {
 
   const loadMore = () => {
     if (activeLeaderboard === 'points' && pointsCursor !== null) {
-      fetchPointsLeaderboard(pointsCursor, true);
+      fetchPointsLeaderboard(pointsCursor, true, false, debouncedSearchQuery);
     } else if (activeLeaderboard === 'gameXP' && gameXPCursor !== null) {
-      fetchGameXPLeaderboard(gameXPCursor, true);
+      fetchGameXPLeaderboard(gameXPCursor, true, false, debouncedSearchQuery);
     }
   };
 
@@ -286,11 +330,13 @@ export default function LeaderboardPage() {
     // Invalidate cache and force refresh current leaderboard
     if (activeLeaderboard === 'points') {
       setPointsCacheTimestamp(null);
-      fetchPointsLeaderboard(null, false, true);
+      fetchPointsLeaderboard(null, false, true, debouncedSearchQuery);
+      if (walletAddress) fetchUserRank('points');
     } else {
       setGameXPCacheTimestamp(null);
-      fetchGameXPLeaderboard(null, false, true);
+      fetchGameXPLeaderboard(null, false, true, debouncedSearchQuery);
       fetchGameStats();
+      if (walletAddress) fetchUserRank('gameXP');
     }
   };
 
@@ -298,14 +344,109 @@ export default function LeaderboardPage() {
     // Retry fetching the current leaderboard
     if (activeLeaderboard === 'points') {
       setPointsError(null);
-      fetchPointsLeaderboard(null, false, true);
+      fetchPointsLeaderboard(null, false, true, debouncedSearchQuery);
     } else {
       setGameXPError(null);
-      fetchGameXPLeaderboard(null, false, true);
+      fetchGameXPLeaderboard(null, false, true, debouncedSearchQuery);
       if (gameStatsError) {
         setGameStatsError(null);
         fetchGameStats();
       }
+    }
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    setDebouncedSearchQuery('');
+    setIsSearching(false);
+  };
+
+  // Optimized: Fetch both ranks in a single API call
+  const fetchBothUserRanks = async () => {
+    if (!walletAddress) return;
+
+    try {
+      setUserRankLoading(true);
+      const params = new URLSearchParams({
+        walletAddress,
+        type: 'both'
+      });
+
+      const response = await fetch(`/api/leaderboard/user-rank?${params.toString()}`);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          setCurrentUserPointsRank(null);
+          setCurrentUserGameXPRank(null);
+          return;
+        }
+        throw new Error('Failed to fetch user ranks');
+      }
+
+      const data = await response.json();
+
+      // Set points rank
+      if (data.pointsRank) {
+        setCurrentUserPointsRank({
+          rank: data.pointsRank.rank,
+          wallet_address: data.wallet_address,
+          points: data.pointsRank.points,
+          game_score: data.gameXPRank?.game_score || 0
+        });
+      }
+
+      // Set game XP rank
+      if (data.gameXPRank) {
+        setCurrentUserGameXPRank({
+          rank: data.gameXPRank.rank,
+          wallet_address: data.wallet_address,
+          points: data.pointsRank?.points || 0,
+          game_score: data.gameXPRank.game_score
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching user ranks:', error);
+    } finally {
+      setUserRankLoading(false);
+    }
+  };
+
+  // Single rank fetch for manual refresh (when we only need one)
+  const fetchUserRank = async (type: 'points' | 'gameXP') => {
+    if (!walletAddress) return;
+
+    try {
+      setUserRankLoading(true);
+      const params = new URLSearchParams({
+        walletAddress,
+        type
+      });
+
+      const response = await fetch(`/api/leaderboard/user-rank?${params.toString()}`);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          if (type === 'points') {
+            setCurrentUserPointsRank(null);
+          } else {
+            setCurrentUserGameXPRank(null);
+          }
+          return;
+        }
+        throw new Error('Failed to fetch user rank');
+      }
+
+      const data = await response.json();
+
+      if (type === 'points') {
+        setCurrentUserPointsRank(data);
+      } else {
+        setCurrentUserGameXPRank(data);
+      }
+    } catch (error) {
+      console.error(`Error fetching user ${type} rank:`, error);
+    } finally {
+      setUserRankLoading(false);
     }
   };
 
@@ -329,7 +470,18 @@ export default function LeaderboardPage() {
     // Invalidate cache when wallet changes
     setPointsCacheTimestamp(null);
     setGameXPCacheTimestamp(null);
-    fetchPointsLeaderboard();
+
+    // Fetch appropriate leaderboard based on initial tab
+    if (initialTab === 'gameXP') {
+      fetchGameXPLeaderboard();
+    } else {
+      fetchPointsLeaderboard();
+    }
+
+    // Optimized: Fetch both ranks in a single API call on initial load
+    if (walletAddress) {
+      fetchBothUserRanks();
+    }
   }, [walletAddress]);
 
   useEffect(() => {
@@ -357,6 +509,27 @@ export default function LeaderboardPage() {
     mediaQuery.addEventListener('change', handleChange);
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Trigger search when debounced query changes
+  useEffect(() => {
+    // Reset pagination and fetch with search
+    if (activeLeaderboard === 'points') {
+      setPointsCursor(null);
+      fetchPointsLeaderboard(null, false, false, debouncedSearchQuery);
+    } else {
+      setGameXPCursor(null);
+      fetchGameXPLeaderboard(null, false, false, debouncedSearchQuery);
+    }
+  }, [debouncedSearchQuery]);
 
   // Fetch game stats when switching to game XP leaderboard
   useEffect(() => {
@@ -459,6 +632,43 @@ export default function LeaderboardPage() {
                   onTabChange={handleToggleLeaderboard}
                   isDarkMode={isDarkMode}
                 />
+              </div>
+
+              {/* Wallet Address Search */}
+              <div className="w-full max-w-md">
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Search className={`w-5 h-5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                  </div>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search by wallet address..."
+                    aria-label="Search leaderboard by wallet address"
+                    className={`w-full pl-10 pr-10 py-3 rounded-xl border-2 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                      isDarkMode
+                        ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-purple-500'
+                        : 'bg-white border-gray-200 text-gray-900 placeholder-gray-500 focus:border-purple-500'
+                    }`}
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={handleClearSearch}
+                      aria-label="Clear search"
+                      className={`absolute inset-y-0 right-0 pr-3 flex items-center transition-colors ${
+                        isDarkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  )}
+                </div>
+                {isSearching && debouncedSearchQuery && (
+                  <p className={`mt-2 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Showing results for "{debouncedSearchQuery}"
+                  </p>
+                )}
               </div>
             </div>
 
@@ -682,6 +892,90 @@ export default function LeaderboardPage() {
                   </p>
                 </div>
               ) : (
+                <>
+                  {/* Pinned Current User Position Card */}
+                  {walletAddress && !isSearching && (() => {
+                    const currentUserRank = activeLeaderboard === 'points' ? currentUserPointsRank : currentUserGameXPRank;
+                    const isUnranked = activeLeaderboard === 'gameXP' && currentUserRank?.rank === 0;
+
+                    if (!currentUserRank) return null;
+
+                    const metricValue = activeLeaderboard === 'points'
+                      ? currentUserRank.points.toFixed(1)
+                      : formatXP(currentUserRank.game_score || 0);
+                    const metricLabel = activeLeaderboard === 'points' ? 'Points' : 'XP';
+
+                    return (
+                      <div
+                        className={`p-4 sm:p-5 border-b-2 ${
+                          isDarkMode
+                            ? 'bg-gradient-to-r from-purple-900/60 via-pink-900/50 to-purple-900/60 border-purple-500/50'
+                            : 'bg-gradient-to-r from-purple-100 via-pink-100 to-purple-100 border-purple-300'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-4">
+                          {/* Rank Badge */}
+                          <div className={`flex items-center justify-center min-w-[3rem] h-12 rounded-xl font-bold text-lg transition-all duration-200 ${
+                            isUnranked
+                              ? isDarkMode
+                                ? 'bg-gray-700 text-gray-400'
+                                : 'bg-gray-200 text-gray-500'
+                              : isDarkMode
+                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30'
+                                : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/30'
+                          }`}>
+                            {isUnranked ? '—' : `#${currentUserRank.rank}`}
+                          </div>
+
+                          {/* User Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center space-x-3">
+                              <div className={`w-11 h-11 rounded-xl ${
+                                isDarkMode
+                                  ? 'bg-gradient-to-br from-purple-500 to-pink-500'
+                                  : 'bg-gradient-to-br from-purple-600 to-pink-600'
+                              } flex items-center justify-center shadow-lg`}>
+                                <span className="text-white font-bold text-sm">
+                                  {currentUserRank.wallet_address.slice(2, 4).toUpperCase()}
+                                </span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-sm font-semibold truncate ${
+                                  isDarkMode ? 'text-purple-200' : 'text-purple-800'
+                                }`}>
+                                  {currentUserRank.wallet_address.slice(0, 12)}...{currentUserRank.wallet_address.slice(-8)}
+                                </p>
+                                <p className={`text-xs ${isDarkMode ? 'text-purple-300/70' : 'text-purple-600/70'}`}>
+                                  {isUnranked ? 'Play to get ranked!' : 'Your Wallet'}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Score with YOU badge */}
+                          <div className="flex items-center gap-3">
+                            <div className="text-center">
+                              <p className={`text-2xl font-bold ${
+                                isDarkMode ? 'text-purple-200' : 'text-purple-700'
+                              }`}>
+                                {metricValue}
+                              </p>
+                              <p className={`text-xs font-medium ${isDarkMode ? 'text-purple-300/70' : 'text-purple-600/70'}`}>
+                                {metricLabel}
+                              </p>
+                            </div>
+                            <div className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                              isDarkMode
+                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                                : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
+                            }`}>
+                              YOU
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 <div 
                   role="list" 
                   aria-label={`${activeLeaderboard === 'points' ? 'Points' : 'Game XP'} leaderboard entries`}
@@ -774,19 +1068,42 @@ export default function LeaderboardPage() {
                       <div className={`w-16 h-16 mx-auto rounded-full ${
                         isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
                       } flex items-center justify-center mb-4`}>
-                        <Users className={`w-8 h-8 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                        {isSearching ? (
+                          <Search className={`w-8 h-8 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                        ) : (
+                          <Users className={`w-8 h-8 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                        )}
                       </div>
                       <p className={`text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                        {activeLeaderboard === 'points' ? 'No points data yet' : 'No game XP data yet'}
+                        {isSearching 
+                          ? 'No wallets found' 
+                          : activeLeaderboard === 'points' 
+                            ? 'No points data yet' 
+                            : 'No game XP data yet'}
                       </p>
                       <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                        {activeLeaderboard === 'points' 
-                          ? 'Be the first to connect and claim points!' 
-                          : 'Be the first to play and earn XP!'}
+                        {isSearching 
+                          ? `No results matching "${debouncedSearchQuery}"`
+                          : activeLeaderboard === 'points' 
+                            ? 'Be the first to connect and claim points!' 
+                            : 'Be the first to play and earn XP!'}
                       </p>
+                      {isSearching && (
+                        <button
+                          onClick={handleClearSearch}
+                          className={`mt-4 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            isDarkMode
+                              ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          Clear search
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
+                </>
               )}
               
               {/* Load More Button */}

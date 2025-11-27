@@ -64,6 +64,8 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: 'jwt',
+    maxAge: 24 * 60 * 60, // 24 hours
+    updateAge: 60 * 60, // Update session every 1 hour
   },
   callbacks: {
     async session({ session, token }) {
@@ -71,12 +73,25 @@ export const authOptions: NextAuthOptions = {
       session.chainId = token.chainId;
       return session;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.address = user.address;
         token.chainId = user.chainId;
       }
+      
+      // On update, refresh the token data
+      if (trigger === 'update') {
+        // Token will be refreshed with existing data
+        return token;
+      }
+      
       return token;
+    },
+  },
+  events: {
+    async signOut({ token }) {
+      // Clear any server-side session data if needed
+      console.log('User signed out:', token.address);
     },
   },
   secret: process.env.NEXTAUTH_SECRET,

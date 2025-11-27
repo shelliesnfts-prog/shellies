@@ -9,6 +9,7 @@ import { SessionProvider } from 'next-auth/react';
 import { getConfig, inkChain } from '@/lib/wagmi';
 import { Session } from 'next-auth';
 import { useAccountMonitor } from '@/hooks/useAccountMonitor';
+import { useWalletSync } from '@/hooks/useWalletSync';
 import { useMemo } from 'react';
 
 // Create QueryClient inside the component to ensure proper reactivity
@@ -33,9 +34,10 @@ const getSiweMessageOptions: GetSiweMessageOptions = () => ({
   // Users can sign on any network, but will be prompted to switch after
 });
 
-// Component to handle account monitoring inside the providers
+// Component to handle account monitoring and wallet sync inside the providers
 function AccountMonitorWrapper({ children }: { children: React.ReactNode }) {
   useAccountMonitor();
+  useWalletSync();
   return <>{children}</>;
 }
 
@@ -53,8 +55,15 @@ export function Web3Providers({
   return (
     <WagmiProvider config={config} reconnectOnMount={true}>
       <QueryClientProvider client={queryClient}>
-        <SessionProvider session={session}>
-          <RainbowKitSiweNextAuthProvider getSiweMessageOptions={getSiweMessageOptions}>
+        <SessionProvider 
+          session={session}
+          refetchInterval={5 * 60} // Refetch session every 5 minutes
+          refetchOnWindowFocus={true}
+        >
+          <RainbowKitSiweNextAuthProvider 
+            getSiweMessageOptions={getSiweMessageOptions}
+            enabled={true}
+          >
             <RainbowKitProvider initialChain={inkChain}>
               <AccountMonitorWrapper>
                 {children}

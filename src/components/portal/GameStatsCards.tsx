@@ -89,7 +89,7 @@ export function GameStatsCards({ gameStats, statsLoading, isDarkMode }: GameStat
         </div>
       </div>
 
-      {/* Top Score */}
+      {/* Top XP */}
       <div className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-lg hover:-translate-y-1 ${
         isDarkMode
           ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 hover:border-yellow-500'
@@ -106,12 +106,12 @@ export function GameStatsCards({ gameStats, statsLoading, isDarkMode }: GameStat
             <div className={`text-xs font-medium px-2 py-1 rounded-full ${
               isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-yellow-50 text-yellow-700'
             }`}>
-              Top Score
+              Top XP
             </div>
           </div>
           <div className="space-y-1">
             <h3 className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Top Score
+              Top XP
             </h3>
             {statsLoading ? (
               <div className={`h-9 rounded animate-pulse w-16 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
