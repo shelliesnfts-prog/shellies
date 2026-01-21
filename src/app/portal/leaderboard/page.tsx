@@ -65,7 +65,11 @@ export default function LeaderboardPage() {
 
   // Shared state
   const [loadingMore, setLoadingMore] = useState(false);
-  const [stakingStats, setStakingStats] = useState({
+  const [stakingStats, setStakingStats] = useState<{
+    totalNFTsStaked: number;
+    totalStakers: number;
+    tokenHoldersCount: number;
+  }>({
     totalNFTsStaked: 0,
     totalStakers: 0,
     tokenHoldersCount: 0
@@ -450,13 +454,17 @@ export default function LeaderboardPage() {
     }
   };
 
-  const fetchStakingStats = async () => {
+  const fetchStakingStats = async (): Promise<void> => {
     try {
       // Only show loading skeleton on initial fetch, not on subsequent refreshes
       if (stakingStats.totalNFTsStaked === 0) {
         setStatsLoading(true);
       }
-      const stats = await StakingService.getGlobalStakingStats();
+      const stats: {
+        totalNFTsStaked: number;
+        totalStakers: number;
+        tokenHoldersCount: number;
+      } = await StakingService.getGlobalStakingStats();
       setStakingStats(stats);
     } catch (error) {
       console.error('Error fetching staking stats:', error);
