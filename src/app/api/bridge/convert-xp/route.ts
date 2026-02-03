@@ -88,7 +88,22 @@ export async function POST(request: NextRequest) {
     const minPaymentUsd = expectedPaymentUsd * (1 - PAYMENT_TOLERANCE);
     const maxPaymentUsd = expectedPaymentUsd * (1 + PAYMENT_TOLERANCE);
 
-    // STEP 4: Verify transaction on blockchain
+    // STEP 4: Check if transaction hash has already been used (SECURITY: Prevent replay)
+    const { data: usedTx } = await supabaseService
+      .from('shellies_used_transactions')
+      .select('tx_hash')
+      .eq('tx_hash', txHash)
+      .single();
+
+    if (usedTx) {
+      throw new ValidationError(
+        'This transaction has already been used for XP conversion.',
+        'TRANSACTION_ALREADY_USED',
+        400
+      );
+    }
+
+    // STEP 5: Verify transaction on blockchain
     // This checks:
     // - Transaction exists and was successful
     // - Transaction sender = authenticatedWallet (CRITICAL!)
@@ -103,7 +118,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // STEP 5: Verify payment amount (with tolerance for ETH price fluctuations)
+    // STEP 6: Verify payment amount (with tolerance for ETH price fluctuations)
     if (txData.amountInUSD < minPaymentUsd || txData.amountInUSD > maxPaymentUsd) {
       throw new ValidationError(
         `Payment amount must be approximately ${expectedPaymentUsd} USD (received ${txData.amountInUSD.toFixed(4)} USD). Please pay the correct amount.`,
@@ -112,7 +127,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // STEP 6: Get user data
+    // STEP 7: Get user data
     const { data: user, error: fetchError } = await supabaseService
       .from('shellies_raffle_users')
       .select('wallet_address, game_score, points, last_convert')
@@ -127,7 +142,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // STEP 7: Verify minimum XP requirement
+    // STEP 8: Verify minimum XP requirement
     if (xpAmount < minimumXp) {
       throw new ValidationError(
         `Minimum ${minimumXp} XP required to convert.`,
@@ -136,7 +151,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // STEP 8: Verify sufficient XP
+    // STEP 9: Verify sufficient XP
     const currentXP = user.game_score || 0;
     if (currentXP < xpAmount) {
       throw new ValidationError(
@@ -146,7 +161,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // STEP 9: Check timestamp (prevent replay attacks)
+    // STEP 10: Check timestamp (prevent replay attacks)
     // NOTE: 7-day cooldown is REMOVED - users can convert anytime if they pay
     if (user.last_convert) {
       // IMPORTANT: Timezone-safe comparison
@@ -169,10 +184,10 @@ export async function POST(request: NextRequest) {
       // NO 7-day cooldown check - payment is the rate limiter
     }
 
-    // STEP 10: Calculate points using dynamic conversion rate
+    // STEP 11: Calculate points using dynamic conversion rate
     const pointsAdded = xpAmount / conversionRate;
 
-    // STEP 11: Execute conversion (atomic operation)
+    // STEP 12: Execute conversion (atomic operation)
     const txTimestamp = new Date(txData.timestamp * 1000).toISOString();
     const now = new Date().toISOString();
 
@@ -197,7 +212,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // STEP 12: Return success
+    // STEP 13: Mark transaction as used (SECURITY: Prevent replay)
+    await supabaseService
+      .from('shellies_used_transactions')
+      .insert({
+        tx_hash: txHash,
+        wallet_address: authenticatedWallet,
+        endpoint: 'convert-xp',
+        amount_usd: txData.amountInUSD,
+        xp_converted: xpAmount,
+        points_gained: pointsAdded
+      });
+
+    // STEP 14: Return success
     return NextResponse.json(
       createSuccessResponse(
         `Successfully converted ${xpAmount} XP to ${pointsAdded} points!`,

@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { NFTService } from '@/lib/nft-service';
 import { UserService } from '@/lib/user-service';
 import { supabaseAdmin, supabase } from '@/lib/supabase';
+import { isValidPointsAmount, MAX_REASONABLE_POINTS } from '@/lib/points-constants';
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,6 +24,19 @@ export async function POST(request: NextRequest) {
 
     // Step 2: Calculate points based on NFT ownership
     const pointsToAdd = NFTService.calculateClaimPoints(nftCount);
+
+    // SECURITY: Validate points amount is within reasonable limits
+    const validation = isValidPointsAmount(pointsToAdd);
+    if (!validation.isValid) {
+      console.error(`Invalid points amount: ${pointsToAdd} for ${walletAddress}`, {
+        nftCount,
+        reason: validation.reason
+      });
+      return NextResponse.json({
+        success: false,
+        error: `Invalid points calculation. Maximum allowed is ${MAX_REASONABLE_POINTS}. Please contact support.`
+      }, { status: 500 });
+    }
 
     // Step 3: Use database function to safely process claim
     const client = supabaseAdmin || supabase;

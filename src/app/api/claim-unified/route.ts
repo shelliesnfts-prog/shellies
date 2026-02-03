@@ -5,6 +5,7 @@ import { StakingService } from '@/lib/staking-service';
 import { UserService } from '@/lib/user-service';
 import { NFTService } from '@/lib/nft-service';
 import { supabaseAdmin, supabase } from '@/lib/supabase';
+import { isValidPointsAmount, MAX_REASONABLE_POINTS } from '@/lib/points-constants';
 
 export async function POST(request: NextRequest) {
   try {
@@ -52,6 +53,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: false,
         error: 'No points available to claim. Get some NFTs or stake existing ones!'
+      }, { status: 400 });
+    }
+
+    // SECURITY: Validate points amount is within reasonable limits
+    const validation = isValidPointsAmount(totalPointsToAdd);
+    if (!validation.isValid) {
+      console.error(`Invalid points amount: ${totalPointsToAdd} for ${walletAddress}`, {
+        nftCount,
+        availableNFTCount,
+        stakedNFTCount,
+        stakingBreakdown,
+        reason: validation.reason
+      });
+      return NextResponse.json({
+        success: false,
+        error: `Invalid points calculation. Maximum allowed is ${MAX_REASONABLE_POINTS}. Please contact support.`
       }, { status: 400 });
     }
 

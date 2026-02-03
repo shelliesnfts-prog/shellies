@@ -7,7 +7,7 @@ export function useUser() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Prevent multiple simultaneous requests
   const fetchingRef = useRef(false);
 
@@ -15,7 +15,7 @@ export function useUser() {
   const fetchUser = useCallback(async () => {
     // Don't fetch if already loading, no session, or still loading session
     if (fetchingRef.current || status === 'loading') return;
-    
+
     if (!session?.address) {
       setUser(null);
       setLoading(false);
@@ -30,7 +30,7 @@ export function useUser() {
       fetchingRef.current = true;
       setLoading(true);
       setError(null);
-      
+
       const response = await fetch(`/api/user?_t=${Date.now()}&_r=${Math.random()}`, {
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -39,11 +39,11 @@ export function useUser() {
         },
         cache: 'no-store'
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch user data');
       }
-      
+
       const userData = await response.json();
       setUser(userData);
     } catch (err) {
@@ -59,12 +59,12 @@ export function useUser() {
   // Force refresh user data
   const refetchUser = useCallback(async () => {
     if (!session?.address || status !== 'authenticated') return;
-    
+
     try {
       fetchingRef.current = true;
       setLoading(true);
       setError(null);
-      
+
       const response = await fetch(`/api/user?_t=${Date.now()}&_r=${Math.random()}`, {
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -73,11 +73,11 @@ export function useUser() {
         },
         cache: 'no-store'
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch user data');
       }
-      
+
       const userData = await response.json();
       setUser(userData);
     } catch (err) {
@@ -90,74 +90,31 @@ export function useUser() {
     }
   }, [session?.address, status]);
 
-  // Claim daily points
+  // Claim daily points - DEPRECATED: Use useClaiming hook instead
+  // This function is kept for backward compatibility but should not be used
   const claimDailyPoints = async (pointsToAdd: number) => {
-    if (!session?.address) return false;
+    console.warn('claimDailyPoints is deprecated. Use useClaiming hook and /api/claim-unified endpoint instead.');
 
-    try {
-      const response = await fetch('/api/user', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'claim_daily',
-          points: pointsToAdd,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to claim daily points');
-      }
-
-      const updatedUser = await response.json();
-      setUser(updatedUser);
-      return true;
-    } catch (err) {
-      console.error('Error claiming daily points:', err);
-      setError(err instanceof Error ? err.message : 'Failed to claim points');
-      return false;
-    }
+    // Return false to prevent usage
+    return false;
   };
 
-  // Update NFT count
+  // Update NFT count - DEPRECATED: NFT counts are now fetched from blockchain
   const updateNFTCount = async (nftCount: number) => {
-    if (!session?.address) return false;
+    console.warn('updateNFTCount is deprecated. NFT counts are now fetched directly from blockchain.');
 
-    try {
-      const response = await fetch('/api/user', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'update_nft_count',
-          nftCount,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update NFT count');
-      }
-
-      const updatedUser = await response.json();
-      setUser(updatedUser);
-      return true;
-    } catch (err) {
-      console.error('Error updating NFT count:', err);
-      setError(err instanceof Error ? err.message : 'Failed to update NFT count');
-      return false;
-    }
+    // Return false to prevent usage
+    return false;
   };
 
   // Check if user can claim daily points
-  const canClaimDaily = user?.last_claim 
+  const canClaimDaily = user?.last_claim
     ? (() => {
-        const lastClaimDate = new Date(user.last_claim);
-        const now = new Date();
-        const hoursSinceLastClaim = (now.getTime() - lastClaimDate.getTime()) / (1000 * 60 * 60);
-        return hoursSinceLastClaim >= 24;
-      })()
+      const lastClaimDate = new Date(user.last_claim);
+      const now = new Date();
+      const hoursSinceLastClaim = (now.getTime() - lastClaimDate.getTime()) / (1000 * 60 * 60);
+      return hoursSinceLastClaim >= 24;
+    })()
     : true;
 
   useEffect(() => {
