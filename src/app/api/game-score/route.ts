@@ -2,10 +2,27 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, supabase } from '@/lib/supabase';
 import { GameScoreUpdate } from '@/lib/types';
 
-// SECURITY: Maximum reasonable score based on game mechanics
-// This should be set based on your game's actual maximum achievable score
-// Current value is a placeholder - adjust based on your game design
-const MAX_REASONABLE_SCORE = 100000; // TODO: Set based on actual game max score
+/**
+ * SECURITY: Maximum reasonable score based on game mechanics
+ * 
+ * This value should be set based on your game's actual maximum achievable score.
+ * For a typical endless runner/arcade game:
+ * - Average session: 2-5 minutes
+ * - Max reasonable session: 30 minutes (with exceptional skill)
+ * - Score per second (typical): 10-50 points
+ * - Max score = 30 min * 60 sec * 50 points = 90,000
+ * 
+ * We set to 10,000 as a reasonable max for typical gameplay.
+ * Scores above this are flagged as suspicious.
+ * Configure via environment variable for flexibility.
+ */
+const MAX_REASONABLE_SCORE = parseInt(process.env.MAX_GAME_SCORE || '10000', 10);
+
+/**
+ * SECURITY: Suspicious score threshold for logging
+ * Scores above this but below max are logged for review
+ */
+const SUSPICIOUS_SCORE_THRESHOLD = Math.floor(MAX_REASONABLE_SCORE * 0.7); // 70% of max
 
 // GET /api/game-score?walletAddress=...
 // Retrieve user's best game score
@@ -82,9 +99,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // SECURITY: Validate score is an integer (no decimal manipulation)
+    if (!Number.isInteger(score)) {
+      return NextResponse.json(
+        { success: false, error: 'score must be a whole number' },
+        { status: 400 }
+      );
+    }
+
+    // SECURITY: Log suspicious scores for review
+    if (score > SUSPICIOUS_SCORE_THRESHOLD) {
+      console.warn(`[SECURITY] Suspicious high score: ${score} from ${walletAddress} (threshold: ${SUSPICIOUS_SCORE_THRESHOLD})`);
+    }
+
     // SECURITY: Validate maximum score to prevent manipulation
     if (score > MAX_REASONABLE_SCORE) {
-      console.warn(`Suspicious score submission: ${score} from ${walletAddress}`);
+      console.error(`[SECURITY] Score rejected - exceeds maximum: ${score} from ${walletAddress} (max: ${MAX_REASONABLE_SCORE})`);
       return NextResponse.json(
         { 
           success: false, 

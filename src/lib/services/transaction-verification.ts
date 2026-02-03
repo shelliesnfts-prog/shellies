@@ -118,11 +118,150 @@ export async function verifyConversionPayment(
 }
 
 /**
- * Get current ETH price in USD
- * Uses CoinGecko API as fallback if price oracle fails
+ * Verify a game payment transaction on the blockchain
  * 
- * @returns ETH price in USD
+ * @param txHash - Transaction hash to verify
+ * @param expectedWallet - Expected wallet address (from session)
+ * @param expectedAmountUsd - Expected payment amount in USD (optional, for validation)
+ * @returns Transaction data with validation result
  */
+export async function verifyGamePayment(
+  txHash: string,
+  expectedWallet: string,
+  expectedAmountUsd?: number
+): Promise<TransactionData> {
+  try {
+    // Validate transaction hash format
+    if (!txHash || typeof txHash !== 'string' || txHash.length !== 66 || !txHash.startsWith('0x')) {
+      console.warn(`Invalid transaction hash format: ${txHash}`);
+      return { 
+        isValid: false, 
+        timestamp: 0, 
+        amount: BigInt(0), 
+        amountInUSD: 0, 
+        from: '', 
+        to: '' 
+      };
+    }
+
+    const client = createPublicClient({
+      chain: inkChain,
+      transport: http()
+    });
+    
+    // Fetch transaction receipt
+    const receipt = await client.getTransactionReceipt({ 
+      hash: txHash as `0x${string}` 
+    });
+    
+    if (!receipt) {
+      console.warn(`Transaction receipt not found for: ${txHash}`);
+      return { 
+        isValid: false, 
+        timestamp: 0, 
+        amount: BigInt(0), 
+        amountInUSD: 0, 
+        from: '', 
+        to: '' 
+      };
+    }
+    
+    // Fetch transaction details
+    const tx = await client.getTransaction({ 
+      hash: txHash as `0x${string}` 
+    });
+    
+    // Get block timestamp with retry logic
+    let blockTimestamp: bigint = BigInt(0);
+    const maxRetries = 5;
+    const baseDelay = 1000;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const block = await client.getBlock({ 
+          blockNumber: receipt.blockNumber 
+        });
+        blockTimestamp = block.timestamp;
+        break;
+      } catch (error: any) {
+        const isLastAttempt = attempt === maxRetries - 1;
+        const isBlockOutOfRange = error?.message?.includes('block is out of range') || 
+                                   error?.details?.includes('block is out of range');
+        
+        if (isBlockOutOfRange && !isLastAttempt) {
+          const delay = baseDelay * Math.pow(2, attempt);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        
+        throw error;
+      }
+    }
+    
+    // CRITICAL SECURITY CHECKS for game payment:
+    // 1. Transaction was successful
+    // 2. Transaction sender matches authenticated user
+    // 3. Transaction recipient is the game payment contract
+    const gamePaymentContract = process.env.NEXT_PUBLIC_GAME_PAYMENT_CONTRACT_ADDRESS || 
+                                 process.env.NEXT_PUBLIC_GAME_PAYMENT_CONTRACT;
+    
+    // Get current ETH price and calculate USD value
+    const ethPriceInUSD = await getETHPriceInUSD();
+    const amountInETH = Number(tx.value) / 1e18;
+    const amountInUSD = amountInETH * ethPriceInUSD;
+    
+    // Validate all conditions
+    const isTransactionSuccessful = receipt.status === 'success';
+    const isFromCorrectWallet = tx.from.toLowerCase() === expectedWallet.toLowerCase();
+    const isToCorrectContract = tx.to?.toLowerCase() === gamePaymentContract?.toLowerCase();
+    
+    // Optional: Validate payment amount (with 20% tolerance for ETH price fluctuations)
+    let isAmountValid = true;
+    if (expectedAmountUsd && expectedAmountUsd > 0) {
+      const minAmount = expectedAmountUsd * 0.8;
+      const maxAmount = expectedAmountUsd * 1.2;
+      isAmountValid = amountInUSD >= minAmount && amountInUSD <= maxAmount;
+    }
+    
+    const isValid = isTransactionSuccessful && isFromCorrectWallet && isToCorrectContract && isAmountValid;
+    
+    if (!isValid) {
+      console.warn(`Game payment verification failed for ${txHash}:`, {
+        isTransactionSuccessful,
+        isFromCorrectWallet,
+        isToCorrectContract,
+        isAmountValid,
+        expectedWallet,
+        actualFrom: tx.from,
+        expectedContract: gamePaymentContract,
+        actualTo: tx.to,
+        amountInUSD,
+        expectedAmountUsd
+      });
+    }
+    
+    return {
+      isValid,
+      timestamp: Number(blockTimestamp),
+      amount: tx.value,
+      amountInUSD,
+      from: tx.from,
+      to: tx.to || ''
+    };
+    
+  } catch (error) {
+    console.error('Error verifying game payment:', error);
+    return { 
+      isValid: false, 
+      timestamp: 0, 
+      amount: BigInt(0), 
+      amountInUSD: 0, 
+      from: '', 
+      to: '' 
+    };
+  }
+}
+
 async function getETHPriceInUSD(): Promise<number> {
   try {
     // Try to use existing price oracle if available

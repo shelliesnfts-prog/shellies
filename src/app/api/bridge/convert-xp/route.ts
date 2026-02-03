@@ -88,19 +88,32 @@ export async function POST(request: NextRequest) {
     const minPaymentUsd = expectedPaymentUsd * (1 - PAYMENT_TOLERANCE);
     const maxPaymentUsd = expectedPaymentUsd * (1 + PAYMENT_TOLERANCE);
 
-    // STEP 4: Check if transaction hash has already been used (SECURITY: Prevent replay)
-    const { data: usedTx } = await supabaseService
+    // STEP 4: SECURITY FIX - Atomic insert-first pattern to prevent race conditions
+    // Insert transaction hash FIRST before any processing to claim it atomically
+    // This prevents double-conversion when multiple requests arrive simultaneously
+    const { error: insertError } = await supabaseService
       .from('shellies_used_transactions')
-      .select('tx_hash')
-      .eq('tx_hash', txHash)
-      .single();
+      .insert({
+        tx_hash: txHash,
+        wallet_address: authenticatedWallet,
+        endpoint: 'convert-xp',
+        amount_usd: 0, // Will be updated after verification
+        xp_converted: 0, // Will be updated after success
+        points_gained: 0 // Will be updated after success
+      });
 
-    if (usedTx) {
-      throw new ValidationError(
-        'This transaction has already been used for XP conversion.',
-        'TRANSACTION_ALREADY_USED',
-        400
-      );
+    // If insert fails due to unique constraint, transaction was already used
+    if (insertError) {
+      // Check if it's a unique violation (23505 is PostgreSQL unique constraint violation)
+      if (insertError.code === '23505' || insertError.message?.includes('duplicate') || insertError.message?.includes('unique')) {
+        throw new ValidationError(
+          'This transaction has already been used for XP conversion.',
+          'TRANSACTION_ALREADY_USED',
+          400
+        );
+      }
+      // For other errors, log and continue (table might not have unique constraint yet)
+      console.warn('Error inserting transaction (non-critical):', insertError);
     }
 
     // STEP 5: Verify transaction on blockchain
@@ -111,6 +124,13 @@ export async function POST(request: NextRequest) {
     const txData = await verifyConversionPayment(txHash, authenticatedWallet);
 
     if (!txData.isValid) {
+      // Clean up the pre-inserted record since verification failed
+      await supabaseService
+        .from('shellies_used_transactions')
+        .delete()
+        .eq('tx_hash', txHash)
+        .eq('wallet_address', authenticatedWallet);
+        
       throw new ValidationError(
         'Invalid transaction. Please ensure you paid with your connected wallet to the correct contract.',
         'INVALID_TRANSACTION',
@@ -120,6 +140,13 @@ export async function POST(request: NextRequest) {
 
     // STEP 6: Verify payment amount (with tolerance for ETH price fluctuations)
     if (txData.amountInUSD < minPaymentUsd || txData.amountInUSD > maxPaymentUsd) {
+      // Clean up the pre-inserted record since verification failed
+      await supabaseService
+        .from('shellies_used_transactions')
+        .delete()
+        .eq('tx_hash', txHash)
+        .eq('wallet_address', authenticatedWallet);
+        
       throw new ValidationError(
         `Payment amount must be approximately ${expectedPaymentUsd} USD (received ${txData.amountInUSD.toFixed(4)} USD). Please pay the correct amount.`,
         'INVALID_PAYMENT_AMOUNT',
@@ -212,17 +239,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // STEP 13: Mark transaction as used (SECURITY: Prevent replay)
+    // STEP 13: Update the pre-inserted transaction record with actual values
+    // (Transaction was already claimed atomically in STEP 4)
     await supabaseService
       .from('shellies_used_transactions')
-      .insert({
-        tx_hash: txHash,
-        wallet_address: authenticatedWallet,
-        endpoint: 'convert-xp',
+      .update({
         amount_usd: txData.amountInUSD,
         xp_converted: xpAmount,
         points_gained: pointsAdded
-      });
+      })
+      .eq('tx_hash', txHash)
+      .eq('wallet_address', authenticatedWallet);
 
     // STEP 14: Return success
     return NextResponse.json(

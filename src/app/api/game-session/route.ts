@@ -2,11 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { supabaseAdmin, supabase } from '@/lib/supabase';
+import { verifyGamePayment } from '@/lib/services/transaction-verification';
 
 /**
  * Game Session API
  * Validates payment and creates/verifies game sessions server-side
+ * 
+ * SECURITY: All game sessions require blockchain-verified payment
  */
+
+// Expected game payment amount in USD (configure based on your pricing)
+const EXPECTED_GAME_PAYMENT_USD = parseFloat(process.env.GAME_PAYMENT_AMOUNT_USD || '0.50');
 
 interface GameSession {
   id: string;
@@ -118,13 +124,49 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // TODO: Verify transaction on blockchain
-    // For now, we trust the transaction hash exists
-    // In production, you should verify:
-    // 1. Transaction exists on blockchain
-    // 2. Transaction is to the correct contract
-    // 3. Transaction amount is correct
-    // 4. Transaction is from the user's wallet
+    // SECURITY: Verify transaction on blockchain
+    // This checks:
+    // 1. Transaction exists and was successful
+    // 2. Transaction is from the authenticated wallet
+    // 3. Transaction is to the correct payment contract
+    // 4. Transaction amount is approximately correct (with tolerance for ETH price fluctuations)
+    const txVerification = await verifyGamePayment(
+      transactionHash, 
+      walletAddress,
+      EXPECTED_GAME_PAYMENT_USD
+    );
+
+    if (!txVerification.isValid) {
+      console.warn(`Game session rejected - invalid payment from ${walletAddress}:`, {
+        transactionHash,
+        verification: txVerification
+      });
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Invalid payment transaction. Please ensure you paid with your connected wallet to the correct contract.' 
+        },
+        { status: 400 }
+      );
+    }
+
+    // SECURITY: Check if transaction is not too old (prevent using very old transactions)
+    const txAge = Date.now() / 1000 - txVerification.timestamp;
+    const maxTxAge = 3600; // 1 hour max
+    if (txAge > maxTxAge) {
+      console.warn(`Game session rejected - transaction too old from ${walletAddress}:`, {
+        transactionHash,
+        txAge,
+        maxTxAge
+      });
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Transaction is too old. Please make a new payment.' 
+        },
+        { status: 400 }
+      );
+    }
 
     // Ensure user exists in shellies_raffle_users table
     const { data: existingUser } = await client
