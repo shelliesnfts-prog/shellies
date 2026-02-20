@@ -30,60 +30,151 @@ export async function GET(
 
 
     // Use admin client to bypass RLS since we've already authenticated the request
-    if (!supabaseAdmin) {
+    const client = supabaseAdmin || supabase;
+    if (!client) {
       return NextResponse.json(
         { error: 'Service configuration error' },
         { status: 500 }
       );
     }
 
-    // Fetch all participants for this raffle with their transaction data
-    // First try with join_tx_hash, fallback without it if column doesn't exist
-    let participants, participantsError;
+    // First, use RPC function to get participants (more reliable, bypasses RLS)
+    let participants: any[] = [];
+    let participantsError;
     
     try {
-      const result = await supabaseAdmin
-        .from('shellies_raffle_entries')
-        .select(`
-          wallet_address,
-          ticket_count,
-          points_spent,
-          created_at,
-          join_tx_hash
-        `)
-        .eq('raffle_id', raffleId)
-        .order('created_at', { ascending: false });
+      // Try RPC with increased limit
+      const { data: rpcData, error: rpcError, count } = await client
+        .rpc('get_raffle_participants', { p_raffle_id: raffleId });
       
-      participants = result.data;
-      participantsError = result.error;
+      console.log(`[Participants] RPC count: ${count}, data length: ${rpcData?.length}`);
       
-    } catch (error: any) {
-      // If join_tx_hash column doesn't exist, query without it
-      if (error?.code === '42703' || (error?.message && error.message.includes('join_tx_hash'))) {
-        const fallbackResult = await supabaseAdmin
-          .from('shellies_raffle_entries')
-          .select(`
-            wallet_address,
-            ticket_count,
-            points_spent,
-            created_at
-          `)
-          .eq('raffle_id', raffleId)
-          .order('created_at', { ascending: false });
+      if (!rpcError && rpcData && Array.isArray(rpcData)) {
+        participants = rpcData;
+        console.log(`[Participants] RPC fetched ${participants.length} entries for raffle ${raffleId}`);
         
-        participants = fallbackResult.data;
-        participantsError = fallbackResult.error;
-        
-        // Add join_tx_hash as null for all entries
-        if (participants) {
-          participants = participants.map((entry: any) => ({
-            ...entry,
-            join_tx_hash: null
-          }));
+        // If we got exactly 1000, there might be more - try to fetch more
+        if (participants.length >= 1000) {
+          console.log(`[Participants] Got 1000+ entries, fetching more via direct query...`);
+          // Continue with direct query to get remaining entries
+          const pageSize = 1000;
+          let offset = 1000;
+          let hasMore = true;
+          
+          while (hasMore) {
+            try {
+              const moreResult = await client
+                .from('shellies_raffle_entries')
+                .select(`
+                  wallet_address,
+                  ticket_count,
+                  points_spent,
+                  created_at,
+                  join_tx_hash
+                `)
+                .eq('raffle_id', raffleId)
+                .order('created_at', { ascending: false })
+                .range(offset, offset + pageSize - 1);
+              
+              if (moreResult.data && moreResult.data.length > 0) {
+                participants = [...participants, ...moreResult.data];
+                console.log(`[Participants] Fetched more entries, total: ${participants.length}`);
+                
+                if (moreResult.data.length < pageSize) {
+                  hasMore = false;
+                } else {
+                  offset += pageSize;
+                }
+              } else {
+                hasMore = false;
+              }
+            } catch (e) {
+              console.error('[Participants] Error fetching more entries:', e);
+              hasMore = false;
+            }
+          }
         }
       } else {
-        participantsError = error;
+        console.log(`[Participants] RPC failed or returned no data, falling back to direct query:`, rpcError);
+        
+        // Fallback: direct query with pagination to get all entries
+        const pageSize = 1000;
+        let offset = 0;
+        let hasMore = true;
+        
+        while (hasMore) {
+          try {
+            const result = await client
+              .from('shellies_raffle_entries')
+              .select(`
+                wallet_address,
+                ticket_count,
+                points_spent,
+                created_at,
+                join_tx_hash
+              `)
+              .eq('raffle_id', raffleId)
+              .order('created_at', { ascending: false })
+              .range(offset, offset + pageSize - 1);
+            
+            if (result.data && result.data.length > 0) {
+              participants = [...participants, ...result.data];
+              console.log(`[Participants] Direct query fetched ${result.data.length} entries (total: ${participants.length}), offset: ${offset}`);
+              
+              if (result.data.length < pageSize) {
+                hasMore = false;
+              } else {
+                offset += pageSize;
+              }
+            } else {
+              hasMore = false;
+            }
+            
+            participantsError = result.error;
+            
+          } catch (error: any) {
+            // If join_tx_hash column doesn't exist, query without it
+            if (error?.code === '42703' || (error?.message && error.message.includes('join_tx_hash'))) {
+              const fallbackResult = await client
+                .from('shellies_raffle_entries')
+                .select(`
+                  wallet_address,
+                  ticket_count,
+                  points_spent,
+                  created_at
+                `)
+                .eq('raffle_id', raffleId)
+                .order('created_at', { ascending: false })
+                .range(offset, offset + pageSize - 1);
+              
+              if (fallbackResult.data && fallbackResult.data.length > 0) {
+                const mappedData = fallbackResult.data.map((entry: any) => ({
+                  ...entry,
+                  join_tx_hash: null
+                }));
+                participants = [...participants, ...mappedData];
+                console.log(`[Participants] Fallback query fetched ${fallbackResult.data.length} entries (total: ${participants.length}), offset: ${offset}`);
+                
+                if (fallbackResult.data.length < pageSize) {
+                  hasMore = false;
+                } else {
+                  offset += pageSize;
+                }
+              } else {
+                hasMore = false;
+              }
+              
+              participantsError = fallbackResult.error;
+            } else {
+              participantsError = error;
+              hasMore = false;
+            }
+          }
+        }
       }
+    } catch (error: any) {
+      console.error('[Participants] Error in RPC approach:', error);
+      participantsError = error;
     }
 
     if (participantsError) {
@@ -94,8 +185,19 @@ export async function GET(
       );
     }
 
+    if (participants.length === 0) {
+      console.log(`[Participants] No entries found for raffle ${raffleId}`);
+      return NextResponse.json({
+        success: true,
+        data: [],
+        total: 0
+      });
+    }
+
     // Group entries by wallet address and sum tickets
     const participantMap = new Map();
+    
+    console.log(`[Participants] Raw entries count: ${participants?.length || 0}`);
     
     participants?.forEach(entry => {
       const wallet = entry.wallet_address;
@@ -118,6 +220,8 @@ export async function GET(
         });
       }
     });
+
+    console.log(`[Participants] Unique wallets after grouping: ${participantMap.size}`);
 
     // Convert map to array and sort by join date
     const uniqueParticipants = Array.from(participantMap.values())
