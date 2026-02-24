@@ -11,8 +11,13 @@ import { verifyGamePayment } from '@/lib/services/transaction-verification';
  * SECURITY: All game sessions require blockchain-verified payment
  */
 
-// Expected game payment amount in USD (configure based on your pricing)
-const EXPECTED_GAME_PAYMENT_USD = parseFloat(process.env.GAME_PAYMENT_AMOUNT_USD || '0.50');
+// NOTE: Payment amount validation is now disabled because we use dynamic tier-based pricing
+// The amount varies based on user's staking status and NFT ownership
+// We only verify that:
+// 1. Transaction was successful
+// 2. Transaction is from the authenticated wallet
+// 3. Transaction is to the correct payment contract
+const EXPECTED_GAME_PAYMENT_USD = 0; // Disabled - using tier-based pricing
 
 interface GameSession {
   id: string;
@@ -129,12 +134,28 @@ export async function POST(request: NextRequest) {
     // 1. Transaction exists and was successful
     // 2. Transaction is from the authenticated wallet
     // 3. Transaction is to the correct payment contract
-    // 4. Transaction amount is approximately correct (with tolerance for ETH price fluctuations)
+    // NOTE: We don't validate amount because we use dynamic tier-based pricing
+    console.log('🔍 Verifying transaction:', {
+      transactionHash,
+      walletAddress,
+      note: 'Amount validation disabled - using tier-based pricing'
+    });
+    
+    // Pass 0 or undefined to skip amount validation
     const txVerification = await verifyGamePayment(
       transactionHash, 
       walletAddress,
-      EXPECTED_GAME_PAYMENT_USD
+      0 // Skip amount validation
     );
+
+    console.log('📊 Transaction verification result:', {
+      isValid: txVerification.isValid,
+      timestamp: txVerification.timestamp,
+      amount: txVerification.amount.toString(),
+      amountInUSD: txVerification.amountInUSD,
+      from: txVerification.from,
+      to: txVerification.to
+    });
 
     if (!txVerification.isValid) {
       console.warn(`Game session rejected - invalid payment from ${walletAddress}:`, {
@@ -169,13 +190,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Ensure user exists in shellies_raffle_users table
-    const { data: existingUser } = await client
+    console.log('👤 Checking if user exists:', walletAddress);
+    
+    const { data: existingUser, error: userCheckError } = await client
       .from('shellies_raffle_users')
       .select('wallet_address')
       .eq('wallet_address', walletAddress)
       .single();
 
+    if (userCheckError && userCheckError.code !== 'PGRST116') {
+      console.error('❌ Error checking user existence:', userCheckError);
+    }
+
     if (!existingUser) {
+      console.log('➕ Creating new user:', walletAddress);
+      
       // Create user if they don't exist
       const { error: userCreateError } = await client
         .from('shellies_raffle_users')
@@ -188,14 +217,29 @@ export async function POST(request: NextRequest) {
         ]);
 
       if (userCreateError) {
-        console.error('Error creating user:', userCreateError);
+        console.error('❌ Error creating user:', {
+          error: userCreateError,
+          code: userCreateError.code,
+          message: userCreateError.message,
+          details: userCreateError.details
+        });
         // Continue anyway - user might have been created by another request
+      } else {
+        console.log('✅ User created successfully');
       }
+    } else {
+      console.log('✅ User already exists');
     }
 
     // Create new game session (expires after game over or 24 hours)
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24);
+
+    console.log('🎮 Creating game session:', {
+      walletAddress,
+      transactionHash,
+      expiresAt: expiresAt.toISOString()
+    });
 
     const { data: newSession, error: createError } = await client
       .from('shellies_raffle_game_sessions')
@@ -211,12 +255,23 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (createError) {
-      console.error('Error creating game session:', createError);
+      console.error('❌ Error creating game session:', {
+        error: createError,
+        code: createError.code,
+        message: createError.message,
+        details: createError.details,
+        hint: createError.hint
+      });
       return NextResponse.json(
         { success: false, error: 'Failed to create game session' },
         { status: 500 }
       );
     }
+
+    console.log('✅ Game session created successfully:', {
+      sessionId: newSession.id,
+      transactionHash: newSession.transaction_hash
+    });
 
     return NextResponse.json({
       success: true,

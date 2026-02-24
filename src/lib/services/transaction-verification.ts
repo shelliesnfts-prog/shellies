@@ -133,7 +133,7 @@ export async function verifyGamePayment(
   try {
     // Validate transaction hash format
     if (!txHash || typeof txHash !== 'string' || txHash.length !== 66 || !txHash.startsWith('0x')) {
-      console.warn(`Invalid transaction hash format: ${txHash}`);
+      console.warn(`❌ Invalid transaction hash format: ${txHash}`);
       return { 
         isValid: false, 
         timestamp: 0, 
@@ -144,10 +144,14 @@ export async function verifyGamePayment(
       };
     }
 
+    console.log('🔗 Creating blockchain client for verification...');
+    
     const client = createPublicClient({
       chain: inkChain,
       transport: http()
     });
+    
+    console.log('📥 Fetching transaction receipt...');
     
     // Fetch transaction receipt
     const receipt = await client.getTransactionReceipt({ 
@@ -155,7 +159,7 @@ export async function verifyGamePayment(
     });
     
     if (!receipt) {
-      console.warn(`Transaction receipt not found for: ${txHash}`);
+      console.warn(`❌ Transaction receipt not found for: ${txHash}`);
       return { 
         isValid: false, 
         timestamp: 0, 
@@ -166,12 +170,28 @@ export async function verifyGamePayment(
       };
     }
     
+    console.log('✅ Receipt found:', {
+      blockNumber: receipt.blockNumber.toString(),
+      status: receipt.status,
+      gasUsed: receipt.gasUsed.toString()
+    });
+    
+    console.log('📥 Fetching transaction details...');
+    
     // Fetch transaction details
     const tx = await client.getTransaction({ 
       hash: txHash as `0x${string}` 
     });
     
+    console.log('✅ Transaction details:', {
+      from: tx.from,
+      to: tx.to,
+      value: tx.value.toString()
+    });
+    
     // Get block timestamp with retry logic
+    console.log('⏰ Fetching block timestamp...');
+    
     let blockTimestamp: bigint = BigInt(0);
     const maxRetries = 5;
     const baseDelay = 1000;
@@ -182,6 +202,7 @@ export async function verifyGamePayment(
           blockNumber: receipt.blockNumber 
         });
         blockTimestamp = block.timestamp;
+        console.log(`✅ Block timestamp retrieved: ${blockTimestamp}`);
         break;
       } catch (error: any) {
         const isLastAttempt = attempt === maxRetries - 1;
@@ -190,10 +211,12 @@ export async function verifyGamePayment(
         
         if (isBlockOutOfRange && !isLastAttempt) {
           const delay = baseDelay * Math.pow(2, attempt);
+          console.log(`⏳ Block not indexed yet, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }
         
+        console.error(`❌ Error fetching block (attempt ${attempt + 1}/${maxRetries}):`, error);
         throw error;
       }
     }
@@ -205,10 +228,21 @@ export async function verifyGamePayment(
     const gamePaymentContract = process.env.NEXT_PUBLIC_GAME_PAYMENT_CONTRACT_ADDRESS || 
                                  process.env.NEXT_PUBLIC_GAME_PAYMENT_CONTRACT;
     
+    console.log('🔐 Performing security checks...');
+    console.log('Expected contract:', gamePaymentContract);
+    
     // Get current ETH price and calculate USD value
+    console.log('💰 Fetching ETH price...');
+    
     const ethPriceInUSD = await getETHPriceInUSD();
     const amountInETH = Number(tx.value) / 1e18;
     const amountInUSD = amountInETH * ethPriceInUSD;
+    
+    console.log('💵 Payment amount:', {
+      amountInETH,
+      amountInUSD,
+      ethPrice: ethPriceInUSD
+    });
     
     // Validate all conditions
     const isTransactionSuccessful = receipt.status === 'success';
@@ -216,14 +250,33 @@ export async function verifyGamePayment(
     const isToCorrectContract = tx.to?.toLowerCase() === gamePaymentContract?.toLowerCase();
     
     // Optional: Validate payment amount (with 20% tolerance for ETH price fluctuations)
+    // Skip validation if expectedAmountUsd is 0 or not provided (for tier-based pricing)
     let isAmountValid = true;
     if (expectedAmountUsd && expectedAmountUsd > 0) {
       const minAmount = expectedAmountUsd * 0.8;
       const maxAmount = expectedAmountUsd * 1.2;
       isAmountValid = amountInUSD >= minAmount && amountInUSD <= maxAmount;
+      
+      console.log('💵 Amount validation:', {
+        expectedAmountUsd,
+        actualAmountUsd: amountInUSD,
+        minAmount,
+        maxAmount,
+        isValid: isAmountValid
+      });
+    } else {
+      console.log('💵 Amount validation: SKIPPED (tier-based pricing enabled)');
     }
     
     const isValid = isTransactionSuccessful && isFromCorrectWallet && isToCorrectContract && isAmountValid;
+    
+    console.log('🔐 Security check results:', {
+      isTransactionSuccessful,
+      isFromCorrectWallet,
+      isToCorrectContract,
+      isAmountValid,
+      overallValid: isValid
+    });
     
     if (!isValid) {
       console.warn(`Game payment verification failed for ${txHash}:`, {
@@ -249,8 +302,14 @@ export async function verifyGamePayment(
       to: tx.to || ''
     };
     
-  } catch (error) {
-    console.error('Error verifying game payment:', error);
+  } catch (error: any) {
+    console.error('❌ Error verifying game payment:', {
+      error,
+      message: error?.message,
+      code: error?.code,
+      details: error?.details,
+      txHash
+    });
     return { 
       isValid: false, 
       timestamp: 0, 

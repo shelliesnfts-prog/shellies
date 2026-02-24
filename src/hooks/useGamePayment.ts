@@ -344,8 +344,16 @@ export function useGamePayment(): UseGamePaymentReturn {
 
           if (!response.ok) {
             const error = await response.json();
+            console.error('❌ Session creation failed:', {
+              status: response.status,
+              statusText: response.statusText,
+              error: error,
+              transactionHash: hash
+            });
             throw new Error(error.error || 'Failed to create game session');
           }
+
+          console.log('✅ Session created successfully:', { transactionHash: hash });
 
           // Store payment session locally (for UI state)
           const ethAmount = GamePaymentService.formatEthAmount(requiredEth);
@@ -356,9 +364,17 @@ export function useGamePayment(): UseGamePaymentReturn {
           setHasActivePayment(true);
           setPaymentLoading(false);
           setPaymentError(null);
-        } catch (error) {
-          console.error('Error creating server session:', error);
-          setPaymentError('Payment confirmed but failed to create game session. Please refresh.');
+        } catch (error: any) {
+          console.error('❌ Error creating server session:', {
+            error,
+            message: error?.message,
+            transactionHash: hash,
+            walletAddress: address
+          });
+          
+          // Provide more specific error message
+          const errorMessage = error?.message || 'Unknown error';
+          setPaymentError(`Payment confirmed but failed to create game session: ${errorMessage}. Please try refreshing the page.`);
           setPaymentLoading(false);
           setSessionCreating(false);
           setSessionCreated(false);
