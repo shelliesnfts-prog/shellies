@@ -139,28 +139,82 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // Get total tickets sold for each raffle
+        // Get total tickets sold for each raffle using efficient database function
         try {
-          const client = supabaseAdmin || supabase;
-          const ticketPromises = raffleIds.map(async (raffleId) => {
-            const { data: ticketData, error } = await client
-              .from('shellies_raffle_entries')
-              .select('ticket_count')
-              .eq('raffle_id', raffleId);
+          const { data: ticketData, error: ticketError } = await supabase
+            .rpc('get_raffle_total_tickets_sold', {
+              p_raffle_ids: raffleIds
+            });
+
+          if (!ticketError && ticketData) {
+            totalTicketsSold = ticketData.reduce((acc: Record<string, number>, item: any) => {
+              acc[item.raffle_id] = item.total_tickets;
+              return acc;
+            }, {});
+            console.log(`[Tickets] Total tickets from RPC function:`, totalTicketsSold);
+          } else if (ticketError) {
+            console.error('❌ Error calling get_raffle_total_tickets_sold RPC:', ticketError);
             
-            if (!error && ticketData) {
-              const total = ticketData.reduce((sum, entry) => sum + (entry.ticket_count || 0), 0);
+            // Fallback: fetch and calculate manually (with pagination)
+            console.log('[Tickets] Falling back to manual calculation with pagination...');
+            const client = supabaseAdmin || supabase;
+            const ticketPromises = raffleIds.map(async (raffleId) => {
+              console.log(`[Tickets] Fetching entries for raffle ${raffleId}...`);
+              
+              // Fetch ALL entries with pagination
+              let allEntries: any[] = [];
+              const pageSize = 1000;
+              let offset = 0;
+              let hasMore = true;
+              
+              while (hasMore) {
+                const { data: ticketData, error } = await client
+                  .from('shellies_raffle_entries')
+                  .select('wallet_address, ticket_count')
+                  .eq('raffle_id', raffleId)
+                  .range(offset, offset + pageSize - 1);
+                
+                if (error) {
+                  console.error(`❌ Error fetching tickets for raffle ${raffleId}:`, error);
+                  break;
+                }
+                
+                if (ticketData && ticketData.length > 0) {
+                  allEntries = [...allEntries, ...ticketData];
+                  
+                  if (ticketData.length < pageSize) {
+                    hasMore = false;
+                  } else {
+                    offset += pageSize;
+                  }
+                } else {
+                  hasMore = false;
+                }
+              }
+              
+              console.log(`[Tickets] Raffle ${raffleId}: Found ${allEntries.length} raw entries`);
+              
+              // Group by wallet address and sum tickets per wallet
+              const walletMap = new Map<string, number>();
+              allEntries.forEach(entry => {
+                const wallet = entry.wallet_address;
+                const currentTotal = walletMap.get(wallet) || 0;
+                walletMap.set(wallet, currentTotal + (entry.ticket_count || 0));
+              });
+              
+              // Sum all wallet totals
+              const total = Array.from(walletMap.values()).reduce((sum, count) => sum + count, 0);
+              console.log(`[Tickets] Raffle ${raffleId}: Total tickets = ${total} (${walletMap.size} wallets)`);
+              
               return { raffle_id: raffleId, total_tickets: total };
-            }
-            console.error(`❌ Error fetching tickets for raffle ${raffleId}:`, error);
-            return { raffle_id: raffleId, total_tickets: 0 };
-          });
-          
-          const ticketResults = await Promise.all(ticketPromises);
-          totalTicketsSold = ticketResults.reduce((acc: Record<string, number>, item: any) => {
-            acc[item.raffle_id] = item.total_tickets;
-            return acc;
-          }, {});
+            });
+            
+            const ticketResults = await Promise.all(ticketPromises);
+            totalTicketsSold = ticketResults.reduce((acc: Record<string, number>, item: any) => {
+              acc[item.raffle_id] = item.total_tickets;
+              return acc;
+            }, {});
+          }
         } catch (ticketError) {
           console.error('❌ Error fetching total tickets:', ticketError);
         }
@@ -259,6 +313,14 @@ export async function GET(request: NextRequest) {
           winner: winnerInfo[raffle.id] || null
         }));
 
+        console.log(`[Raffles API] Returning ${rafflesWithTicketCounts.length} raffles (authenticated). Sample:`, 
+          rafflesWithTicketCounts.slice(0, 2).map(r => ({
+            id: r.id,
+            title: r.title,
+            participants: r.current_participants,
+            tickets: r.total_tickets_sold
+          }))
+        );
 
         return NextResponse.json({
           raffles: rafflesWithTicketCounts,
@@ -284,6 +346,15 @@ export async function GET(request: NextRequest) {
       total_tickets_sold: totalTicketsSold[raffle.id] || 0,
       winner: winnerInfo[raffle.id] || null
     })) || [];
+
+    console.log(`[Raffles API] Returning ${rafflesWithZeroTickets.length} raffles. Sample:`, 
+      rafflesWithZeroTickets.slice(0, 2).map(r => ({
+        id: r.id,
+        title: r.title,
+        participants: r.current_participants,
+        tickets: r.total_tickets_sold
+      }))
+    );
 
     return NextResponse.json({
       raffles: rafflesWithZeroTickets,
