@@ -384,7 +384,7 @@ export class RaffleContractService {
         args: [BigInt(raffleId)],
       });
 
-      const [prizeToken, prizeTokenId, state, isNFT, winner] = result as [
+      const [prizeToken, prizeTokenId, state, isNFT, winner] = result as unknown as [
         string, bigint, number, boolean, string
       ];
 
@@ -422,7 +422,7 @@ export class RaffleContractService {
         args: [BigInt(raffleId)],
       });
 
-      const [prizeToken, prizeTokenId, state, isNFT, winner] = result as [
+      const [prizeToken, prizeTokenId, state, isNFT, winner] = result as unknown as [
         string, bigint, number, boolean, string
       ];
 

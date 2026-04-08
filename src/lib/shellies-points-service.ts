@@ -58,14 +58,14 @@ function readContract<T>(functionName: string, args: unknown[] = []): Promise<T>
     () => publicClient.readContract({
       address: SHELLIES_POINTS_ADDRESS,
       abi: shelliesPointsAbi,
-      functionName,
-      args,
+      functionName: functionName as never,
+      args: args as never,
     }) as Promise<T>,
     () => backupClient.readContract({
       address: SHELLIES_POINTS_ADDRESS,
       abi: shelliesPointsAbi,
-      functionName,
-      args,
+      functionName: functionName as never,
+      args: args as never,
     }) as Promise<T>
   );
 }
