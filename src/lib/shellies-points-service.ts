@@ -180,4 +180,146 @@ export const ShelliesPointsService = {
     await tx.wait();
     return tx.hash as string;
   },
+
+  // ─── Config reads ────────────────────────────────────────────────────────
+
+  async getContractConfig(): Promise<{
+    claimCooldown: number;
+    pointsForRegularUser: number;
+    pointsPerAvailableNFT: number;
+    maxPointsPerClaim: number;
+    pointsPerDailyStakedNFT: number;
+    pointsPerWeeklyStakedNFT: number;
+    pointsPerMonthlyStakedNFT: number;
+    claimWithFeesCost: string;
+    claimWithFeesCostEth: string;
+    claimWithFeesReward: number;
+    claimWithFeesCooldown: number;
+    xpConversionRate: number;
+    minXpToConvert: number;
+    authorizedSigner: string;
+  }> {
+    const [
+      claimCooldownRaw,
+      pointsForRegularUserRaw,
+      pointsPerAvailableNFTRaw,
+      maxPointsPerClaimRaw,
+      pointsPerDailyRaw,
+      pointsPerWeeklyRaw,
+      pointsPerMonthlyRaw,
+      claimWithFeesCostRaw,
+      claimWithFeesRewardRaw,
+      claimWithFeesCooldownRaw,
+      xpConversionRateRaw,
+      minXpToConvertRaw,
+      authorizedSignerRaw,
+    ] = await Promise.all([
+      readContract<bigint>('claimCooldown'),
+      readContract<bigint>('pointsForRegularUser'),
+      readContract<bigint>('pointsPerAvailableNFT'),
+      readContract<bigint>('maxPointsPerClaim'),
+      readContract<bigint>('pointsPerDailyStakedNFT'),
+      readContract<bigint>('pointsPerWeeklyStakedNFT'),
+      readContract<bigint>('pointsPerMonthlyStakedNFT'),
+      readContract<bigint>('claimWithFeesCost'),
+      readContract<bigint>('claimWithFeesReward'),
+      readContract<bigint>('claimWithFeesCooldown'),
+      readContract<bigint>('xpConversionRate'),
+      readContract<bigint>('minXpToConvert'),
+      readContract<string>('authorizedSigner'),
+    ]);
+
+    return {
+      claimCooldown: Number(claimCooldownRaw),
+      pointsForRegularUser: Number(pointsForRegularUserRaw),
+      pointsPerAvailableNFT: Number(pointsPerAvailableNFTRaw),
+      maxPointsPerClaim: Number(maxPointsPerClaimRaw),
+      pointsPerDailyStakedNFT: Number(pointsPerDailyRaw),
+      pointsPerWeeklyStakedNFT: Number(pointsPerWeeklyRaw),
+      pointsPerMonthlyStakedNFT: Number(pointsPerMonthlyRaw),
+      // cost stored in wei; also expose as ETH string for the UI
+      claimWithFeesCost: claimWithFeesCostRaw.toString(),
+      claimWithFeesCostEth: ethers.formatEther(claimWithFeesCostRaw),
+      claimWithFeesReward: Number(claimWithFeesRewardRaw),
+      claimWithFeesCooldown: Number(claimWithFeesCooldownRaw),
+      xpConversionRate: Number(xpConversionRateRaw),
+      minXpToConvert: Number(minXpToConvertRaw),
+      authorizedSigner: authorizedSignerRaw as string,
+    };
+  },
+
+  // ─── Config writes (owner-only, use OWNER_PRIVATE_KEY) ───────────────────
+
+  async _ownerCall(functionSig: string, args: unknown[]): Promise<string> {
+    const privateKey = process.env.OWNER_PRIVATE_KEY;
+    if (!privateKey) throw new Error('OWNER_PRIVATE_KEY not configured');
+    const provider = new ethers.JsonRpcProvider('https://rpc-qnd.inkonchain.com');
+    const ownerWallet = new Wallet(privateKey, provider);
+    const contract = new ethers.Contract(
+      SHELLIES_POINTS_ADDRESS,
+      [`function ${functionSig} external`],
+      ownerWallet
+    );
+    const fnName = functionSig.split('(')[0];
+    const tx = await contract[fnName](...args);
+    await tx.wait();
+    return tx.hash as string;
+  },
+
+  setClaimCooldown(seconds: number) {
+    return this._ownerCall('setClaimCooldown(uint256)', [BigInt(seconds)]);
+  },
+
+  setPointsForRegularUser(amount: number) {
+    return this._ownerCall('setPointsForRegularUser(uint256)', [BigInt(amount)]);
+  },
+
+  setPointsPerAvailableNFT(amount: number) {
+    return this._ownerCall('setPointsPerAvailableNFT(uint256)', [BigInt(amount)]);
+  },
+
+  setMaxPointsPerClaim(amount: number) {
+    return this._ownerCall('setMaxPointsPerClaim(uint256)', [BigInt(amount)]);
+  },
+
+  setPointsPerDailyStakedNFT(amount: number) {
+    return this._ownerCall('setPointsPerDailyStakedNFT(uint256)', [BigInt(amount)]);
+  },
+
+  setPointsPerWeeklyStakedNFT(amount: number) {
+    return this._ownerCall('setPointsPerWeeklyStakedNFT(uint256)', [BigInt(amount)]);
+  },
+
+  setPointsPerMonthlyStakedNFT(amount: number) {
+    return this._ownerCall('setPointsPerMonthlyStakedNFT(uint256)', [BigInt(amount)]);
+  },
+
+  // costEth: ETH amount as a decimal string, e.g. "0.001"
+  setClaimWithFeesCost(costEth: string) {
+    return this._ownerCall('setClaimWithFeesCost(uint256)', [ethers.parseEther(costEth)]);
+  },
+
+  setClaimWithFeesReward(amount: number) {
+    return this._ownerCall('setClaimWithFeesReward(uint256)', [BigInt(amount)]);
+  },
+
+  setClaimWithFeesCooldown(seconds: number) {
+    return this._ownerCall('setClaimWithFeesCooldown(uint256)', [BigInt(seconds)]);
+  },
+
+  setXpConversionRate(rate: number) {
+    return this._ownerCall('setXpConversionRate(uint256)', [BigInt(rate)]);
+  },
+
+  setMinXpToConvert(minXp: number) {
+    return this._ownerCall('setMinXpToConvert(uint256)', [BigInt(minXp)]);
+  },
+
+  setAuthorizedSigner(address: string) {
+    return this._ownerCall('setAuthorizedSigner(address)', [address]);
+  },
+
+  withdrawFees() {
+    return this._ownerCall('withdrawFees()', []);
+  },
 };

@@ -28,8 +28,20 @@ export async function GET(request: NextRequest) {
     const validLimit = Math.min(Math.max(1, limit), 100); // Cap at 100 items per page
 
     const { users, total } = await AdminService.getAllUsers(validPage, validLimit);
-    
-    return NextResponse.json({ users, total, page: validPage });
+
+    // Enrich each user with their current on-chain balance (run in parallel)
+    const usersWithBalance = await Promise.all(
+      users.map(async (user: any) => {
+        try {
+          const onChainBalance = await ShelliesPointsService.getBalance(user.wallet_address);
+          return { ...user, onChainBalance };
+        } catch {
+          return { ...user, onChainBalance: null };
+        }
+      })
+    );
+
+    return NextResponse.json({ users: usersWithBalance, total, page: validPage });
   } catch (error) {
     console.error('Error in admin users API:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

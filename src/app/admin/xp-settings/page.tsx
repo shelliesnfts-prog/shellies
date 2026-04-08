@@ -16,7 +16,8 @@ import {
   Clock,
   Zap,
   Save,
-  RefreshCw
+  RefreshCw,
+  Settings
 } from 'lucide-react';
 
 export default function AdminXPSettingsPage() {
@@ -33,6 +34,7 @@ export default function AdminXPSettingsPage() {
   const [minXp, setMinXp] = useState('100');
   const [conversionRate, setConversionRate] = useState('10');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [contractStatus, setContractStatus] = useState<{ minXpTx?: string; rateTx?: string; contractError?: string } | null>(null);
 
   const walletAddress = address || session?.address || '';
 
@@ -77,6 +79,11 @@ export default function AdminXPSettingsPage() {
 
       if (response.ok) {
         setMessage({ type: 'success', text: 'Settings saved successfully!' });
+        setContractStatus({
+          minXpTx: data.minXpTx,
+          rateTx: data.rateTx,
+          contractError: data.contractError,
+        });
         // Update local state with returned values
         if (data.settings) {
           setFeeUsd(data.settings.feeUsd.toString());
@@ -220,6 +227,14 @@ export default function AdminXPSettingsPage() {
                 </button>
               </li>
               <li>
+                <button onClick={() => router.push('/admin/points-config')}
+                  className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
+                    isDarkMode ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-500 hover:bg-gray-50'
+                  }`}>
+                  <Settings className="w-5 h-5 mr-3" /><span className="font-medium text-sm">Points Config</span>
+                </button>
+              </li>
+              <li>
                 <a href="/portal/raffles" target="_blank" rel="noopener noreferrer"
                   className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
                     isDarkMode ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-500 hover:bg-gray-50'
@@ -271,6 +286,20 @@ export default function AdminXPSettingsPage() {
                   : isDarkMode ? 'bg-red-900/20 border-red-500/30 text-red-400' : 'bg-red-50 border-red-200 text-red-700'
               }`}>
                 {message.text}
+              </div>
+            )}
+
+            {/* Contract sync status */}
+            {contractStatus && (contractStatus.minXpTx || contractStatus.rateTx || contractStatus.contractError) && (
+              <div className={`p-4 rounded-xl border text-xs space-y-1 ${
+                contractStatus.contractError
+                  ? isDarkMode ? 'bg-yellow-900/20 border-yellow-500/30 text-yellow-400' : 'bg-yellow-50 border-yellow-200 text-yellow-700'
+                  : isDarkMode ? 'bg-blue-900/20 border-blue-500/30 text-blue-400' : 'bg-blue-50 border-blue-200 text-blue-700'
+              }`}>
+                <p className="font-medium">{contractStatus.contractError ? 'DB saved — contract sync failed' : 'Contract synced'}</p>
+                {contractStatus.minXpTx && <p>Min XP tx: <span className="font-mono">{contractStatus.minXpTx}</span></p>}
+                {contractStatus.rateTx && <p>Rate tx: <span className="font-mono">{contractStatus.rateTx}</span></p>}
+                {contractStatus.contractError && <p>{contractStatus.contractError}</p>}
               </div>
             )}
 
