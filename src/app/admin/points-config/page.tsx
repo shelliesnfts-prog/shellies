@@ -21,6 +21,7 @@ import {
   RefreshCw,
   Settings,
   AlertTriangle,
+  Check,
 } from 'lucide-react';
 
 interface ContractConfig {
@@ -57,22 +58,20 @@ export default function AdminPointsConfigPage() {
   const [pointsForRegularUser, setPointsForRegularUser] = useState('');
   const [pointsPerAvailableNFT, setPointsPerAvailableNFT] = useState('');
   const [maxPointsPerClaim, setMaxPointsPerClaim] = useState('');
-  const [savingClaim, setSavingClaim] = useState(false);
-  const [claimMsg, setClaimMsg] = useState<SectionMessage | null>(null);
 
   // Staking points form
   const [pointsPerDailyStakedNFT, setPointsPerDailyStakedNFT] = useState('');
   const [pointsPerWeeklyStakedNFT, setPointsPerWeeklyStakedNFT] = useState('');
   const [pointsPerMonthlyStakedNFT, setPointsPerMonthlyStakedNFT] = useState('');
-  const [savingStaking, setSavingStaking] = useState(false);
-  const [stakingMsg, setStakingMsg] = useState<SectionMessage | null>(null);
 
   // Claim-with-fees form
   const [claimWithFeesCostEth, setClaimWithFeesCostEth] = useState('');
   const [claimWithFeesReward, setClaimWithFeesReward] = useState('');
   const [claimWithFeesCooldown, setClaimWithFeesCooldown] = useState('');
-  const [savingFees, setSavingFees] = useState(false);
-  const [feesMsg, setFeesMsg] = useState<SectionMessage | null>(null);
+
+  // Per-field saving/message state
+  const [savingField, setSavingField] = useState<string | null>(null);
+  const [fieldMsgs, setFieldMsgs] = useState<Record<string, SectionMessage | null>>({});
 
   // Advanced
   const [authorizedSigner, setAuthorizedSigner] = useState('');
@@ -105,7 +104,7 @@ export default function AdminPointsConfigPage() {
       setClaimWithFeesCooldown(c.claimWithFeesCooldown.toString());
       setAuthorizedSigner(c.authorizedSigner);
     } catch {
-      setClaimMsg({ type: 'error', text: 'Failed to load contract config' });
+      setFieldMsgs({ global: { type: 'error', text: 'Failed to load contract config' } });
     } finally {
       setLoading(false);
     }
@@ -117,58 +116,31 @@ export default function AdminPointsConfigPage() {
     setTimeout(() => setMsg(null), 6000);
   }
 
-  const saveClaimSettings = async () => {
-    if (!address) { setClaimMsg({ type: 'error', text: 'Wallet not connected' }); return; }
-    setSavingClaim(true);
-    setClaimMsg(null);
-    const results: Record<string, string> = {};
-    try {
-      results.claimCooldownTx = await writeContractAsync({ ...SHELLIES_POINTS_CONTRACT, functionName: 'setClaimCooldown', args: [BigInt(claimCooldown)] });
-      results.pointsForRegularUserTx = await writeContractAsync({ ...SHELLIES_POINTS_CONTRACT, functionName: 'setPointsForRegularUser', args: [BigInt(pointsForRegularUser)] });
-      results.pointsPerAvailableNFTTx = await writeContractAsync({ ...SHELLIES_POINTS_CONTRACT, functionName: 'setPointsPerAvailableNFT', args: [BigInt(pointsPerAvailableNFT)] });
-      results.maxPointsPerClaimTx = await writeContractAsync({ ...SHELLIES_POINTS_CONTRACT, functionName: 'setMaxPointsPerClaim', args: [BigInt(maxPointsPerClaim)] });
-      setClaimMsg({ type: 'success', text: 'Claim settings saved on-chain.', txs: results });
-    } catch (e) {
-      setClaimMsg({ type: 'error', text: e instanceof Error ? e.message : 'Transaction failed' });
-    } finally {
-      setSavingClaim(false);
-      autoClear(setClaimMsg);
-    }
-  };
+  function isDirty(value: string, contractValue: string | number) {
+    return value !== contractValue.toString();
+  }
 
-  const saveStakingPoints = async () => {
-    if (!address) { setStakingMsg({ type: 'error', text: 'Wallet not connected' }); return; }
-    setSavingStaking(true);
-    setStakingMsg(null);
-    const results: Record<string, string> = {};
-    try {
-      results.dailyTx = await writeContractAsync({ ...SHELLIES_POINTS_CONTRACT, functionName: 'setPointsPerDailyStakedNFT', args: [BigInt(pointsPerDailyStakedNFT)] });
-      results.weeklyTx = await writeContractAsync({ ...SHELLIES_POINTS_CONTRACT, functionName: 'setPointsPerWeeklyStakedNFT', args: [BigInt(pointsPerWeeklyStakedNFT)] });
-      results.monthlyTx = await writeContractAsync({ ...SHELLIES_POINTS_CONTRACT, functionName: 'setPointsPerMonthlyStakedNFT', args: [BigInt(pointsPerMonthlyStakedNFT)] });
-      setStakingMsg({ type: 'success', text: 'Staking points saved on-chain.', txs: results });
-    } catch (e) {
-      setStakingMsg({ type: 'error', text: e instanceof Error ? e.message : 'Transaction failed' });
-    } finally {
-      setSavingStaking(false);
-      autoClear(setStakingMsg);
+  const saveField = async (
+    fieldKey: string,
+    functionName: string,
+    args: unknown[],
+  ) => {
+    if (!address) {
+      setFieldMsgs(prev => ({ ...prev, [fieldKey]: { type: 'error', text: 'Wallet not connected' } }));
+      return;
     }
-  };
-
-  const saveClaimWithFees = async () => {
-    if (!address) { setFeesMsg({ type: 'error', text: 'Wallet not connected' }); return; }
-    setSavingFees(true);
-    setFeesMsg(null);
-    const results: Record<string, string> = {};
+    setSavingField(fieldKey);
+    setFieldMsgs(prev => ({ ...prev, [fieldKey]: null }));
     try {
-      results.costTx = await writeContractAsync({ ...SHELLIES_POINTS_CONTRACT, functionName: 'setClaimWithFeesCost', args: [parseEther(claimWithFeesCostEth)] });
-      results.rewardTx = await writeContractAsync({ ...SHELLIES_POINTS_CONTRACT, functionName: 'setClaimWithFeesReward', args: [BigInt(claimWithFeesReward)] });
-      results.cooldownTx = await writeContractAsync({ ...SHELLIES_POINTS_CONTRACT, functionName: 'setClaimWithFeesCooldown', args: [BigInt(claimWithFeesCooldown)] });
-      setFeesMsg({ type: 'success', text: 'Claim-with-fees saved on-chain.', txs: results });
+      await writeContractAsync({ ...SHELLIES_POINTS_CONTRACT, functionName, args } as Parameters<typeof writeContractAsync>[0]);
+      setFieldMsgs(prev => ({ ...prev, [fieldKey]: { type: 'success', text: 'Saved' } }));
+      await fetchConfig();
+      setTimeout(() => setFieldMsgs(prev => ({ ...prev, [fieldKey]: null })), 4000);
     } catch (e) {
-      setFeesMsg({ type: 'error', text: e instanceof Error ? e.message : 'Transaction failed' });
+      setFieldMsgs(prev => ({ ...prev, [fieldKey]: { type: 'error', text: e instanceof Error ? e.message : 'Transaction failed' } }));
+      setTimeout(() => setFieldMsgs(prev => ({ ...prev, [fieldKey]: null })), 6000);
     } finally {
-      setSavingFees(false);
-      autoClear(setFeesMsg);
+      setSavingField(null);
     }
   };
 
@@ -210,7 +182,7 @@ export default function AdminPointsConfigPage() {
   const handleLogout = () => signOut();
   const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
 
-  const inputCls = `w-full px-4 py-3 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+  const inputCls = `w-full px-4 py-3 pr-12 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 ${
     isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
   }`;
   const labelCls = `block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`;
@@ -228,6 +200,78 @@ export default function AdminPointsConfigPage() {
         {msg.txs && Object.entries(msg.txs).map(([k, v]) => (
           <p key={k} className="font-mono truncate">{k}: {v}</p>
         ))}
+      </div>
+    );
+  }
+
+  function FieldMsg({ fieldKey }: { fieldKey: string }) {
+    const msg = fieldMsgs[fieldKey];
+    if (!msg) return null;
+    return (
+      <p className={`text-xs mt-1 ${msg.type === 'success' ? 'text-green-500' : 'text-red-500'}`}>
+        {msg.text}
+      </p>
+    );
+  }
+
+  function FieldInput({
+    fieldKey,
+    label,
+    hint,
+    value,
+    contractValue,
+    onChange,
+    onSave,
+    type = 'number',
+    step,
+    placeholder,
+  }: {
+    fieldKey: string;
+    label: string;
+    hint: string;
+    value: string;
+    contractValue: string | number;
+    onChange: (v: string) => void;
+    onSave: () => void;
+    type?: string;
+    step?: string;
+    placeholder?: string;
+  }) {
+    const dirty = isDirty(value, contractValue);
+    const saving = savingField === fieldKey;
+    const anyFieldSaving = savingField !== null;
+
+    return (
+      <div>
+        <label className={labelCls}>{label}</label>
+        <p className={hintCls}>{hint}</p>
+        <div className="relative">
+          <input
+            type={type}
+            min={type === 'number' ? '0' : undefined}
+            step={step}
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            className={inputCls}
+            placeholder={placeholder}
+          />
+          <button
+            onClick={onSave}
+            disabled={!dirty || anyFieldSaving}
+            title={!dirty ? 'No changes' : 'Save this field'}
+            className={`absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg flex items-center justify-center transition-colors
+              ${dirty && !anyFieldSaving
+                ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-gray-600'
+              }`}
+          >
+            {saving
+              ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              : <Check className="w-3.5 h-3.5" />
+            }
+          </button>
+        </div>
+        <FieldMsg fieldKey={fieldKey} />
       </div>
     );
   }
@@ -348,7 +392,7 @@ export default function AdminPointsConfigPage() {
               <div>
                 <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Points Contract Config</h1>
                 <p className={`text-sm mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Owner-only settings for the ShelliesPoints contract. Each save sends an on-chain transaction.
+                  Owner-only settings for the ShelliesPoints contract. Each field sends its own on-chain transaction.
                 </p>
               </div>
               <button onClick={fetchConfig} disabled={loading} className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}>
@@ -367,83 +411,114 @@ export default function AdminPointsConfigPage() {
                 {/* ── Claim Settings ── */}
                 <div className={cardCls}>
                   <h2 className={`text-base font-semibold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Claim Settings</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <label className={labelCls}>Claim Cooldown (seconds)</label>
-                      <p className={hintCls}>Seconds between free claims</p>
-                      <input type="number" min="0" value={claimCooldown} onChange={e => setClaimCooldown(e.target.value)} className={inputCls} />
-                    </div>
-                    <div>
-                      <label className={labelCls}>Points for Regular User</label>
-                      <p className={hintCls}>Points awarded per free claim (non-NFT holder)</p>
-                      <input type="number" min="0" value={pointsForRegularUser} onChange={e => setPointsForRegularUser(e.target.value)} className={inputCls} />
-                    </div>
-                    <div>
-                      <label className={labelCls}>Points per Available NFT</label>
-                      <p className={hintCls}>Bonus points per NFT held (on top of base)</p>
-                      <input type="number" min="0" value={pointsPerAvailableNFT} onChange={e => setPointsPerAvailableNFT(e.target.value)} className={inputCls} />
-                    </div>
-                    <div>
-                      <label className={labelCls}>Max Points per Claim</label>
-                      <p className={hintCls}>Cap on total points from a single free claim</p>
-                      <input type="number" min="0" value={maxPointsPerClaim} onChange={e => setMaxPointsPerClaim(e.target.value)} className={inputCls} />
-                    </div>
-                  </div>
-                  <SectionMsg msg={claimMsg} />
-                  <div className="mt-4">
-                    <SaveBtn saving={savingClaim} onClick={saveClaimSettings} />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FieldInput
+                      fieldKey="claimCooldown"
+                      label="Claim Cooldown (seconds)"
+                      hint="Seconds between free claims"
+                      value={claimCooldown}
+                      contractValue={config?.claimCooldown ?? 0}
+                      onChange={setClaimCooldown}
+                      onSave={() => saveField('claimCooldown', 'setClaimCooldown', [BigInt(claimCooldown)])}
+                    />
+                    <FieldInput
+                      fieldKey="pointsForRegularUser"
+                      label="Points for Regular User"
+                      hint="Points awarded per free claim (non-NFT holder)"
+                      value={pointsForRegularUser}
+                      contractValue={config?.pointsForRegularUser ?? 0}
+                      onChange={setPointsForRegularUser}
+                      onSave={() => saveField('pointsForRegularUser', 'setPointsForRegularUser', [BigInt(pointsForRegularUser)])}
+                    />
+                    <FieldInput
+                      fieldKey="pointsPerAvailableNFT"
+                      label="Points per Available NFT"
+                      hint="Bonus points per NFT held (on top of base)"
+                      value={pointsPerAvailableNFT}
+                      contractValue={config?.pointsPerAvailableNFT ?? 0}
+                      onChange={setPointsPerAvailableNFT}
+                      onSave={() => saveField('pointsPerAvailableNFT', 'setPointsPerAvailableNFT', [BigInt(pointsPerAvailableNFT)])}
+                    />
+                    <FieldInput
+                      fieldKey="maxPointsPerClaim"
+                      label="Max Points per Claim"
+                      hint="Cap on total points from a single free claim"
+                      value={maxPointsPerClaim}
+                      contractValue={config?.maxPointsPerClaim ?? 0}
+                      onChange={setMaxPointsPerClaim}
+                      onSave={() => saveField('maxPointsPerClaim', 'setMaxPointsPerClaim', [BigInt(maxPointsPerClaim)])}
+                    />
                   </div>
                 </div>
 
                 {/* ── Staking Points ── */}
                 <div className={cardCls}>
                   <h2 className={`text-base font-semibold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Staking Points</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                    <div>
-                      <label className={labelCls}>Points per Daily Staked NFT</label>
-                      <p className={hintCls}>For each NFT staked ≥ 1 day</p>
-                      <input type="number" min="0" value={pointsPerDailyStakedNFT} onChange={e => setPointsPerDailyStakedNFT(e.target.value)} className={inputCls} />
-                    </div>
-                    <div>
-                      <label className={labelCls}>Points per Weekly Staked NFT</label>
-                      <p className={hintCls}>For each NFT staked ≥ 7 days</p>
-                      <input type="number" min="0" value={pointsPerWeeklyStakedNFT} onChange={e => setPointsPerWeeklyStakedNFT(e.target.value)} className={inputCls} />
-                    </div>
-                    <div>
-                      <label className={labelCls}>Points per Monthly Staked NFT</label>
-                      <p className={hintCls}>For each NFT staked ≥ 30 days</p>
-                      <input type="number" min="0" value={pointsPerMonthlyStakedNFT} onChange={e => setPointsPerMonthlyStakedNFT(e.target.value)} className={inputCls} />
-                    </div>
-                  </div>
-                  <SectionMsg msg={stakingMsg} />
-                  <div className="mt-4">
-                    <SaveBtn saving={savingStaking} onClick={saveStakingPoints} />
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <FieldInput
+                      fieldKey="pointsPerDailyStakedNFT"
+                      label="Points per Daily Staked NFT"
+                      hint="For each NFT staked ≥ 1 day"
+                      value={pointsPerDailyStakedNFT}
+                      contractValue={config?.pointsPerDailyStakedNFT ?? 0}
+                      onChange={setPointsPerDailyStakedNFT}
+                      onSave={() => saveField('pointsPerDailyStakedNFT', 'setPointsPerDailyStakedNFT', [BigInt(pointsPerDailyStakedNFT)])}
+                    />
+                    <FieldInput
+                      fieldKey="pointsPerWeeklyStakedNFT"
+                      label="Points per Weekly Staked NFT"
+                      hint="For each NFT staked ≥ 7 days"
+                      value={pointsPerWeeklyStakedNFT}
+                      contractValue={config?.pointsPerWeeklyStakedNFT ?? 0}
+                      onChange={setPointsPerWeeklyStakedNFT}
+                      onSave={() => saveField('pointsPerWeeklyStakedNFT', 'setPointsPerWeeklyStakedNFT', [BigInt(pointsPerWeeklyStakedNFT)])}
+                    />
+                    <FieldInput
+                      fieldKey="pointsPerMonthlyStakedNFT"
+                      label="Points per Monthly Staked NFT"
+                      hint="For each NFT staked ≥ 30 days"
+                      value={pointsPerMonthlyStakedNFT}
+                      contractValue={config?.pointsPerMonthlyStakedNFT ?? 0}
+                      onChange={setPointsPerMonthlyStakedNFT}
+                      onSave={() => saveField('pointsPerMonthlyStakedNFT', 'setPointsPerMonthlyStakedNFT', [BigInt(pointsPerMonthlyStakedNFT)])}
+                    />
                   </div>
                 </div>
 
                 {/* ── Claim with Fees ── */}
                 <div className={cardCls}>
                   <h2 className={`text-base font-semibold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Claim with Fees</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                    <div>
-                      <label className={labelCls}>Cost (ETH)</label>
-                      <p className={hintCls}>ETH amount users pay for this claim type</p>
-                      <input type="number" step="0.0001" min="0" value={claimWithFeesCostEth} onChange={e => setClaimWithFeesCostEth(e.target.value)} className={inputCls} placeholder="0.001" />
-                    </div>
-                    <div>
-                      <label className={labelCls}>Reward (points)</label>
-                      <p className={hintCls}>Points awarded on a paid claim</p>
-                      <input type="number" min="0" value={claimWithFeesReward} onChange={e => setClaimWithFeesReward(e.target.value)} className={inputCls} />
-                    </div>
-                    <div>
-                      <label className={labelCls}>Cooldown (seconds)</label>
-                      <p className={hintCls}>Seconds between paid claims per user</p>
-                      <input type="number" min="0" value={claimWithFeesCooldown} onChange={e => setClaimWithFeesCooldown(e.target.value)} className={inputCls} />
-                    </div>
-                  </div>
-                  <SectionMsg msg={feesMsg} />
-                  <div className="mt-4">
-                    <SaveBtn saving={savingFees} onClick={saveClaimWithFees} />
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <FieldInput
+                      fieldKey="claimWithFeesCostEth"
+                      label="Cost (ETH)"
+                      hint="ETH amount users pay for this claim type"
+                      value={claimWithFeesCostEth}
+                      contractValue={config?.claimWithFeesCostEth ?? '0'}
+                      onChange={setClaimWithFeesCostEth}
+                      onSave={() => saveField('claimWithFeesCostEth', 'setClaimWithFeesCost', [parseEther(claimWithFeesCostEth)])}
+                      type="number"
+                      step="0.0001"
+                      placeholder="0.001"
+                    />
+                    <FieldInput
+                      fieldKey="claimWithFeesReward"
+                      label="Reward (points)"
+                      hint="Points awarded on a paid claim"
+                      value={claimWithFeesReward}
+                      contractValue={config?.claimWithFeesReward ?? 0}
+                      onChange={setClaimWithFeesReward}
+                      onSave={() => saveField('claimWithFeesReward', 'setClaimWithFeesReward', [BigInt(claimWithFeesReward)])}
+                    />
+                    <FieldInput
+                      fieldKey="claimWithFeesCooldown"
+                      label="Cooldown (seconds)"
+                      hint="Seconds between paid claims per user"
+                      value={claimWithFeesCooldown}
+                      contractValue={config?.claimWithFeesCooldown ?? 0}
+                      onChange={setClaimWithFeesCooldown}
+                      onSave={() => saveField('claimWithFeesCooldown', 'setClaimWithFeesCooldown', [BigInt(claimWithFeesCooldown)])}
+                    />
                   </div>
                 </div>
 
@@ -459,7 +534,7 @@ export default function AdminPointsConfigPage() {
                       type="text"
                       value={authorizedSigner}
                       onChange={e => setAuthorizedSigner(e.target.value)}
-                      className={inputCls}
+                      className={`w-full px-4 py-3 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
                       placeholder="0x..."
                     />
                     <SectionMsg msg={signerMsg} />
