@@ -219,7 +219,7 @@ export default function LandingPage() {
                 Enter Portal
               </button>
             ) : (
-              <CustomConnectButton size="sm" className="text-sm px-5 py-2" />
+              <CustomConnectButton size="sm" />
             )}
           </div>
         </div>
@@ -295,7 +295,7 @@ export default function LandingPage() {
                     <ArrowRight />
                   </button>
                 ) : (
-                  <CustomConnectButton size="sm" className="px-7 py-3.5 text-sm font-semibold" />
+                  <CustomConnectButton size="lg" />
                 )}
                 <button
                   onClick={() => scrollTo('about')}
