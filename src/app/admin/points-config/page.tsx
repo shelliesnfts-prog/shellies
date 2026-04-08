@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
-import { useAccount } from 'wagmi';
+import { useAccount, useWriteContract } from 'wagmi';
+import { parseEther } from 'viem';
 import { useRouter } from 'next/navigation';
+import { SHELLIES_POINTS_CONTRACT } from '@/lib/shellies-points-contract';
 import {
   Users,
   Gift,
@@ -80,6 +82,7 @@ export default function AdminPointsConfigPage() {
   const [withdrawMsg, setWithdrawMsg] = useState<SectionMessage | null>(null);
   const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
 
+  const { writeContractAsync } = useWriteContract();
   const walletAddress = address || session?.address || '';
 
   const fetchConfig = async () => {
@@ -114,33 +117,19 @@ export default function AdminPointsConfigPage() {
     setTimeout(() => setMsg(null), 6000);
   }
 
-  const post = async (body: Record<string, unknown>) => {
-    const res = await fetch('/api/admin/points-config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    return res.json();
-  };
-
   const saveClaimSettings = async () => {
+    if (!address) { setClaimMsg({ type: 'error', text: 'Wallet not connected' }); return; }
     setSavingClaim(true);
     setClaimMsg(null);
+    const results: Record<string, string> = {};
     try {
-      const data = await post({
-        action: 'set_claim_settings',
-        claimCooldown: Number(claimCooldown),
-        pointsForRegularUser: Number(pointsForRegularUser),
-        pointsPerAvailableNFT: Number(pointsPerAvailableNFT),
-        maxPointsPerClaim: Number(maxPointsPerClaim),
-      });
-      if (data.success) {
-        setClaimMsg({ type: 'success', text: 'Claim settings saved on-chain.', txs: data.results });
-      } else {
-        setClaimMsg({ type: 'error', text: data.error || 'Failed' });
-      }
-    } catch {
-      setClaimMsg({ type: 'error', text: 'Request failed' });
+      results.claimCooldownTx = await writeContractAsync({ ...SHELLIES_POINTS_CONTRACT, functionName: 'setClaimCooldown', args: [BigInt(claimCooldown)] });
+      results.pointsForRegularUserTx = await writeContractAsync({ ...SHELLIES_POINTS_CONTRACT, functionName: 'setPointsForRegularUser', args: [BigInt(pointsForRegularUser)] });
+      results.pointsPerAvailableNFTTx = await writeContractAsync({ ...SHELLIES_POINTS_CONTRACT, functionName: 'setPointsPerAvailableNFT', args: [BigInt(pointsPerAvailableNFT)] });
+      results.maxPointsPerClaimTx = await writeContractAsync({ ...SHELLIES_POINTS_CONTRACT, functionName: 'setMaxPointsPerClaim', args: [BigInt(maxPointsPerClaim)] });
+      setClaimMsg({ type: 'success', text: 'Claim settings saved on-chain.', txs: results });
+    } catch (e) {
+      setClaimMsg({ type: 'error', text: e instanceof Error ? e.message : 'Transaction failed' });
     } finally {
       setSavingClaim(false);
       autoClear(setClaimMsg);
@@ -148,22 +137,17 @@ export default function AdminPointsConfigPage() {
   };
 
   const saveStakingPoints = async () => {
+    if (!address) { setStakingMsg({ type: 'error', text: 'Wallet not connected' }); return; }
     setSavingStaking(true);
     setStakingMsg(null);
+    const results: Record<string, string> = {};
     try {
-      const data = await post({
-        action: 'set_staking_points',
-        pointsPerDailyStakedNFT: Number(pointsPerDailyStakedNFT),
-        pointsPerWeeklyStakedNFT: Number(pointsPerWeeklyStakedNFT),
-        pointsPerMonthlyStakedNFT: Number(pointsPerMonthlyStakedNFT),
-      });
-      if (data.success) {
-        setStakingMsg({ type: 'success', text: 'Staking points saved on-chain.', txs: data.results });
-      } else {
-        setStakingMsg({ type: 'error', text: data.error || 'Failed' });
-      }
-    } catch {
-      setStakingMsg({ type: 'error', text: 'Request failed' });
+      results.dailyTx = await writeContractAsync({ ...SHELLIES_POINTS_CONTRACT, functionName: 'setPointsPerDailyStakedNFT', args: [BigInt(pointsPerDailyStakedNFT)] });
+      results.weeklyTx = await writeContractAsync({ ...SHELLIES_POINTS_CONTRACT, functionName: 'setPointsPerWeeklyStakedNFT', args: [BigInt(pointsPerWeeklyStakedNFT)] });
+      results.monthlyTx = await writeContractAsync({ ...SHELLIES_POINTS_CONTRACT, functionName: 'setPointsPerMonthlyStakedNFT', args: [BigInt(pointsPerMonthlyStakedNFT)] });
+      setStakingMsg({ type: 'success', text: 'Staking points saved on-chain.', txs: results });
+    } catch (e) {
+      setStakingMsg({ type: 'error', text: e instanceof Error ? e.message : 'Transaction failed' });
     } finally {
       setSavingStaking(false);
       autoClear(setStakingMsg);
@@ -171,22 +155,17 @@ export default function AdminPointsConfigPage() {
   };
 
   const saveClaimWithFees = async () => {
+    if (!address) { setFeesMsg({ type: 'error', text: 'Wallet not connected' }); return; }
     setSavingFees(true);
     setFeesMsg(null);
+    const results: Record<string, string> = {};
     try {
-      const data = await post({
-        action: 'set_claim_with_fees',
-        claimWithFeesCostEth,
-        claimWithFeesReward: Number(claimWithFeesReward),
-        claimWithFeesCooldown: Number(claimWithFeesCooldown),
-      });
-      if (data.success) {
-        setFeesMsg({ type: 'success', text: 'Claim-with-fees saved on-chain.', txs: data.results });
-      } else {
-        setFeesMsg({ type: 'error', text: data.error || 'Failed' });
-      }
-    } catch {
-      setFeesMsg({ type: 'error', text: 'Request failed' });
+      results.costTx = await writeContractAsync({ ...SHELLIES_POINTS_CONTRACT, functionName: 'setClaimWithFeesCost', args: [parseEther(claimWithFeesCostEth)] });
+      results.rewardTx = await writeContractAsync({ ...SHELLIES_POINTS_CONTRACT, functionName: 'setClaimWithFeesReward', args: [BigInt(claimWithFeesReward)] });
+      results.cooldownTx = await writeContractAsync({ ...SHELLIES_POINTS_CONTRACT, functionName: 'setClaimWithFeesCooldown', args: [BigInt(claimWithFeesCooldown)] });
+      setFeesMsg({ type: 'success', text: 'Claim-with-fees saved on-chain.', txs: results });
+    } catch (e) {
+      setFeesMsg({ type: 'error', text: e instanceof Error ? e.message : 'Transaction failed' });
     } finally {
       setSavingFees(false);
       autoClear(setFeesMsg);
@@ -194,17 +173,18 @@ export default function AdminPointsConfigPage() {
   };
 
   const saveAuthorizedSigner = async () => {
+    if (!address) { setSignerMsg({ type: 'error', text: 'Wallet not connected' }); return; }
+    if (!authorizedSigner || !/^0x[0-9a-fA-F]{40}$/.test(authorizedSigner)) {
+      setSignerMsg({ type: 'error', text: 'Invalid Ethereum address' });
+      return;
+    }
     setSavingSigner(true);
     setSignerMsg(null);
     try {
-      const data = await post({ action: 'set_authorized_signer', authorizedSigner });
-      if (data.success) {
-        setSignerMsg({ type: 'success', text: `Signer updated. tx: ${data.tx}` });
-      } else {
-        setSignerMsg({ type: 'error', text: data.error || 'Failed' });
-      }
-    } catch {
-      setSignerMsg({ type: 'error', text: 'Request failed' });
+      const tx = await writeContractAsync({ ...SHELLIES_POINTS_CONTRACT, functionName: 'setAuthorizedSigner', args: [authorizedSigner as `0x${string}`] });
+      setSignerMsg({ type: 'success', text: `Signer updated. tx: ${tx}` });
+    } catch (e) {
+      setSignerMsg({ type: 'error', text: e instanceof Error ? e.message : 'Transaction failed' });
     } finally {
       setSavingSigner(false);
       autoClear(setSignerMsg);
@@ -212,18 +192,15 @@ export default function AdminPointsConfigPage() {
   };
 
   const handleWithdrawFees = async () => {
+    if (!address) { setWithdrawMsg({ type: 'error', text: 'Wallet not connected' }); return; }
     setShowWithdrawConfirm(false);
     setWithdrawing(true);
     setWithdrawMsg(null);
     try {
-      const data = await post({ action: 'withdraw_fees' });
-      if (data.success) {
-        setWithdrawMsg({ type: 'success', text: `Fees withdrawn. tx: ${data.tx}` });
-      } else {
-        setWithdrawMsg({ type: 'error', text: data.error || 'Failed' });
-      }
-    } catch {
-      setWithdrawMsg({ type: 'error', text: 'Request failed' });
+      const tx = await writeContractAsync({ ...SHELLIES_POINTS_CONTRACT, functionName: 'withdrawFees', args: [] });
+      setWithdrawMsg({ type: 'success', text: `Fees withdrawn. tx: ${tx}` });
+    } catch (e) {
+      setWithdrawMsg({ type: 'error', text: e instanceof Error ? e.message : 'Transaction failed' });
     } finally {
       setWithdrawing(false);
       autoClear(setWithdrawMsg);

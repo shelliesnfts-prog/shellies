@@ -809,14 +809,21 @@ export default function AdminRafflesPage() {
                 <input
                   type="url"
                   value={raffleForm.image_url}
-                  onChange={(e) => setRaffleForm({...raffleForm, image_url: e.target.value})}
+                  onChange={(e) => {
+                    const url = e.target.value;
+                    if (url.startsWith('blob:')) return;
+                    setRaffleForm({...raffleForm, image_url: url});
+                  }}
                   className={`w-full px-3 py-2 rounded-lg border text-sm ${
-                    isDarkMode 
-                      ? 'bg-gray-700 border-gray-600 text-white' 
+                    isDarkMode
+                      ? 'bg-gray-700 border-gray-600 text-white'
                       : 'bg-white border-gray-300 text-gray-900'
                   }`}
                   placeholder="https://example.com/image.jpg (optional)"
                 />
+                {raffleForm.image_url.startsWith('blob:') && (
+                  <p className="text-red-500 text-xs mt-1">Blob URLs cannot be used. Please provide a direct https:// URL.</p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

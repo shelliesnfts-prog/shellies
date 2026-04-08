@@ -48,21 +48,10 @@ export function RaffleCard({ raffle, isDarkMode, onJoinClick, isMuted = false }:
           {raffle.points_per_ticket} pts
         </div>
         <div className="relative overflow-hidden rounded-t-2xl">
-          {imageError || !raffle.image_url ? (
+          {imageError || !raffle.image_url || raffle.image_url.startsWith('blob:') ? (
             <div className="w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
               <ImageOff className="w-10 h-10 text-gray-400" />
             </div>
-          ) : raffle.image_url.startsWith('blob:') ? (
-            <>
-              <img
-                src={raffle.image_url}
-                alt={raffle.title}
-                className="w-full h-48 object-cover transition-transform duration-500 group-hover:scale-105"
-                onError={() => setImageError(true)}
-              />
-              {/* Gradient overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-            </>
           ) : (
             <>
               <Image
