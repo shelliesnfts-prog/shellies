@@ -25,8 +25,8 @@ export async function GET(request: NextRequest) {
     // Currently using CANCELLED status with blockchain_error until enum is updated
     raffleQuery = raffleQuery.or('status.neq.CANCELLED,and(status.eq.CANCELLED,blockchain_error.is.null)');
     
-    // Always exclude hidden raffles from portal display
-    raffleQuery = raffleQuery.or('is_hidden.is.null,is_hidden.eq.false');
+    // TODO: REMOVE BEFORE PUSH — temporarily showing hidden raffles for local testing
+    // raffleQuery = raffleQuery.or('is_hidden.is.null,is_hidden.eq.false');
     
     // Filter by status if specified
     if (status === 'active') {
@@ -173,23 +173,26 @@ export async function GET(request: NextRequest) {
     if (session?.address && raffles && raffles.length > 0) {
       try {
 
+        // Normalize address to lowercase to match DB storage
+        const normalizedAddress = (session.address as string).toLowerCase();
+
         // Try the optimized approach with SQL query using RPC
         const raffleIds = raffles.map(r => r.id);
 
         // First try the new schema function (using wallet_address directly)
         let { data: userTicketData, error: ticketError } = await supabase
           .rpc('get_user_raffle_tickets_new', {
-            p_wallet_address: session.address,
+            p_wallet_address: normalizedAddress,
             p_raffle_ids: raffleIds
           });
 
 
         // If new RPC doesn't exist, try the old RPC function as fallback
         if (ticketError && ticketError.code === '42883') {
-          
+
           const { data: oldRpcData, error: oldRpcError } = await supabase
             .rpc('get_user_raffle_tickets', {
-              p_wallet_address: session.address,
+              p_wallet_address: normalizedAddress,
               p_raffle_ids: raffleIds
             });
 
@@ -197,12 +200,12 @@ export async function GET(request: NextRequest) {
           if (!oldRpcError) {
             userTicketData = oldRpcData;
           } else {
-            
+
             // Try wallet_address column first (direct approach)
             let { data: userEntries, error: walletError } = await supabase
               .from('shellies_raffle_entries')
               .select('raffle_id, ticket_count')
-              .eq('wallet_address', session.address)
+              .eq('wallet_address', normalizedAddress)
               .in('raffle_id', raffleIds);
 
 
@@ -213,12 +216,12 @@ export async function GET(request: NextRequest) {
                 total_tickets: entry.ticket_count
               })) || [];
             } else if (walletError.code === '42703') {
-              
+
               // Get user ID first
               const { data: user } = await supabase
                 .from('shellies_raffle_users')
                 .select('id')
-                .eq('wallet_address', session.address)
+                .eq('wallet_address', normalizedAddress)
                 .single();
 
 

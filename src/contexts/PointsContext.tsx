@@ -2,6 +2,9 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
+import { useAccount, useReadContract } from 'wagmi';
+import { useClaiming } from '@/hooks/useClaiming';
+import { SHELLIES_POINTS_CONTRACT, SHELLIES_POINTS_ADDRESS } from '@/lib/shellies-points-contract';
 
 interface User {
   id: string;
@@ -43,6 +46,9 @@ interface PointsContextType {
   error: string | null;
 
   // Actions
+  executeClaim: () => void;
+  executeClaimWithFees: () => void;
+  // Legacy aliases kept so existing consumers don't break
   executeRegularClaim: () => Promise<ClaimResult>;
   executeStakingClaim: () => Promise<ClaimResult>;
   executeUnifiedClaim: () => Promise<ClaimResult>;
@@ -51,27 +57,122 @@ interface PointsContextType {
   updatePoints: (newPoints: number) => void;
 
   // Utilities
-  canPerformStaking: boolean; // Based on 24h cooldown
+  canPerformStaking: boolean;
+  claimCooldown: number;
+
+  // Paid claim state
+  canClaimWithFees: boolean;
+  secondsUntilClaimWithFees: number;
+  claimWithFeesCost: bigint;
+  claimWithFeesReward: number;
+  isClaimWithFeesPending: boolean;
+  isClaimWithFeesConfirming: boolean;
+  isLoadingPaidClaimConfig: boolean;
+  isPaidClaimConfigured: boolean;
+  isLoadingClaimStatus: boolean;
 }
 
 const PointsContext = createContext<PointsContextType | undefined>(undefined);
 
 export function PointsProvider({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
+  const { address } = useAccount();
+
   const [user, setUser] = useState<User | null>(null);
   const [claimStatus, setClaimStatus] = useState<ClaimStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [claiming, setClaiming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Prevent multiple simultaneous requests
   const fetchingRef = useRef(false);
-
-  // Note: Staking operations are now always available (no 24h constraint)
-  // The 24h cooldown only applies to points claiming, not staking/unstaking
   const canPerformStaking = true;
 
-  // Fetch user data and claim status
+  // Ref that always holds the latest on-chain claim values so fetchUserData can
+  // apply them even when the chain data resolved before the API call completed.
+  const chainClaimRef = useRef<{ canClaim: boolean; secondsUntilClaim: number; isLoading: boolean }>({
+    canClaim: false,
+    secondsUntilClaim: 0,
+    isLoading: true,
+  });
+
+  // ── On-chain points balance ────────────────────────────────────────────────
+
+  const { data: onChainBalanceRaw, refetch: refetchBalance } = useReadContract({
+    address: SHELLIES_POINTS_ADDRESS,
+    abi: SHELLIES_POINTS_CONTRACT.abi,
+    functionName: 'balances',
+    args: address ? [address] : undefined,
+    query: { enabled: !!address },
+  });
+
+  const onChainPoints = onChainBalanceRaw ? Number(onChainBalanceRaw as bigint) : 0;
+
+  // Sync on-chain balance into user state whenever it updates
+  useEffect(() => {
+    if (onChainBalanceRaw !== undefined) {
+      setUser(prev => prev ? { ...prev, points: onChainPoints } : null);
+      setClaimStatus(prev => prev ? { ...prev, currentPoints: onChainPoints } : null);
+    }
+  }, [onChainBalanceRaw, onChainPoints]);
+
+  // ── Claiming hook ─────────────────────────────────────────────────────────
+
+  const {
+    executeClaim: claimWrite,
+    executeClaimWithFees: claimWithFeesWrite,
+    isClaimSuccess,
+    isClaimWithFeesSuccess,
+    claiming,
+    canClaim,
+    secondsUntilClaim,
+    claimCooldown,
+    refreshClaimStatus,
+    canClaimWithFees,
+    secondsUntilClaimWithFees,
+    claimWithFeesCost,
+    claimWithFeesReward,
+    isClaimWithFeesPending,
+    isClaimWithFeesConfirming,
+    isLoadingPaidClaimConfig,
+    isPaidClaimConfigured,
+    isLoadingClaimStatus,
+  } = useClaiming();
+
+  // Keep the chain-claim ref current so fetchUserData can read it synchronously
+  useEffect(() => {
+    chainClaimRef.current = { canClaim, secondsUntilClaim, isLoading: isLoadingClaimStatus };
+  }, [canClaim, secondsUntilClaim, isLoadingClaimStatus]);
+
+  // Refresh balance and cooldown state after successful claim
+  useEffect(() => {
+    if (isClaimSuccess || isClaimWithFeesSuccess) {
+      // Optimistic update: the tx just confirmed — immediately show the cooldown
+      // without waiting for the RPC node to catch up (it often lags by a few seconds).
+      setClaimStatus(prev => prev ? {
+        ...prev,
+        canClaim: false,
+        secondsUntilNextClaim: claimCooldown,
+      } : null);
+
+      // Also fetch actual values from chain and retry — RPC nodes can lag behind
+      refetchBalance();
+      refreshClaimStatus();
+      const t1 = setTimeout(() => { refetchBalance(); refreshClaimStatus(); }, 2000);
+      const t2 = setTimeout(() => { refetchBalance(); refreshClaimStatus(); }, 5000);
+      return () => { clearTimeout(t1); clearTimeout(t2); };
+    }
+  }, [isClaimSuccess, isClaimWithFeesSuccess, refetchBalance, refreshClaimStatus, claimCooldown]);
+
+  // Sync on-chain cooldown into claimStatus so the UI reflects chain state
+  useEffect(() => {
+    setClaimStatus(prev =>
+      prev
+        ? { ...prev, canClaim, secondsUntilNextClaim: secondsUntilClaim }
+        : null
+    );
+  }, [canClaim, secondsUntilClaim]);
+
+  // ── Fetch dashboard data ──────────────────────────────────────────────────
+
   const fetchUserData = useCallback(async () => {
     if (fetchingRef.current || status === 'loading') return;
 
@@ -83,30 +184,29 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Always fetch fresh data to avoid stale cache issues
-    // Removed problematic caching logic that prevented fresh data fetches
-
     try {
       fetchingRef.current = true;
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`/api/dashboard?_t=${Date.now()}&_r=${Math.random()}`, {
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        },
-        cache: 'no-store'
+      const response = await fetch(`/api/dashboard?_t=${Date.now()}`, {
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
+        cache: 'no-store',
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch user data');
-      }
+      if (!response.ok) throw new Error('Failed to fetch user data');
 
       const data = await response.json();
       setUser(data.user);
-      setClaimStatus(data.claimStatus);
+
+      // If the on-chain data is already resolved, prefer it over the DB-derived values
+      // to avoid the race where chain data loads before this API call completes.
+      const chain = chainClaimRef.current;
+      setClaimStatus({
+        ...data.claimStatus,
+        canClaim: !chain.isLoading ? chain.canClaim : data.claimStatus.canClaim,
+        secondsUntilNextClaim: !chain.isLoading ? chain.secondsUntilClaim : data.claimStatus.secondsUntilNextClaim,
+      });
     } catch (err) {
       console.error('Error fetching user data:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch user data');
@@ -118,225 +218,88 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
     }
   }, [session?.address, status]);
 
-  // Execute regular daily claim
+  // ── Claim actions ─────────────────────────────────────────────────────────
+
+  const executeClaim = useCallback(() => {
+    claimWrite();
+  }, [claimWrite]);
+
+  const executeClaimWithFees = useCallback(() => {
+    claimWithFeesWrite();
+  }, [claimWithFeesWrite]);
+
+  // Legacy wrappers for existing consumers
   const executeRegularClaim = useCallback(async (): Promise<ClaimResult> => {
-    if (!session?.address || claiming) {
-      return { success: false, error: 'Not ready to claim' };
-    }
+    claimWrite();
+    return { success: true, message: 'Claim transaction submitted' };
+  }, [claimWrite]);
 
-    try {
-      setClaiming(true);
-      setError(null);
-
-      const response = await fetch('/api/claim', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const result = await response.json();
-
-      if (!result.success) {
-        setError(result.error);
-        return result;
-      }
-
-      // Immediately fetch fresh data without clearing state to avoid double loading UI
-      await fetchUserData();
-
-      // Broadcast points update
-      window.dispatchEvent(new CustomEvent('pointsUpdated', {
-        detail: { newPoints: result.newPoints, walletAddress: session.address }
-      }));
-
-      return result;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to process claim';
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
-    } finally {
-      setClaiming(false);
-    }
-  }, [session?.address, claiming]);
-
-  // Execute staking claim (10 points per staked NFT)
   const executeStakingClaim = useCallback(async (): Promise<ClaimResult> => {
-    if (!session?.address || claiming) {
-      return { success: false, error: 'Not ready to claim staking rewards' };
-    }
+    claimWrite();
+    return { success: true, message: 'Claim transaction submitted' };
+  }, [claimWrite]);
 
-    try {
-      setClaiming(true);
-      setError(null);
-
-      const response = await fetch('/api/claim-staking', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const result = await response.json();
-
-      if (!result.success) {
-        setError(result.error);
-        return result;
-      }
-
-      // Immediately fetch fresh data without clearing state to avoid double loading UI
-      await fetchUserData();
-
-      // Broadcast points update
-      window.dispatchEvent(new CustomEvent('pointsUpdated', {
-        detail: { newPoints: result.newPoints, walletAddress: session.address }
-      }));
-
-      return result;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to process staking claim';
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
-    } finally {
-      setClaiming(false);
-    }
-  }, [session?.address, claiming]);
-
-  // Execute unified claim (both regular and staking points)
   const executeUnifiedClaim = useCallback(async (): Promise<ClaimResult> => {
-    if (!session?.address || claiming) {
-      return { success: false, error: 'Not ready to claim' };
-    }
+    claimWrite();
+    return { success: true, message: 'Claim transaction submitted' };
+  }, [claimWrite]);
 
-    try {
-      setClaiming(true);
-      setError(null);
+  // ── Manual refresh ────────────────────────────────────────────────────────
 
-      const response = await fetch('/api/claim-unified', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const result = await response.json();
-
-      if (!result.success) {
-        setError(result.error);
-        return result;
-      }
-
-      // Immediately fetch fresh data without clearing state to avoid double loading UI
-      await fetchUserData();
-
-      // Broadcast points update
-      window.dispatchEvent(new CustomEvent('pointsUpdated', {
-        detail: { newPoints: result.newPoints, walletAddress: session.address }
-      }));
-
-      return result;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to process unified claim';
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
-    } finally {
-      setClaiming(false);
-    }
-  }, [session?.address, claiming, fetchUserData]);
-
-  // Manual refresh
   const refreshUserData = useCallback(async () => {
     await fetchUserData();
-  }, [fetchUserData]);
+    refetchBalance();
+  }, [fetchUserData, refetchBalance]);
 
-  // Force fresh data (clears caches and refreshes)
   const refreshWithFreshData = useCallback(async () => {
     if (!session?.address) return;
-
     try {
-      // Staking service no longer uses caching - always fetches fresh data
-
-      // Force fresh fetch
       await fetchUserData();
-    } catch (error) {
-      console.error('Error refreshing with fresh data:', error);
-      // Still try to refresh without cache clearing
+      refetchBalance();
+    } catch (err) {
+      console.error('Error refreshing with fresh data:', err);
       await fetchUserData();
     }
-  }, [session?.address, fetchUserData]);
+  }, [session?.address, fetchUserData, refetchBalance]);
 
-  // Update points manually (for external updates)
+  // ── Optimistic update helper ──────────────────────────────────────────────
+
   const updatePoints = useCallback((newPoints: number) => {
     setUser(prev => prev ? { ...prev, points: newPoints } : null);
     setClaimStatus(prev => prev ? { ...prev, currentPoints: newPoints } : null);
 
-    // Broadcast the update
     if (session?.address) {
       window.dispatchEvent(new CustomEvent('pointsUpdated', {
-        detail: { newPoints, walletAddress: session.address }
+        detail: { newPoints, walletAddress: session.address },
       }));
     }
   }, [session?.address]);
 
-  // Fetch data on mount and address change
-  useEffect(() => {
-    fetchUserData();
-  }, [fetchUserData]);
+  // ── Effects ───────────────────────────────────────────────────────────────
 
-  // Listen for external points updates and account switches
+  useEffect(() => { fetchUserData(); }, [fetchUserData]);
+
   useEffect(() => {
     const handlePointsUpdate = (event: CustomEvent) => {
       const { newPoints, walletAddress } = event.detail;
-
-      // Only update if it's for the current user
       if (session?.address === walletAddress) {
         updatePoints(newPoints);
-
-        // Also refresh full data to ensure consistency
         setTimeout(() => refreshUserData(), 1000);
       }
     };
 
-    // Listen for account switch events to clear stale data
-    const handleAccountSwitch = (event: CustomEvent) => {
-      const { oldAddress, newAddress } = event.detail;
-
-      console.log('PointsContext: Account switch detected, clearing data...', {
-        oldAddress,
-        newAddress
-      });
-
-      // Immediately clear all user state
+    const handleAccountSwitch = () => {
       setUser(null);
       setClaimStatus(null);
       setError(null);
       setLoading(true);
-
-      // Reset refs to force fresh fetch
       fetchingRef.current = false;
     };
 
-    // Listen for staking events to clear caches and refresh data
     const handleStakingUpdate = async (event: Event) => {
       const customEvent = event as CustomEvent;
-      const { walletAddress } = customEvent.detail;
-
-      // Only handle if it's for the current user
-      if (session?.address === walletAddress) {
-        console.log('PointsContext: Staking update detected, clearing caches and refreshing...', {
-          walletAddress
-        });
-
-        // Staking service no longer uses caching - always fetches fresh data
-        try {
-
-          // Force refresh of user data
-          await refreshUserData();
-        } catch (error) {
-          console.error('Error handling staking update:', error);
-          // Still try to refresh user data
-          await refreshUserData();
-        }
+      if (session?.address === customEvent.detail?.walletAddress) {
+        await refreshUserData();
       }
     };
 
@@ -351,35 +314,38 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
     };
   }, [session?.address, updatePoints, refreshUserData]);
 
-  // Periodic refresh when user can't claim (less frequent)
   useEffect(() => {
-    if (!claimStatus?.canClaim) {
-      const interval = setInterval(() => {
-        fetchUserData();
-      }, 5 * 60 * 1000); // 5 minutes
-
+    if (!canClaim) {
+      const interval = setInterval(() => fetchUserData(), 5 * 60 * 1000);
       return () => clearInterval(interval);
     }
-  }, [claimStatus?.canClaim, fetchUserData]);
+  }, [canClaim, fetchUserData]);
 
   const value: PointsContextType = {
-    // State
     user,
     claimStatus,
     loading,
     claiming,
     error,
-
-    // Actions
+    executeClaim,
+    executeClaimWithFees,
     executeRegularClaim,
     executeStakingClaim,
     executeUnifiedClaim,
     refreshUserData,
     refreshWithFreshData,
     updatePoints,
-
-    // Utilities
     canPerformStaking,
+    claimCooldown,
+    canClaimWithFees,
+    secondsUntilClaimWithFees,
+    claimWithFeesCost,
+    claimWithFeesReward,
+    isClaimWithFeesPending,
+    isClaimWithFeesConfirming,
+    isLoadingPaidClaimConfig,
+    isPaidClaimConfigured,
+    isLoadingClaimStatus,
   };
 
   return (
@@ -389,7 +355,6 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Hook to use the points context
 export function usePoints() {
   const context = useContext(PointsContext);
   if (context === undefined) {

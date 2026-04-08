@@ -18,7 +18,7 @@ export async function GET(
       }, { status: 401 });
     }
 
-    const walletAddress = session.address as string;
+    const walletAddress = (session.address as string).toLowerCase();
     const resolvedParams = await params;
     const raffleId = resolvedParams.raffleId;
 

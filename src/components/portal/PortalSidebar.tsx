@@ -50,10 +50,9 @@ export function PortalSidebar({
   const walletAddress = address || session?.address || '';
 
   const handleClaimDaily = async () => {
-    const result = await executeRegularClaim();
-    if (result.success) {
-      await refreshUserData();
-    }
+    // Just submit the transaction — PointsContext watches isClaimSuccess
+    // and refetches the balance automatically after confirmation.
+    await executeRegularClaim();
   };
 
   const handleLogout = () => {

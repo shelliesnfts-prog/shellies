@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { UserService } from '@/lib/user-service';
+import { ShelliesPointsService } from '@/lib/shellies-points-service';
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,13 +12,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const user = await UserService.getOrCreateUser(session.address as string);
-    
+    const walletAddress = session.address as string;
+    const [user, onChainPoints] = await Promise.all([
+      UserService.getOrCreateUser(walletAddress),
+      ShelliesPointsService.getBalance(walletAddress),
+    ]);
+
     if (!user) {
       return NextResponse.json({ error: 'Failed to get user data' }, { status: 500 });
     }
 
-    return NextResponse.json(user);
+    return NextResponse.json({ ...user, points: onChainPoints });
   } catch (error) {
     console.error('Error in user API:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

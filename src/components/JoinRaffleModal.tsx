@@ -57,24 +57,32 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  // Reset modal state when opened
+  // Reset modal state when opened — depend only on isOpen + raffle.id to avoid
+  // re-running every time the parent re-renders with a new raffle object reference
   useEffect(() => {
     if (isOpen && raffle) {
-      // Reset ticket count to 1 or 0 if no remaining tickets
+      // Use prop as initial estimate; will be corrected when userEntry loads
       const currentTickets = raffle.user_ticket_count || 0;
       const remainingTickets = raffle.max_tickets_per_user - currentTickets;
       setTicketCount(remainingTickets > 0 ? Math.min(1, remainingTickets) : 0);
       setMessage(null);
       setImageError(false);
-      fetchParticipants(true); // Initial load with loading indicator
-      // Only fetch detailed entry info if we need points_spent details
-      if (raffle.user_ticket_count && raffle.user_ticket_count > 0) {
-        fetchUserEntry();
-      } else {
-        setUserEntry(null);
-      }
+      setUserEntry(null);
+      fetchParticipants(true);
+      fetchUserEntry();
     }
-  }, [isOpen, raffle]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, raffle?.id]);
+
+  // Re-initialize ticketCount once we have accurate user entry data
+  useEffect(() => {
+    if (!raffle) return;
+    if (userEntry) {
+      const remaining = Math.max(0, raffle.max_tickets_per_user - userEntry.ticket_count);
+      setTicketCount(remaining > 0 ? 1 : 0);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userEntry]);
 
   // Polling mechanism for participants updates
   useEffect(() => {
@@ -141,8 +149,8 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
           }
 
           // Then connected user
-          if (a.wallet_address === address) return -1;
-          if (b.wallet_address === address) return 1;
+          if (a.wallet_address.toLowerCase() === address?.toLowerCase()) return -1;
+          if (b.wallet_address.toLowerCase() === address?.toLowerCase()) return 1;
 
           // Finally by join date
           return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
@@ -337,7 +345,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
         // Update raffle ticket count locally for immediate UI feedback
         if (raffle) {
           // Get current user tickets using same logic as main calculation
-          const userParticipant = participants.find(p => p.wallet_address === address);
+          const userParticipant = participants.find(p => p.wallet_address.toLowerCase() === address?.toLowerCase());
           const oldUserTicketCount = raffle.user_ticket_count || userParticipant?.ticket_count || 0;
 
           // Update the raffle object to reflect new total
@@ -351,7 +359,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
         }
 
         // Reset ticket count based on remaining tickets after successful purchase
-        const userParticipant = participants.find(p => p.wallet_address === address);
+        const userParticipant = participants.find(p => p.wallet_address.toLowerCase() === address?.toLowerCase());
         const updatedUserTickets = raffle.user_ticket_count || userParticipant?.ticket_count || 0;
         const newRemainingTickets = raffle.max_tickets_per_user - updatedUserTickets;
         const newTicketCount = Math.min(1, newRemainingTickets);
@@ -415,20 +423,16 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
     if (!raffle) {
       return;
     }
-    if (newCount < 1) {
-      return;
-    }
 
     // Use the same logic as the main calculation to get current user tickets
-    const userParticipant = participants.find(p => p.wallet_address === address);
-    const currentTickets = raffle.user_ticket_count || userParticipant?.ticket_count || 0;
+    const userParticipant = participants.find(p => p.wallet_address.toLowerCase() === address?.toLowerCase());
+    const currentTickets = userEntry?.ticket_count ?? userParticipant?.ticket_count ?? raffle.user_ticket_count ?? 0;
     const remainingTickets = raffle.max_tickets_per_user - currentTickets;
 
+    // Clamp value to valid range instead of silently ignoring
+    const clamped = Math.min(Math.max(1, newCount), remainingTickets);
 
-    if (newCount > remainingTickets) {
-      return;
-    }
-    if (newCount > raffle.max_tickets_per_user) {
+    if (isNaN(clamped) || remainingTickets <= 0) {
       return;
     }
 
@@ -437,14 +441,14 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
       setMessage(null);
     }
 
-    setTicketCount(newCount);
+    setTicketCount(clamped);
   };
 
   // Calculate remaining tickets dynamically based on current state
-  // First try to get user tickets from raffle.user_ticket_count, then fallback to participants data
-  const userParticipant = participants.find(p => p.wallet_address === address);
-  const currentUserTickets = raffle.user_ticket_count || userParticipant?.ticket_count || 0;
-  const remainingTickets = raffle.max_tickets_per_user - currentUserTickets;
+  // Priority: userEntry (fetched specifically for this user+raffle) > participants list > raffle prop
+  const userParticipant = participants.find(p => p.wallet_address.toLowerCase() === address?.toLowerCase());
+  const currentUserTickets = userEntry?.ticket_count ?? userParticipant?.ticket_count ?? raffle.user_ticket_count ?? 0;
+  const remainingTickets = Math.max(0, raffle.max_tickets_per_user - currentUserTickets);
 
 
   return (
@@ -582,7 +586,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                       // Show actual participants
                       participants.map((participant, index) => {
                         const isWinner = raffle?.status === 'COMPLETED' && raffle?.winner && participant.wallet_address === raffle.winner;
-                        const isCurrentUser = participant.wallet_address === address;
+                        const isCurrentUser = participant.wallet_address.toLowerCase() === address?.toLowerCase();
 
                         return (
                           <div
@@ -845,7 +849,10 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                             min="1"
                             max={remainingTickets}
                             value={ticketCount}
-                            onChange={(e) => handleTicketChange(parseInt(e.target.value) || 1)}
+                            onChange={(e) => {
+                              const parsed = parseInt(e.target.value);
+                              handleTicketChange(isNaN(parsed) ? 1 : parsed);
+                            }}
                             disabled={isLoading}
                             className={`w-14 h-8 text-center border rounded-full font-medium text-sm ${isDarkMode
                               ? 'bg-gray-700 border-gray-500 text-white focus:border-purple-400'

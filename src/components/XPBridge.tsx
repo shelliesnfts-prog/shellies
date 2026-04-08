@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAccount } from 'wagmi';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/contexts/ThemeContext';
 import { parseConversionError } from '@/lib/errors';
@@ -10,6 +10,7 @@ import { logger, logConversionError } from '@/lib/logger';
 import { AlertTriangle } from 'lucide-react';
 import { PriceOracle } from '@/lib/price-oracle';
 import { payForXPConversion, getTransactionTimestamp } from '@/lib/game-payment-service';
+import { SHELLIES_POINTS_CONTRACT, SHELLIES_POINTS_ADDRESS } from '@/lib/shellies-points-contract';
 
 /**
  * Default values (used while loading from API)
@@ -19,9 +20,14 @@ const DEFAULT_PAYMENT_AMOUNT_USD = 0.1;
 const DEFAULT_MINIMUM_XP = 100;
 
 /**
- * localStorage key for pending conversion
+ * localStorage key for pending conversion (old payment-tx recovery)
  */
 const PENDING_CONVERSION_KEY = 'pendingConversionTx';
+
+/**
+ * localStorage key for pending on-chain voucher (step 2)
+ */
+const PENDING_VOUCHER_KEY = 'shellies_pending_conversion';
 
 /**
  * Max age for pending conversion (24 hours)
@@ -29,7 +35,7 @@ const PENDING_CONVERSION_KEY = 'pendingConversionTx';
 const MAX_PENDING_AGE = 24 * 60 * 60 * 1000;
 
 /**
- * Pending conversion interface
+ * Pending conversion interface (payment-tx recovery)
  */
 interface PendingConversion {
   txHash: string;
@@ -37,6 +43,16 @@ interface PendingConversion {
   xpAmount: number;
   paymentAmount: number;
   createdAt: number;
+}
+
+/**
+ * Pending on-chain voucher (step 2 recovery)
+ */
+interface PendingVoucher {
+  xpAmount: number;
+  nonce: number;
+  expiry: number;
+  signature: string;
 }
 
 /**
@@ -69,20 +85,34 @@ export default function XPBridge({
   const [showSuccess, setShowSuccess] = useState<boolean>(false);
   const [ethPrice, setEthPrice] = useState<number>(0);
   const [loadingPrice, setLoadingPrice] = useState<boolean>(true);
-  
+
   // XP input state
   const [xpInput, setXpInput] = useState<string>('');
-  
+
   // Dynamic settings from API
   const [conversionRate, setConversionRate] = useState<number>(DEFAULT_CONVERSION_RATE);
   const [paymentAmountUsd, setPaymentAmountUsd] = useState<number>(DEFAULT_PAYMENT_AMOUNT_USD);
   const [minimumXp, setMinimumXp] = useState<number>(DEFAULT_MINIMUM_XP);
   const [loadingSettings, setLoadingSettings] = useState<boolean>(true);
-  
-  // Recovery mechanism state
+
+  // Recovery mechanism state (old payment-tx recovery)
   const [pendingConversion, setPendingConversion] = useState<PendingConversion | null>(null);
   const [showResumeConversion, setShowResumeConversion] = useState<boolean>(false);
   const [isCheckingPending, setIsCheckingPending] = useState<boolean>(true);
+
+  // Step 2: pending on-chain voucher
+  const [pendingVoucher, setPendingVoucher] = useState<PendingVoucher | null>(null);
+
+  // On-chain convertXp write
+  const {
+    writeContract: writeConvertXp,
+    data: convertXpTxHash,
+    isPending: isConvertXpPending,
+    error: convertXpWriteError,
+  } = useWriteContract();
+
+  const { isLoading: isConvertXpConfirming, isSuccess: isConvertXpSuccess } =
+    useWaitForTransactionReceipt({ hash: convertXpTxHash });
 
   // Calculate points that will be received based on input
   const xpToConvert = xpInput ? parseInt(xpInput) || 0 : 0;
@@ -167,8 +197,8 @@ export default function XPBridge({
         }
 
         const data = await response.json();
-        const lastConvertTime = data.lastConvert 
-          ? new Date(data.lastConvert).getTime() 
+        const lastConvertTime = data.lastConvert
+          ? new Date(data.lastConvert).getTime()
           : 0;
         const pendingTxTime = pending.timestamp * 1000;
 
@@ -214,27 +244,72 @@ export default function XPBridge({
     }
   };
 
+  // Clear pending voucher from localStorage on success
+  useEffect(() => {
+    if (isConvertXpSuccess) {
+      localStorage.removeItem(PENDING_VOUCHER_KEY);
+      setPendingVoucher(null);
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+      // Refresh caller's balance
+      onConversionComplete(currentXP, currentPoints);
+    }
+  }, [isConvertXpSuccess]);
+
+  // Load pending voucher from localStorage on mount
+  useEffect(() => {
+    if (!address || !isConnected) return;
+    try {
+      const raw = localStorage.getItem(PENDING_VOUCHER_KEY);
+      if (!raw) return;
+      const voucher: PendingVoucher = JSON.parse(raw);
+      const nowSec = Math.floor(Date.now() / 1000);
+      if (voucher.expiry > nowSec) {
+        setPendingVoucher(voucher);
+      } else {
+        localStorage.removeItem(PENDING_VOUCHER_KEY);
+      }
+    } catch {
+      localStorage.removeItem(PENDING_VOUCHER_KEY);
+    }
+  }, [address, isConnected]);
+
   /**
-   * Handle conversion by paying and calling API
+   * Step 2: Submit on-chain convertXp transaction
+   */
+  const submitOnChainConversion = (voucher: PendingVoucher) => {
+    setConversionError(null);
+    writeConvertXp({
+      address: SHELLIES_POINTS_ADDRESS,
+      abi: SHELLIES_POINTS_CONTRACT.abi,
+      functionName: 'convertXp',
+      args: [
+        BigInt(voucher.xpAmount),
+        BigInt(voucher.nonce),
+        BigInt(voucher.expiry),
+        voucher.signature as `0x${string}`,
+      ],
+    });
+  };
+
+  /**
+   * Handle conversion: pay → get voucher from API → show Step 2
    */
   const handleConvert = async () => {
-    // Validate wallet connection
     if (!address || !isConnected) {
       setConversionError('Please connect your wallet first');
       setCanRetryConversion(false);
       return;
     }
 
-    // Validate XP amount
     if (currentXP <= 0) {
       setConversionError('You have no XP to convert');
       setCanRetryConversion(false);
       return;
     }
 
-    // Validate XP input
     const xpAmount = parseInt(xpInput) || 0;
-    
+
     if (xpAmount < minimumXp) {
       setConversionError(`Minimum ${minimumXp} XP required to convert.`);
       setCanRetryConversion(false);
@@ -247,7 +322,6 @@ export default function XPBridge({
       return;
     }
 
-    // Validate ETH price loaded
     if (ethPrice <= 0) {
       setConversionError('Loading ETH price... Please try again');
       setCanRetryConversion(true);
@@ -267,46 +341,32 @@ export default function XPBridge({
         xpAmount,
         paymentAmount: paymentAmountUsd,
         ethAmount,
-        ethPrice
+        ethPrice,
       });
 
       const txHash = await payForXPConversion(paymentAmountUsd, ethPrice);
 
-      logger.conversion('Payment transaction confirmed', {
-        walletAddress: address,
-        txHash
-      });
+      logger.conversion('Payment transaction confirmed', { walletAddress: address, txHash });
 
-      // Step 2: Get transaction timestamp
       const txTimestamp = await getTransactionTimestamp(txHash);
-
-      // Step 3: Save to localStorage
       savePendingConversion(txHash, txTimestamp, xpAmount, paymentAmountUsd);
 
       setIsPaymentPending(false);
 
-      // Step 4: Call API to convert XP
+      // Step 2: Get signed voucher from API
       const response = await fetch('/api/bridge/convert-xp', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          xpAmount,
-          txHash
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ xpAmount, txHash }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        // Parse error response
         const errorMessage = data.error || data.message || 'Conversion failed';
         const parsedError = parseConversionError({ message: errorMessage });
-
         setConversionError(parsedError.message);
         setCanRetryConversion(parsedError.canRetry);
-
         logConversionError({ message: errorMessage }, {
           action: 'convertXP',
           status: response.status,
@@ -314,49 +374,34 @@ export default function XPBridge({
           canRetry: parsedError.canRetry,
           walletAddress: address,
           xpAmount,
-          txHash
+          txHash,
         });
-
         return;
       }
 
-      // Success! Clear localStorage
+      // Clear old payment-tx recovery record
       localStorage.removeItem(PENDING_CONVERSION_KEY);
 
-      logger.conversion('XP converted successfully', {
-        walletAddress: address,
-        xpAmount,
-        pointsAdded: data.data.pointsAdded,
-        newXP: data.data.newXP,
-        newPoints: data.data.newPoints,
-        txHash
-      });
+      // Store voucher for step 2 recovery
+      const voucher: PendingVoucher = {
+        xpAmount: data.xpAmount,
+        nonce: data.nonce,
+        expiry: data.expiry,
+        signature: data.signature,
+      };
+      localStorage.setItem(PENDING_VOUCHER_KEY, JSON.stringify(voucher));
+      setPendingVoucher(voucher);
 
-      // Call the callback with updated balances
-      onConversionComplete(data.data.newXP, data.data.newPoints);
-
-      // Show success message
-      setShowSuccess(true);
-
-      // Reset state after showing success
-      setTimeout(() => {
-        setConversionError(null);
-        setShowSuccess(false);
-      }, 3000);
-
-    } catch (error: any) {
+    } catch (err: unknown) {
+      const error = err as Error;
       console.error('Conversion error:', error);
 
-      // Check if error is from payment transaction
       if (isPaymentPending) {
-        setConversionError(
-          error.message || 'Payment transaction failed. Please try again.'
-        );
+        setConversionError(error.message || 'Payment transaction failed. Please try again.');
         setCanRetryConversion(true);
       } else {
-        // Error after payment - show recovery message
         setConversionError(
-          'Payment successful but conversion failed. Your payment is saved - refresh the page to resume.'
+          'Payment successful but voucher request failed. Your payment is saved — refresh the page to resume.'
         );
         setCanRetryConversion(false);
       }
@@ -365,7 +410,7 @@ export default function XPBridge({
         action: 'convertXP',
         walletAddress: address,
         xpAmount: parseInt(xpInput) || 0,
-        isPaymentPending
+        isPaymentPending,
       });
     } finally {
       setIsConverting(false);
@@ -374,7 +419,7 @@ export default function XPBridge({
   };
 
   /**
-   * Resume conversion with existing payment
+   * Resume conversion with existing payment (old payment-tx recovery)
    */
   const resumeConversion = async (pending: PendingConversion) => {
     setIsConverting(true);
@@ -383,13 +428,8 @@ export default function XPBridge({
     try {
       const response = await fetch('/api/bridge/convert-xp', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          xpAmount: pending.xpAmount,
-          txHash: pending.txHash
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ xpAmount: pending.xpAmount, txHash: pending.txHash }),
       });
 
       const data = await response.json();
@@ -398,20 +438,21 @@ export default function XPBridge({
         throw new Error(data.error || 'Conversion failed');
       }
 
-      // Success! Clear localStorage
       localStorage.removeItem(PENDING_CONVERSION_KEY);
 
-      // Update UI
-      onConversionComplete(data.data.newXP, data.data.newPoints);
-      setShowSuccess(true);
+      const voucher: PendingVoucher = {
+        xpAmount: data.xpAmount,
+        nonce: data.nonce,
+        expiry: data.expiry,
+        signature: data.signature,
+      };
+      localStorage.setItem(PENDING_VOUCHER_KEY, JSON.stringify(voucher));
+      setPendingVoucher(voucher);
       setShowResumeConversion(false);
       setPendingConversion(null);
 
-      setTimeout(() => {
-        setShowSuccess(false);
-      }, 3000);
-
-    } catch (error: any) {
+    } catch (err: unknown) {
+      const error = err as Error;
       console.error('Resume conversion error:', error);
       setConversionError(error.message || 'Failed to resume conversion');
     } finally {
@@ -480,41 +521,32 @@ export default function XPBridge({
   const inputValidation = getInputValidation();
 
   return (
-    <div className={`h-full group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-lg ${isDarkMode
-      ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
-      : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
+    <div className={`h-full rounded-2xl border ${isDarkMode
+      ? 'bg-gray-800/80 border-gray-700'
+      : 'bg-white border-gray-200'
       }`}>
-      {/* Fire Animation Background */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-pink-500/5 to-transparent" />
-        <div className="absolute -top-20 -right-20 w-40 h-40 bg-gradient-to-br from-orange-500/30 via-red-500/20 to-transparent rounded-full blur-3xl animate-pulse" 
-             style={{ animationDuration: '2s' }} />
-        <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-gradient-to-br from-yellow-500/30 via-orange-500/20 to-transparent rounded-full blur-3xl animate-pulse" 
-             style={{ animationDuration: '3s', animationDelay: '0.5s' }} />
-      </div>
-
-      <div className="relative p-6 h-full flex flex-col">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h3 className={`text-sm font-semibold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-              XP Converter
-            </h3>
-            {loadingSettings ? (
-              <div className={`h-3 w-48 rounded animate-pulse ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
-            ) : (
-              <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Pay {paymentAmountUsd} USD • Min: {minimumXp} XP • Rate: {conversionRate * 100} XP = 100 points
-              </p>
-            )}
-          </div>
-          <div className={`p-2.5 rounded-xl ${isDarkMode ? 'bg-gradient-to-br from-purple-500/20 to-pink-500/20' : 'bg-gradient-to-br from-purple-100 to-pink-100'
-            }`}>
-            <svg className="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div className="p-5 h-full flex flex-col justify-center">
+        {/* Header */}
+        <div className="flex items-center gap-2.5 mb-2">
+          <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-purple-500/15' : 'bg-purple-50'}`}>
+            <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
             </svg>
           </div>
+          <div>
+            <h3 className={`text-sm font-semibold leading-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+              XP Converter
+            </h3>
+            {loadingSettings ? (
+              <div className={`h-2.5 w-40 rounded mt-1 animate-pulse ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`} />
+            ) : (
+              <p className={`text-[11px] mt-0.5 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                {conversionRate * 100} XP = 100 pts · fee ${paymentAmountUsd} USD
+              </p>
+            )}
+          </div>
         </div>
-        
+
         <div className="space-y-3 flex-1 flex flex-col">
           {isCheckingPending ? (
             <div className="space-y-3 flex-1 flex flex-col justify-between">
@@ -525,47 +557,42 @@ export default function XPBridge({
             <>
               {/* Resume Conversion UI */}
               {showResumeConversion && pendingConversion && (
-                <div className={`rounded-xl p-4 border ${
-                  isDarkMode 
-                    ? 'bg-yellow-900/20 border-yellow-500/30' 
+                <div className={`rounded-xl p-4 border ${isDarkMode
+                    ? 'bg-yellow-900/20 border-yellow-500/30'
                     : 'bg-yellow-50 border-yellow-200'
-                }`}>
+                  }`}>
                   <div className="flex items-start gap-3">
                     <div className="flex-shrink-0">
                       <AlertTriangle className={`w-5 h-5 ${isDarkMode ? 'text-yellow-400' : 'text-yellow-600'}`} />
                     </div>
                     <div className="flex-1">
-                      <h4 className={`text-sm font-semibold mb-1 ${
-                        isDarkMode ? 'text-yellow-400' : 'text-yellow-800'
-                      }`}>
+                      <h4 className={`text-sm font-semibold mb-1 ${isDarkMode ? 'text-yellow-400' : 'text-yellow-800'
+                        }`}>
                         Incomplete Conversion Detected
                       </h4>
-                      <p className={`text-xs mb-3 ${
-                        isDarkMode ? 'text-yellow-300' : 'text-yellow-700'
-                      }`}>
-                        You paid for a conversion but it wasn't completed. 
+                      <p className={`text-xs mb-3 ${isDarkMode ? 'text-yellow-300' : 'text-yellow-700'
+                        }`}>
+                        You paid for a conversion but it wasn't completed.
                         Click below to resume without paying again.
                       </p>
                       <div className="flex gap-2">
                         <button
                           onClick={() => resumeConversion(pendingConversion)}
                           disabled={isConverting}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                            isDarkMode
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDarkMode
                               ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
                               : 'bg-yellow-600 hover:bg-yellow-700 text-white'
-                          } disabled:opacity-50 disabled:cursor-not-allowed`}
+                            } disabled:opacity-50 disabled:cursor-not-allowed`}
                         >
                           {isConverting ? 'Resuming...' : 'Resume Conversion'}
                         </button>
                         <button
                           onClick={dismissPendingConversion}
                           disabled={isConverting}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                            isDarkMode
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDarkMode
                               ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
                               : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                          } disabled:opacity-50 disabled:cursor-not-allowed`}
+                            } disabled:opacity-50 disabled:cursor-not-allowed`}
                         >
                           Dismiss
                         </button>
@@ -576,141 +603,163 @@ export default function XPBridge({
               )}
 
               {/* Balance Info */}
-              <div className="space-y-3 flex-1">
-                <div className="flex items-center justify-between">
-                  <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                    Available: {currentXP.toLocaleString()} XP
-                  </span>
-                  <div className={`flex items-center space-x-1 text-xs ${
-                    currentXP >= minimumXp
-                      ? 'text-green-600'
+              <div className="space-y-2">
+                {/* XP balance row */}
+                <div className={`flex items-center justify-between px-3 py-2 rounded-xl ${isDarkMode ? 'bg-gray-700/40' : 'bg-gray-50'}`}>
+                  <div>
+                    <span className={`text-[11px] ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                      Available XP   <span className={`text-sm font-semibold tabular-nums leading-none ml-0.5 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {currentXP.toLocaleString()}
+                      </span>
+                    </span>
+                  </div>
+                  <div className={`px-2 py-1 rounded-lg text-[11px] font-medium ${currentXP >= minimumXp
+                      ? isDarkMode ? 'bg-green-500/15 text-green-400' : 'bg-green-50 text-green-700'
                       : currentXP > 0
-                      ? 'text-yellow-600'
-                      : isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                        ? isDarkMode ? 'bg-yellow-500/15 text-yellow-400' : 'bg-yellow-50 text-yellow-700'
+                        : isDarkMode ? 'bg-gray-600/50 text-gray-500' : 'bg-gray-100 text-gray-500'
                     }`}>
-                    <div className={`w-1.5 h-1.5 rounded-full mr-2 ${
-                      currentXP >= minimumXp 
-                        ? 'bg-green-500 animate-pulse' 
-                        : currentXP > 0
-                        ? 'bg-yellow-500'
-                        : 'bg-gray-400'
-                      }`} />
-                    {currentXP >= minimumXp 
-                      ? 'Ready to convert' 
-                      : currentXP > 0 
-                      ? `Need ${minimumXp - currentXP} more XP`
-                      : 'No XP available'}
+                    {currentXP >= minimumXp
+                      ? 'Ready'
+                      : currentXP > 0
+                        ? `Need ${minimumXp - currentXP} more`
+                        : 'No XP'}
                   </div>
                 </div>
-                
+
+                {/* Input skeleton while loading settings */}
+                {loadingSettings && currentXP > 0 && (
+                  <div className={`h-10 w-full rounded-xl animate-pulse ${isDarkMode ? 'bg-gray-700/60' : 'bg-gray-100'}`} />
+                )}
+
                 {/* XP Input Field */}
                 {currentXP >= minimumXp && !loadingSettings && (
                   <div className="space-y-2">
-                    <label className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                      Amount to convert
-                    </label>
                     <div className="relative">
                       <input
                         type="text"
                         inputMode="numeric"
                         value={xpInput}
                         onChange={handleXpInputChange}
-                        placeholder={`${minimumXp} - ${currentXP}`}
+                        placeholder={`${minimumXp}–${currentXP} XP`}
                         disabled={isConverting || isPaymentPending}
-                        className={`w-full px-3 py-2 pr-16 rounded-lg text-sm transition-colors ${
-                          isDarkMode
-                            ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500'
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
-                        } border ${
-                          !inputValidation.isValid
-                            ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                        className={`w-full px-3 py-2.5 pr-14 rounded-xl text-sm transition-colors ${isDarkMode
+                            ? 'bg-gray-700/60 border-gray-600 text-white placeholder-gray-500'
+                            : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
+                          } border ${!inputValidation.isValid
+                            ? 'border-red-400 focus:border-red-400 focus:ring-red-400'
                             : 'focus:border-purple-500 focus:ring-purple-500'
-                        } focus:outline-none focus:ring-1 disabled:opacity-50 disabled:cursor-not-allowed`}
+                          } focus:outline-none focus:ring-1 disabled:opacity-50 disabled:cursor-not-allowed`}
                       />
                       <button
                         type="button"
                         onClick={handleSetMax}
                         disabled={isConverting || isPaymentPending}
-                        className={`absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-medium rounded transition-colors ${
-                          isDarkMode
-                            ? 'bg-purple-600 hover:bg-purple-700 text-white'
-                            : 'bg-purple-500 hover:bg-purple-600 text-white'
-                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        className={`absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-[11px] font-semibold rounded-lg transition-colors ${isDarkMode
+                            ? 'bg-purple-600/80 hover:bg-purple-600 text-white'
+                            : 'bg-purple-100 hover:bg-purple-200 text-purple-700'
+                          } disabled:opacity-50 disabled:cursor-not-allowed`}
                       >
                         MAX
                       </button>
                     </div>
-                    {/* Validation message */}
                     {!inputValidation.isValid && (
-                      <p className="text-xs text-red-500">{inputValidation.message}</p>
+                      <p className="text-[11px] text-red-500">{inputValidation.message}</p>
                     )}
-                    {/* Points preview */}
                     {xpInput && inputValidation.isValid && (
-                      <p className={`text-xs ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>
-                        You will receive: {calculatedPoints.toFixed(1)} points
-                      </p>
+                      <div className={`flex items-center justify-between text-[11px] ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                        <span>You receive</span>
+                        <span className={`font-semibold tabular-nums ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>
+                          {calculatedPoints.toFixed(1)} points
+                        </span>
+                      </div>
                     )}
                   </div>
                 )}
-                
-                {/* Input skeleton while loading settings */}
-                {loadingSettings && currentXP > 0 && (
-                  <div className="space-y-2">
-                    <div className={`h-3 w-24 rounded animate-pulse ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
-                    <div className={`h-10 w-full rounded-lg animate-pulse ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
-                  </div>
-                )}
-                
+
                 {/* Minimum XP requirement message */}
                 {!loadingSettings && currentXP > 0 && currentXP < minimumXp && (
-                  <div className={`text-xs p-2 rounded-lg ${
-                    isDarkMode 
-                      ? 'bg-yellow-900/20 text-yellow-400 border border-yellow-500/30' 
-                      : 'bg-yellow-50 text-yellow-700 border border-yellow-200'
-                  }`}>
-                    <div className="flex items-start gap-2">
-                      <span>
-                        Minimum {minimumXp} XP required. You need {minimumXp - currentXP} more XP to convert.
-                      </span>
-                    </div>
+                  <div className={`text-[11px] px-3 py-2 rounded-xl ${isDarkMode
+                      ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+                      : 'bg-yellow-50 text-yellow-700 border border-yellow-100'
+                    }`}>
+                    Minimum {minimumXp} XP required — need {minimumXp - currentXP} more.
                   </div>
                 )}
-                
+
+                {/* Fee info */}
                 {loadingPrice || loadingSettings ? (
-                  <div className={`h-3 w-40 rounded animate-pulse ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
+                  <div className={`h-2.5 w-32 rounded animate-pulse ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`} />
                 ) : (
-                  <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                    Payment: {paymentAmountUsd} USD (~{ethAmount.toFixed(6)} ETH)
-                  </div>
+                  <p className={`text-[11px] ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+                    Fee: {paymentAmountUsd} USD · ~{ethAmount.toFixed(6)} ETH
+                  </p>
                 )}
               </div>
 
-              {/* Convert Button */}
-              <button
-                onClick={handleConvert}
-                disabled={isConvertDisabled()}
-                className={`w-full px-4 py-3 rounded-lg font-medium transition-all duration-200 transform ${
-                  isConvertDisabled()
-                    ? 'bg-gray-400 cursor-not-allowed opacity-50'
-                    : isDarkMode
-                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
-                    : 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600'
-                } text-white shadow-lg hover:scale-105`}
-              >
-                {isPaymentPending ? (
-                  <span>Processing Payment...</span>
-                ) : isConverting ? (
-                  <span>Converting...</span>
-                ) : loadingPrice ? (
-                  <span>Loading...</span>
-                ) : currentXP < minimumXp ? (
-                  <span>Minimum {minimumXp} XP Required</span>
-                ) : !xpInput || !inputValidation.isValid ? (
-                  <span>Enter XP Amount</span>
-                ) : (
-                  <span>Convert {xpToConvert.toLocaleString()} XP → {calculatedPoints.toFixed(1)} points</span>
-                )}
-              </button>
+              {/* Step 2: On-chain confirmation panel */}
+              {pendingVoucher && (
+                <div className={`rounded-xl p-4 border ${isDarkMode
+                    ? 'bg-blue-900/20 border-blue-500/30'
+                    : 'bg-blue-50 border-blue-200'
+                  }`}>
+                  <p className={`text-xs font-semibold mb-1 ${isDarkMode ? 'text-blue-300' : 'text-blue-800'}`}>
+                    XP Reserved — Confirm On-Chain
+                  </p>
+                  <p className={`text-xs mb-3 ${isDarkMode ? 'text-blue-200' : 'text-blue-700'}`}>
+                    Your XP has been reserved. Submit the transaction below to receive your ShelliesPoints.
+                  </p>
+                  {convertXpWriteError && (
+                    <p className="text-xs text-red-500 mb-2">{convertXpWriteError.message}</p>
+                  )}
+                  <button
+                    onClick={() => submitOnChainConversion(pendingVoucher)}
+                    disabled={isConvertXpPending || isConvertXpConfirming}
+                    className="w-full px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isConvertXpPending
+                      ? 'Waiting for wallet...'
+                      : isConvertXpConfirming
+                        ? 'Confirming...'
+                        : `Confirm: ${pendingVoucher.xpAmount} XP → ShelliesPoints`}
+                  </button>
+                </div>
+              )}
+
+              {/* Convert Button (Step 1) */}
+              {!pendingVoucher && (
+                <button
+                  onClick={handleConvert}
+                  disabled={isConvertDisabled()}
+                  className={`w-full px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${isConvertDisabled()
+                      ? `cursor-not-allowed ${isDarkMode ? 'bg-gray-700/60 text-gray-500' : 'bg-gray-100 text-gray-400'}`
+                      : `text-white shadow-sm hover:shadow-md hover:shadow-purple-500/20 ${isDarkMode
+                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
+                        : 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600'
+                      }`
+                    }`}
+                >
+                  {isPaymentPending ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent" />
+                      Processing payment…
+                    </span>
+                  ) : isConverting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent" />
+                      Getting voucher…
+                    </span>
+                  ) : loadingPrice ? (
+                    <span>Loading…</span>
+                  ) : currentXP < minimumXp ? (
+                    <span>Minimum {minimumXp} XP required</span>
+                  ) : !xpInput || !inputValidation.isValid ? (
+                    <span>Enter XP amount</span>
+                  ) : (
+                    <span>Convert {xpToConvert.toLocaleString()} XP → {calculatedPoints.toFixed(1)} pts</span>
+                  )}
+                </button>
+              )}
             </>
           )}
         </div>

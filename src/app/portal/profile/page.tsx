@@ -12,8 +12,10 @@ import { StakingService } from '@/lib/staking-service';
 import { ProfilePageSkeleton } from '@/components/portal/ProfilePageSkeleton';
 import { useRouter } from 'next/navigation';
 import { usePathname } from 'next/navigation';
-import { Trophy, Coins, Gift, TrendingUp, ArrowRight, Sparkles, Target, Zap, Clock, Calendar, CalendarDays, ExternalLink, Layers } from 'lucide-react';
+import { formatEther } from 'viem';
+import { Trophy, Gift, ArrowRight, Sparkles, Target, Clock, Calendar, CalendarDays, ExternalLink, Layers, Zap } from 'lucide-react';
 import XPBridge from '@/components/XPBridge';
+import { useInkEthPrice } from '@/hooks/useInkEthPrice';
 
 export default function ProfilePage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -32,9 +34,16 @@ export default function ProfilePage() {
   const { address } = useAccount();
   const router = useRouter();
   const pathname = usePathname();
-  const { user, claimStatus, loading: userLoading, claiming, executeUnifiedClaim, error: claimError, refreshUserData, refreshWithFreshData } = usePoints();
+  const {
+    user, claimStatus, loading: userLoading, claiming, executeUnifiedClaim, error: claimError,
+    refreshUserData, refreshWithFreshData, claimCooldown,
+    canClaimWithFees, secondsUntilClaimWithFees, claimWithFeesCost, claimWithFeesReward,
+    isClaimWithFeesPending, isClaimWithFeesConfirming, executeClaimWithFees,
+    isLoadingPaidClaimConfig, isPaidClaimConfigured, isLoadingClaimStatus,
+  } = usePoints();
 
   const walletAddress = address || session?.address || '';
+  const { ethPrice } = useInkEthPrice();
 
   // Get tier information for motivational display
   const tierInfo = NFTService.getUserTierInfo(nftCount);
@@ -281,113 +290,216 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                {/* Unified Daily Claim Card */}
-                <div className="sm:col-span-2 col-span-1">
-                  <div className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-lg ${isDarkMode
-                    ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
-                    : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
+              </div>
+
+              {/* Action Cards Row — Daily Rewards | XP Converter | Instant Points */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+
+                {/* Daily Rewards */}
+                <div>
+                  <div className={`rounded-2xl border h-full ${isDarkMode
+                    ? 'bg-gray-800/80 border-gray-700'
+                    : 'bg-white border-gray-200'
                     }`}>
-                    <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-pink-500/5 to-transparent" />
-                    <div className="relative p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
-                          <h3 className={`text-sm font-semibold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                            Daily Rewards
-                          </h3>
-                          <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                            Claim points from NFTs {(claimStatus?.stakedNFTCount ?? 0) > 0 ? 'and staked NFTs' : ''}
-                          </p>
-                        </div>
-                        <div className={`p-2.5 rounded-xl ${isDarkMode ? 'bg-gradient-to-br from-purple-500/20 to-pink-500/20' : 'bg-gradient-to-br from-purple-100 to-pink-100'
-                          }`}>
-                          <Gift className="w-5 h-5 text-purple-600" />
-                        </div>
-                      </div>
-                      <div className="space-y-3">
-                        {userLoading ? (
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                              <div className={`h-3 rounded animate-pulse w-32 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
-                              <div className={`h-3 rounded animate-pulse w-24 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
-                            </div>
-                            <div className={`h-10 rounded-lg animate-pulse w-full ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
+                    <div className="p-5 h-full flex flex-col justify-center gap-4">
+                      {/* Header */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-purple-500/15' : 'bg-purple-50'}`}>
+                            <Gift className="w-4 h-4 text-purple-600" />
                           </div>
-                        ) : claimStatus ? (
-                          <>
-                            {/* Points Breakdown */}
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                                  Total: {((nftCount * 5) + (claimStatus?.stakingPoints || 0) || (nftCount === 0 ? 1 : 0)).toFixed(1)} points
-                                </span>
-                                <div className={`flex items-center space-x-1 text-xs ${claimStatus?.canClaim
-                                  ? 'text-green-600'
-                                  : isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                  }`}>
-                                  <div className={`w-1.5 h-1.5 rounded-full mr-2 ${claimStatus?.canClaim ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
-                                    }`} />
-                                  {claimStatus?.canClaim ? 'Available now' : 'Check back later'}
-                                </div>
-                              </div>
-                              {/* Show breakdown based on real-time NFT count */}
-                              <div className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                                {(nftCount + (claimStatus?.stakedNFTCount ?? 0)) > 0 ? (
-                                  <>
-                                    {nftCount > 0 && (
-                                      <span>{nftCount} available NFTs (×5 = {(nftCount * 5).toFixed(1)} pts) </span>
-                                    )}
-                                    {(claimStatus?.stakedNFTCount ?? 0) > 0 && (
-                                      <span>
-                                        {nftCount > 0 && '+ '}
-                                        {stakingBreakdown.day > 0 && `${stakingBreakdown.day} day-staked (×7) `}
-                                        {stakingBreakdown.week > 0 && `${stakingBreakdown.week} week-staked (×10) `}
-                                        {stakingBreakdown.month > 0 && `${stakingBreakdown.month} month-staked (×20) `}
-                                        (= {claimStatus?.stakingPoints?.toFixed(1)} pts)
-                                      </span>
-                                    )}
-                                  </>
-                                ) : (
-                                  'Regular user (1.0 pt)'
-                                )}
-                              </div>
-                            </div>
-                            <ClaimButtonWithCountdown
-                              canClaim={claimStatus.canClaim}
-                              secondsUntilNextClaim={claimStatus.secondsUntilNextClaim}
-                              nftCount={nftCount + (claimStatus?.stakedNFTCount ?? 0)}
-                              potentialPoints={(nftCount * 5) + (claimStatus?.stakingPoints || 0) || (nftCount === 0 ? 1 : 0)}
-                              onClaim={handleClaimUnified}
-                              claiming={claiming}
-                            />
-                          </>
-                        ) : (
-                          <div className={`text-center py-4 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                            Unable to load claim status
+                          <div>
+                            <h3 className={`text-sm font-semibold leading-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                              Daily Rewards
+                            </h3>
+                            <p className={`text-[11px] mt-0.5 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                              Claim your NFT portfolio points
+                            </p>
+                          </div>
+                        </div>
+                        {claimStatus && (
+                          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium ${
+                            isLoadingClaimStatus
+                              ? isDarkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-100 text-gray-500'
+                              : claimStatus.canClaim
+                                ? isDarkMode ? 'bg-green-500/15 text-green-400' : 'bg-green-50 text-green-700'
+                                : isDarkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-100 text-gray-500'
+                          }`}>
+                            <div className={`w-1.5 h-1.5 rounded-full ${!isLoadingClaimStatus && claimStatus.canClaim ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                            {isLoadingClaimStatus ? 'Loading' : claimStatus.canClaim ? 'Ready' : 'Cooldown'}
                           </div>
                         )}
                       </div>
+
+                      {/* Rewards breakdown */}
+                      {userLoading ? (
+                        <div className="space-y-2 flex-1">
+                          <div className={`h-16 rounded-xl animate-pulse ${isDarkMode ? 'bg-gray-700/60' : 'bg-gray-100'}`} />
+                          <div className={`h-10 rounded-xl animate-pulse ${isDarkMode ? 'bg-gray-700/60' : 'bg-gray-100'}`} />
+                        </div>
+                      ) : claimStatus ? (
+                        <>
+                          <div className={`rounded-xl overflow-hidden divide-y ${
+                            isDarkMode ? 'bg-gray-700/40 divide-gray-700/60' : 'bg-gray-50 divide-gray-100'
+                          }`}>
+                            {nftCount > 0 && (
+                              <div className="flex items-center justify-between px-3 py-2">
+                                <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                  {nftCount} NFT{nftCount !== 1 ? 's' : ''} <span className={`${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>× 5</span>
+                                </span>
+                                <span className={`text-xs font-semibold tabular-nums ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                  {(nftCount * 5).toFixed(1)} pts
+                                </span>
+                              </div>
+                            )}
+                            {stakingBreakdown.day > 0 && (
+                              <div className="flex items-center justify-between px-3 py-2">
+                                <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                  {stakingBreakdown.day} day-staked <span className={`${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>× 7</span>
+                                </span>
+                                <span className={`text-xs font-semibold tabular-nums ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                  {(stakingBreakdown.day * 7).toFixed(1)} pts
+                                </span>
+                              </div>
+                            )}
+                            {stakingBreakdown.week > 0 && (
+                              <div className="flex items-center justify-between px-3 py-2">
+                                <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                  {stakingBreakdown.week} week-staked <span className={`${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>× 10</span>
+                                </span>
+                                <span className={`text-xs font-semibold tabular-nums ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                  {(stakingBreakdown.week * 10).toFixed(1)} pts
+                                </span>
+                              </div>
+                            )}
+                            {stakingBreakdown.month > 0 && (
+                              <div className="flex items-center justify-between px-3 py-2">
+                                <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                  {stakingBreakdown.month} month-staked <span className={`${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>× 20</span>
+                                </span>
+                                <span className={`text-xs font-semibold tabular-nums ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                  {(stakingBreakdown.month * 20).toFixed(1)} pts
+                                </span>
+                              </div>
+                            )}
+                            {nftCount === 0 && (claimStatus?.stakedNFTCount ?? 0) === 0 && (
+                              <div className="flex items-center justify-between px-3 py-2">
+                                <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Regular user</span>
+                                <span className={`text-xs font-semibold tabular-nums ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>1.0 pts</span>
+                              </div>
+                            )}
+                            {(nftCount > 0 || (claimStatus?.stakedNFTCount ?? 0) > 0) && (
+                              <div className={`flex items-center justify-between px-3 py-2 ${isDarkMode ? 'bg-gray-700/60' : 'bg-gray-100/80'}`}>
+                                <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Total per claim</span>
+                                <span className={`text-sm font-bold tabular-nums ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                  {((nftCount * 5) + (claimStatus?.stakingPoints || 0)).toFixed(1)} pts
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <ClaimButtonWithCountdown
+                            canClaim={claimStatus.canClaim}
+                            secondsUntilNextClaim={claimStatus.secondsUntilNextClaim}
+                            nftCount={nftCount + (claimStatus?.stakedNFTCount ?? 0)}
+                            potentialPoints={(nftCount * 5) + (claimStatus?.stakingPoints || 0) || (nftCount === 0 ? 1 : 0)}
+                            onClaim={handleClaimUnified}
+                            claiming={claiming}
+                            claimCooldownSeconds={claimCooldown}
+                            isDarkMode={isDarkMode}
+                            isLoading={isLoadingClaimStatus}
+                          />
+                        </>
+                      ) : (
+                        <div className={`text-center py-4 text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                          Unable to load claim status
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
 
-                {/* XP Bridge Card */}
-                <div className="sm:col-span-2 col-span-1 h-full">
-                  {userLoading ? (
-                    <div className={`h-full rounded-2xl animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
-                  ) : user ? (
-                    <div className="h-full">
-                      <XPBridge
-                        currentXP={user.game_score || 0}
-                        currentPoints={user.points || 0}
-                        onConversionComplete={handleConversionComplete}
-                      />
-                    </div>
-                  ) : (
-                    <div className={`h-full flex items-center justify-center rounded-2xl border ${isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-400' : 'bg-white border-gray-200 text-gray-500'}`}>
-                      <p className="text-xs">Unable to load XP Bridge</p>
-                    </div>
+                {/* XP Bridge */}
+                {userLoading ? (
+                  <div className={`rounded-2xl animate-pulse min-h-[200px] ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
+                ) : user ? (
+                  <XPBridge
+                    currentXP={user.game_score || 0}
+                    currentPoints={user.points || 0}
+                    onConversionComplete={handleConversionComplete}
+                  />
+                ) : (
+                  <div className={`flex items-center justify-center rounded-2xl border min-h-[100px] ${isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-400' : 'bg-white border-gray-200 text-gray-500'}`}>
+                    <p className="text-xs">Unable to load XP Bridge</p>
+                  </div>
+                )}
+
+                {/* Instant Points */}
+                <div className={`rounded-2xl border h-full ${isDarkMode
+                  ? 'bg-gray-800/80 border-gray-700'
+                  : 'bg-white border-gray-200'
+                }`}>
+                  <div className="p-5 h-full flex flex-col justify-between gap-4">
+                      {/* Header */}
+                      <div className="flex items-center gap-2.5">
+                        <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-amber-500/15' : 'bg-amber-50'}`}>
+                          <Zap className="w-4 h-4 text-amber-500" />
+                        </div>
+                        <div>
+                          <h3 className={`text-sm font-semibold leading-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                            Instant Points
+                          </h3>
+                          <p className={`text-[11px] mt-0.5 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                            Buy points with ETH — no cooldown
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Button */}
+                      {isLoadingPaidClaimConfig ? (
+                        <div className={`h-12 rounded-xl animate-pulse ${isDarkMode ? 'bg-gray-700/60' : 'bg-gray-100'}`} />
+                      ) : isPaidClaimConfigured && canClaimWithFees ? (
+                        <button
+                          onClick={executeClaimWithFees}
+                          disabled={isClaimWithFeesPending || isClaimWithFeesConfirming}
+                          className={`w-full px-4 py-3 rounded-xl font-medium transition-all duration-200 ${
+                            isClaimWithFeesPending || isClaimWithFeesConfirming
+                              ? `cursor-not-allowed ${isDarkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-400'}`
+                              : 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-sm hover:shadow-md hover:shadow-amber-500/20'
+                          }`}
+                        >
+                          {isClaimWithFeesPending || isClaimWithFeesConfirming ? (
+                            <span className="flex items-center justify-center gap-2 text-sm">
+                              <span className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent" />
+                              {isClaimWithFeesPending ? 'Confirm in wallet…' : 'Confirming…'}
+                            </span>
+                          ) : (
+                            <span className="flex items-center justify-between">
+                              <span className="text-sm font-semibold">Buy {claimWithFeesReward} Points</span>
+                              <span className="text-[11px] opacity-80 tabular-nums">
+                                {ethPrice
+                                  ? `$${(Number(formatEther(claimWithFeesCost)) * ethPrice).toFixed(4)}`
+                                  : `${Number(formatEther(claimWithFeesCost)).toFixed(6)} ETH`}
+                              </span>
+                            </span>
+                          )}
+                        </button>
+                      ) : isPaidClaimConfigured && !canClaimWithFees ? (
+                        <button disabled className={`w-full px-4 py-3 rounded-xl font-medium cursor-not-allowed flex items-center justify-between ${isDarkMode ? 'bg-gray-700/50 text-gray-500' : 'bg-gray-100 text-gray-400'}`}>
+                          <span className="text-sm">Available in {Math.ceil(secondsUntilClaimWithFees / 60)} min</span>
+                          <span className="text-[11px] tabular-nums">
+                            {claimWithFeesReward} pts · {ethPrice
+                              ? `$${(Number(formatEther(claimWithFeesCost)) * ethPrice).toFixed(4)}`
+                              : `${Number(formatEther(claimWithFeesCost)).toFixed(6)} ETH`}
+                          </span>
+                        </button>
+                      ) : (
+                        <button disabled className={`w-full px-4 py-3 rounded-xl text-sm font-medium cursor-not-allowed ${isDarkMode ? 'bg-gray-700/50 text-gray-500' : 'bg-gray-100 text-gray-400'}`}>
+                          Not configured
+                        </button>
                   )}
+                  </div>
                 </div>
+
               </div>
 
               {/* Navigation Actions */}
