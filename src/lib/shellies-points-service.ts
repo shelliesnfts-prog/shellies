@@ -72,7 +72,7 @@ function readContract<T>(functionName: string, args: unknown[] = []): Promise<T>
 
 export const ShelliesPointsService = {
   async getBalance(walletAddress: string): Promise<number> {
-    const balance = await readContract<bigint>('balances', [walletAddress as `0x${string}`]);
+    const balance = await readContract<bigint>('balanceOf', [walletAddress as `0x${string}`]);
     return Number(balance);
   },
 

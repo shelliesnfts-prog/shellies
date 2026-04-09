@@ -10,6 +10,7 @@
  *   NEXT_PUBLIC_STAKING_CONTRACT_ADDRESS  TimeLockStaking contract address
  *   NEXT_PUBLIC_SHELLIES_CONTRACT_ADDRESS Shellies NFT contract address
  *   AUTHORIZED_SIGNER_ADDRESS     Public address of the XP voucher signing key
+ *   INITIAL_SUPPLY               Initial supply of points to mint (optional, default 0)
  *
  * After deployment, add the printed address to .env:
  *   NEXT_PUBLIC_SHELLIES_POINTS_CONTRACT_ADDRESS=0x...
@@ -28,6 +29,7 @@ async function main() {
   const stakingContract = process.env.NEXT_PUBLIC_STAKING_CONTRACT_ADDRESS;
   const nftContract = process.env.NEXT_PUBLIC_SHELLIES_CONTRACT_ADDRESS;
   const authorizedSigner = process.env.AUTHORIZED_SIGNER_ADDRESS;
+  const initialSupply = process.env.INITIAL_SUPPLY || "0";
 
   if (!stakingContract || stakingContract === "0xYourRaffleContractAddressOnInkChain") {
     throw new Error("Missing NEXT_PUBLIC_STAKING_CONTRACT_ADDRESS in .env");
@@ -42,6 +44,7 @@ async function main() {
   console.log(`  Staking contract:     ${stakingContract}`);
   console.log(`  NFT contract:         ${nftContract}`);
   console.log(`  Authorized signer:    ${authorizedSigner}`);
+  console.log(`  Initial supply:       ${initialSupply}`);
 
   // ── Get deployer ───────────────────────────────────────────────────────
 
@@ -59,7 +62,7 @@ async function main() {
 
   console.log("\nDeploying contract...");
   const ShelliesPoints = await hre.ethers.getContractFactory("ShelliesPoints");
-  const contract = await ShelliesPoints.deploy(stakingContract, nftContract, authorizedSigner);
+  const contract = await ShelliesPoints.deploy(stakingContract, nftContract, authorizedSigner, initialSupply);
 
   console.log(`Transaction hash:     ${contract.deploymentTransaction().hash}`);
   console.log("Waiting for confirmation...");
@@ -88,7 +91,7 @@ async function main() {
   try {
     await hre.run("verify:verify", {
       address: contractAddress,
-      constructorArguments: [stakingContract, nftContract, authorizedSigner],
+      constructorArguments: [stakingContract, nftContract, authorizedSigner, initialSupply],
     });
     console.log("Contract verified successfully!");
     console.log(`  View on explorer: https://explorer.inkonchain.com/address/${contractAddress}`);

@@ -99,7 +99,7 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
   const { data: onChainBalanceRaw, refetch: refetchBalance } = useReadContract({
     address: SHELLIES_POINTS_ADDRESS,
     abi: SHELLIES_POINTS_CONTRACT.abi,
-    functionName: 'balances',
+    functionName: 'balanceOf',
     args: address ? [address] : undefined,
     query: { enabled: !!address },
   });

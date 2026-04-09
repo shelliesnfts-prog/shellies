@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
@@ -29,12 +30,11 @@ interface IERC721Minimal {
 
 // ─── ShelliesPoints ──────────────────────────────────────────────────────────
 
-contract ShelliesPoints is Ownable, ReentrancyGuard {
+contract ShelliesPoints is ERC20, Ownable, ReentrancyGuard {
     using ECDSA for bytes32;
 
-    // ── Balances & Cooldown Tracking ─────────────────────────────────────────
+    // ── Cooldown Tracking ────────────────────────────────────────────────────
 
-    mapping(address => uint256) public balances;
     mapping(address => uint256) public lastClaim;
     mapping(address => uint256) public lastClaimWithFees;
     mapping(uint256 => bool)    public usedNonces;
@@ -95,8 +95,9 @@ contract ShelliesPoints is Ownable, ReentrancyGuard {
     constructor(
         address _stakingContract,
         address _nftContract,
-        address _authorizedSigner
-    ) Ownable(msg.sender) {
+        address _authorizedSigner,
+        uint256 _initialSupply
+    ) ERC20("Shellies Points", "SPTS") Ownable(msg.sender) {
         require(_stakingContract != address(0), "Zero staking contract");
         require(_nftContract != address(0), "Zero NFT contract");
         require(_authorizedSigner != address(0), "Zero authorized signer");
@@ -104,6 +105,10 @@ contract ShelliesPoints is Ownable, ReentrancyGuard {
         stakingContract   = _stakingContract;
         nftContract       = _nftContract;
         authorizedSigner  = _authorizedSigner;
+
+        if (_initialSupply > 0) {
+            _mint(msg.sender, _initialSupply);
+        }
 
         // Free claim defaults
         claimCooldown             = 86400; // 24 h
@@ -122,6 +127,26 @@ contract ShelliesPoints is Ownable, ReentrancyGuard {
         // XP conversion defaults
         xpConversionRate = 10;
         minXpToConvert   = 100;
+    }
+
+    // ── ERC20 Overrides ──────────────────────────────────────────────────────
+
+    /// @dev Points use whole numbers — no fractional display.
+    function decimals() public pure override returns (uint8) { return 0; }
+
+    /// @dev Soulbound — minting (from == 0) and burning (to == 0) are allowed;
+    ///      all peer-to-peer transfers are blocked.
+    function _update(address from, address to, uint256 amount) internal override {
+        require(from == address(0) || to == address(0), "SPTS: non-transferable");
+        super._update(from, to, amount);
+    }
+
+    // ── Compatibility Shim ───────────────────────────────────────────────────
+
+    /// @dev The deployed raffle contract calls IShelliesPoints.balances(user).
+    ///      This wrapper keeps it working without redeploying the raffle contract.
+    function balances(address user) external view returns (uint256) {
+        return balanceOf(user);
     }
 
     // ── Free Claim ───────────────────────────────────────────────────────────
@@ -163,9 +188,8 @@ contract ShelliesPoints is Ownable, ReentrancyGuard {
 
         if (points > maxPointsPerClaim) points = maxPointsPerClaim;
 
-        // Effects — state before emit
-        lastClaim[msg.sender]   = block.timestamp;
-        balances[msg.sender]   += points;
+        lastClaim[msg.sender] = block.timestamp;
+        _mint(msg.sender, points);
 
         emit Claimed(msg.sender, points, block.timestamp);
     }
@@ -187,8 +211,7 @@ contract ShelliesPoints is Ownable, ReentrancyGuard {
 
         uint256 excess = msg.value - claimWithFeesCost;
 
-        // Effects
-        balances[msg.sender] += claimWithFeesReward;
+        _mint(msg.sender, claimWithFeesReward);
 
         // Refund excess after state update
         if (excess > 0) {
@@ -226,11 +249,10 @@ contract ShelliesPoints is Ownable, ReentrancyGuard {
         address recovered = ECDSA.recover(ethSignedHash, signature);
         require(recovered == authorizedSigner, "Invalid signature");
 
-        // Effects
         usedNonces[nonce] = true;
         uint256 pointsToAward = xpAmount / xpConversionRate;
         require(pointsToAward > 0, "XP too low for even 1 point at current rate");
-        balances[msg.sender] += pointsToAward;
+        _mint(msg.sender, pointsToAward);
 
         emit XpConverted(msg.sender, xpAmount, pointsToAward, nonce);
     }
@@ -238,9 +260,8 @@ contract ShelliesPoints is Ownable, ReentrancyGuard {
     // ── Spend (operator-only) ─────────────────────────────────────────────────
 
     function spend(address user, uint256 amount) external onlyOperator nonReentrant {
-        require(amount > 0,               "Amount must be > 0");
-        require(balances[user] >= amount, "Insufficient points balance");
-        balances[user] -= amount;
+        require(amount > 0, "Amount must be > 0");
+        _burn(user, amount);
         emit PointsSpent(user, amount, msg.sender);
     }
 
@@ -249,15 +270,14 @@ contract ShelliesPoints is Ownable, ReentrancyGuard {
     function adminMint(address user, uint256 amount) external onlyOwner {
         require(user != address(0), "Zero address");
         require(amount > 0,         "Amount must be > 0");
-        balances[user] += amount;
+        _mint(user, amount);
         emit AdminMint(user, amount);
     }
 
     function adminBurn(address user, uint256 amount) external onlyOwner {
-        require(user != address(0),        "Zero address");
-        require(amount > 0,                "Amount must be > 0");
-        require(balances[user] >= amount,  "Balance too low to burn");
-        balances[user] -= amount;
+        require(user != address(0), "Zero address");
+        require(amount > 0,         "Amount must be > 0");
+        _burn(user, amount);
         emit AdminBurn(user, amount);
     }
 

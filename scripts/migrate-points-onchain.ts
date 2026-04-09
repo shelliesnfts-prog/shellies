@@ -1,5 +1,8 @@
 /**
- * Migration script: mint on-chain ShelliesPoints for all wallets with legacy DB points > 0
+ * Migration script: mint SPTS ERC20 tokens for all wallets with points > 0 in Supabase.
+ *
+ * Source of truth: shellies_raffle_users.points column in Supabase.
+ * Does NOT read the old on-chain contract — Supabase is the canonical balance for migration.
  *
  * Usage:
  *   npx tsx scripts/migrate-points-onchain.ts           # live run
@@ -8,8 +11,8 @@
  * Required env vars:
  *   SUPABASE_URL
  *   SUPABASE_SERVICE_ROLE_KEY
- *   OWNER_PRIVATE_KEY
- *   SHELLIES_POINTS_ADDRESS
+ *   OWNER_PRIVATE_KEY              (owner of the new ERC20 ShelliesPoints contract)
+ *   SHELLIES_POINTS_ADDRESS        (address of the NEW ERC20 contract, not the old one)
  */
 
 import { createClient } from '@supabase/supabase-js';

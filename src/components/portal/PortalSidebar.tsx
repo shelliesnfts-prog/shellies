@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
-import { useAccount } from 'wagmi';
+import { useAccount, useWalletClient } from 'wagmi';
+import { SHELLIES_POINTS_ADDRESS } from '@/lib/shellies-points-contract';
 import { useRouter, usePathname } from 'next/navigation';
 import { usePoints } from '@/contexts/PointsContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -41,6 +42,7 @@ export function PortalSidebar({
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const { data: session } = useSession();
   const { address, isConnected } = useAccount();
+  const { data: walletClient } = useWalletClient();
   const router = useRouter();
   const pathname = usePathname();
   const { isDarkMode, toggleDarkMode } = useTheme();
@@ -48,6 +50,23 @@ export function PortalSidebar({
 
   // Get wallet address from session or wagmi
   const walletAddress = address || session?.address || '';
+
+  const addSPTSToWallet = async () => {
+    if (!walletClient) return;
+    try {
+      await walletClient.watchAsset({
+        type: 'ERC20',
+        options: {
+          address: SHELLIES_POINTS_ADDRESS,
+          symbol: 'SPTS',
+          decimals: 0,
+          image: 'https://www.shellies.xyz/shellies_icon.jpg',
+        },
+      });
+    } catch {
+      // User rejected or wallet doesn't support watchAsset — silently ignore
+    }
+  };
 
   const handleClaimDaily = async () => {
     // Just submit the transaction — PointsContext watches isClaimSuccess
@@ -233,6 +252,17 @@ export function PortalSidebar({
                       <>
                         <p className="text-white text-sm font-bold mr-2">{user?.points?.toFixed(1) || '0.0'}</p>
                         <p className="text-white font-medium text-xs">Point{(user?.points ?? 0) !== 1 ? 's' : ''}</p>
+                        {walletClient && (
+                          <button
+                            onClick={addSPTSToWallet}
+                            title="Add SPTS to wallet"
+                            className="ml-2 text-white/60 hover:text-white transition-colors duration-150"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+                            </svg>
+                          </button>
+                        )}
                       </>
                     )}
                   </div>
