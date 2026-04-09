@@ -17,7 +17,8 @@ import {
   Zap,
   Save,
   RefreshCw,
-  Settings
+  Settings,
+  Shield
 } from 'lucide-react';
 
 export default function AdminXPSettingsPage() {
@@ -232,6 +233,14 @@ export default function AdminXPSettingsPage() {
                     isDarkMode ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-500 hover:bg-gray-50'
                   }`}>
                   <Settings className="w-5 h-5 mr-3" /><span className="font-medium text-sm">Points Config</span>
+                </button>
+              </li>
+              <li>
+                <button onClick={() => router.push('/admin/contract-admins')}
+                  className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
+                    isDarkMode ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-500 hover:bg-gray-50'
+                  }`}>
+                  <Shield className="w-5 h-5 mr-3" /><span className="font-medium text-sm">Contract Admins</span>
                 </button>
               </li>
               <li>
