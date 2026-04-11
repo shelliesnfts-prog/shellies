@@ -36,9 +36,14 @@ contract ShelliesPoints is ERC20, Ownable, ReentrancyGuard {
     // ── Cooldown Tracking ────────────────────────────────────────────────────
 
     mapping(address => uint256) public lastClaim;
-    mapping(address => uint256) public lastClaimWithFees;
     mapping(uint256 => bool)    public usedNonces;
     mapping(address => bool)    public operators;
+
+    // ── Paid Claim Per-Category Cooldown Tracking ──────────────────────────────
+
+    mapping(address => uint256) public lastClaimStakerTier;
+    mapping(address => uint256) public lastClaimHolderTier;
+    mapping(address => uint256) public lastClaimRegularTier;
 
     // ── Roles ─────────────────────────────────────────────────────────────────
 
@@ -59,11 +64,28 @@ contract ShelliesPoints is ERC20, Ownable, ReentrancyGuard {
     uint256 public pointsPerMonthlyStakedNFT;  // points per MONTH-staked NFT
     uint256 public maxPointsPerClaim;          // hard cap per claim
 
-    // ── Paid Claim Config ────────────────────────────────────────────────────
+    // ── Paid Claim Config (Tiered) ──────────────────────────────────────────────
 
-    uint256 public claimWithFeesReward;        // points awarded per paid claim
-    uint256 public claimWithFeesCost;          // wei required per paid claim
-    uint256 public claimWithFeesCooldown;      // seconds between paid claims (0 = no cooldown)
+    uint8   public constant CATEGORY_REGULAR = 0;
+    uint8   public constant CATEGORY_HOLDER  = 1;
+    uint8   public constant CATEGORY_STAKER  = 2;
+
+    // Cost per tier (ETH fee)
+    uint256 public stakerTierCost;
+    uint256 public holderTierCost;
+    uint256 public regularTierCost;
+
+    // Points per staked NFT (combined, not by period) and per held NFT
+    uint256 public pointsPerStakedNFT;
+    uint256 public pointsPerHeldNFT;
+
+    // Fixed reward for regular users (no NFTs)
+    uint256 public rewardPerRegularUser;
+
+    // Per-category cooldowns (seconds, 0 = no cooldown)
+    uint256 public stakerTierCooldown;
+    uint256 public holderTierCooldown;
+    uint256 public regularTierCooldown;
 
     // ── XP Conversion Config ─────────────────────────────────────────────────
 
@@ -73,7 +95,7 @@ contract ShelliesPoints is ERC20, Ownable, ReentrancyGuard {
     // ── Events ───────────────────────────────────────────────────────────────
 
     event Claimed(address indexed user, uint256 points, uint256 timestamp);
-    event ClaimedWithFees(address indexed user, uint256 points, uint256 feePaid);
+    event ClaimedWithFees(address indexed user, uint8 category, uint256 points, uint256 feePaid);
     event XpConverted(address indexed user, uint256 xpAmount, uint256 points, uint256 nonce);
     event PointsSpent(address indexed user, uint256 amount, address indexed spender);
     event AdminMint(address indexed user, uint256 amount);
@@ -95,7 +117,8 @@ contract ShelliesPoints is ERC20, Ownable, ReentrancyGuard {
     constructor(
         address _stakingContract,
         address _nftContract,
-        address _authorizedSigner
+        address _authorizedSigner,
+        uint256 _initialSupply
     ) ERC20("Shellies Points", "SPTS") Ownable(msg.sender) {
         require(_stakingContract != address(0), "Zero staking contract");
         require(_nftContract != address(0), "Zero NFT contract");
@@ -104,6 +127,10 @@ contract ShelliesPoints is ERC20, Ownable, ReentrancyGuard {
         stakingContract   = _stakingContract;
         nftContract       = _nftContract;
         authorizedSigner  = _authorizedSigner;
+
+        if (_initialSupply > 0) {
+            _mint(msg.sender, _initialSupply);
+        }
 
         // Free claim defaults
         claimCooldown             = 86400; // 24 h
@@ -114,10 +141,16 @@ contract ShelliesPoints is ERC20, Ownable, ReentrancyGuard {
         pointsPerMonthlyStakedNFT = 20;
         maxPointsPerClaim         = 2000;
 
-        // Paid claim defaults — owner must set cost & reward before enabling
-        claimWithFeesReward   = 0;
-        claimWithFeesCost     = 0;
-        claimWithFeesCooldown = 0;
+        // Paid claim defaults — owner must set cost before enabling
+        stakerTierCost   = 0;
+        holderTierCost   = 0;
+        regularTierCost  = 0;
+        pointsPerStakedNFT = 0;
+        pointsPerHeldNFT   = 0;
+        rewardPerRegularUser = 0;
+        stakerTierCooldown = 0;
+        holderTierCooldown = 0;
+        regularTierCooldown = 0;
 
         // XP conversion defaults
         xpConversionRate = 10;
@@ -142,6 +175,18 @@ contract ShelliesPoints is ERC20, Ownable, ReentrancyGuard {
     ///      This wrapper keeps it working without redeploying the raffle contract.
     function balances(address user) external view returns (uint256) {
         return balanceOf(user);
+    }
+
+    // ── User Category Helper ─────────────────────────────────────────────────
+
+    function getUserCategory(address user) internal view returns (uint8) {
+        if (ITimeLockStaking(stakingContract).getStakedTokens(user).length > 0) {
+            return CATEGORY_STAKER;
+        }
+        if (IERC721Minimal(nftContract).balanceOf(user) > 0) {
+            return CATEGORY_HOLDER;
+        }
+        return CATEGORY_REGULAR;
     }
 
     // ── Free Claim ───────────────────────────────────────────────────────────
@@ -189,32 +234,75 @@ contract ShelliesPoints is ERC20, Ownable, ReentrancyGuard {
         emit Claimed(msg.sender, points, block.timestamp);
     }
 
-    // ── Paid Claim ───────────────────────────────────────────────────────────
+    // ── Paid Claim (Tiered - Dynamic) ─────────────────────────────────────────
 
     function claimWithFees() external payable nonReentrant {
-        require(claimWithFeesCost > 0,   "Paid claim: cost not configured");
-        require(claimWithFeesReward > 0, "Paid claim: reward not configured");
-        require(msg.value >= claimWithFeesCost, "Insufficient fee");
+        uint8 category = getUserCategory(msg.sender);
 
-        if (claimWithFeesCooldown > 0) {
-            require(
-                block.timestamp >= lastClaimWithFees[msg.sender] + claimWithFeesCooldown,
-                "Paid claim cooldown not elapsed"
-            );
-            lastClaimWithFees[msg.sender] = block.timestamp;
+        uint256 cost;
+        uint256 cooldown;
+        uint256 lastClaimTime;
+
+        if (category == CATEGORY_STAKER) {
+            cost = stakerTierCost;
+            cooldown = stakerTierCooldown;
+            lastClaimTime = lastClaimStakerTier[msg.sender];
+
+            require(cost > 0, "Staker tier: cost not configured");
+            require(pointsPerStakedNFT > 0, "Staker tier: reward not configured");
+
+        } else if (category == CATEGORY_HOLDER) {
+            cost = holderTierCost;
+            cooldown = holderTierCooldown;
+            lastClaimTime = lastClaimHolderTier[msg.sender];
+
+            require(cost > 0, "Holder tier: cost not configured");
+            require(pointsPerHeldNFT > 0, "Holder tier: reward not configured");
+
+        } else {
+            cost = regularTierCost;
+            cooldown = regularTierCooldown;
+            lastClaimTime = lastClaimRegularTier[msg.sender];
+
+            require(cost > 0, "Regular tier: cost not configured");
+            require(rewardPerRegularUser > 0, "Regular tier: reward not configured");
         }
 
-        uint256 excess = msg.value - claimWithFeesCost;
+        require(msg.value >= cost, "Insufficient fee");
 
-        _mint(msg.sender, claimWithFeesReward);
+        if (cooldown > 0) {
+            require(
+                block.timestamp >= lastClaimTime + cooldown,
+                "Paid claim cooldown not elapsed"
+            );
+        }
 
-        // Refund excess after state update
+        uint256 excess = msg.value - cost;
+        uint256 reward;
+
+        if (category == CATEGORY_STAKER) {
+            uint256[] memory stakedIds = ITimeLockStaking(stakingContract).getStakedTokens(msg.sender);
+            reward = stakedIds.length * pointsPerStakedNFT;
+            lastClaimStakerTier[msg.sender] = block.timestamp;
+
+        } else if (category == CATEGORY_HOLDER) {
+            uint256 heldNFTs = IERC721Minimal(nftContract).balanceOf(msg.sender);
+            reward = heldNFTs * pointsPerHeldNFT;
+            lastClaimHolderTier[msg.sender] = block.timestamp;
+
+        } else {
+            reward = rewardPerRegularUser;
+            lastClaimRegularTier[msg.sender] = block.timestamp;
+        }
+
+        _mint(msg.sender, reward);
+
         if (excess > 0) {
             (bool ok,) = msg.sender.call{value: excess}("");
             require(ok, "Refund failed");
         }
 
-        emit ClaimedWithFees(msg.sender, claimWithFeesReward, claimWithFeesCost);
+        emit ClaimedWithFees(msg.sender, category, reward, cost);
     }
 
     // ── XP Conversion ────────────────────────────────────────────────────────
@@ -323,21 +411,51 @@ contract ShelliesPoints is ERC20, Ownable, ReentrancyGuard {
         emit ConfigUpdated("maxPointsPerClaim", amount);
     }
 
-    // ── Config Setters — Paid Claim ───────────────────────────────────────────
+    // ── Config Setters — Paid Claim (Tiered) ───────────────────────────────────
 
-    function setClaimWithFeesReward(uint256 amount) external onlyOwner {
-        claimWithFeesReward = amount;
-        emit ConfigUpdated("claimWithFeesReward", amount);
+    function setStakerTierCost(uint256 amount) external onlyOwner {
+        stakerTierCost = amount;
+        emit ConfigUpdated("stakerTierCost", amount);
     }
 
-    function setClaimWithFeesCost(uint256 weiAmount) external onlyOwner {
-        claimWithFeesCost = weiAmount;
-        emit ConfigUpdated("claimWithFeesCost", weiAmount);
+    function setHolderTierCost(uint256 amount) external onlyOwner {
+        holderTierCost = amount;
+        emit ConfigUpdated("holderTierCost", amount);
     }
 
-    function setClaimWithFeesCooldown(uint256 seconds_) external onlyOwner {
-        claimWithFeesCooldown = seconds_;
-        emit ConfigUpdated("claimWithFeesCooldown", seconds_);
+    function setRegularTierCost(uint256 amount) external onlyOwner {
+        regularTierCost = amount;
+        emit ConfigUpdated("regularTierCost", amount);
+    }
+
+    function setPointsPerStakedNFT(uint256 amount) external onlyOwner {
+        pointsPerStakedNFT = amount;
+        emit ConfigUpdated("pointsPerStakedNFT", amount);
+    }
+
+    function setPointsPerHeldNFT(uint256 amount) external onlyOwner {
+        pointsPerHeldNFT = amount;
+        emit ConfigUpdated("pointsPerHeldNFT", amount);
+    }
+
+    function setRewardPerRegularUser(uint256 amount) external onlyOwner {
+        rewardPerRegularUser = amount;
+        emit ConfigUpdated("rewardPerRegularUser", amount);
+    }
+
+    function setStakerTierCooldown(uint256 seconds_) external onlyOwner {
+        stakerTierCooldown = seconds_;
+        emit ConfigUpdated("stakerTierCooldown", seconds_);
+    }
+
+    function setHolderTierCooldown(uint256 seconds_) external onlyOwner {
+        holderTierCooldown = seconds_;
+        emit ConfigUpdated("holderTierCooldown", seconds_);
+    }
+
+    function setRegularTierCooldown(uint256 seconds_) external onlyOwner {
+        regularTierCooldown = seconds_;
+        emit ConfigUpdated("regularTierCooldown", seconds_);
     }
 
     // ── Config Setters — XP Conversion ───────────────────────────────────────

@@ -55,10 +55,14 @@ export function AdminGuard({ children }: AdminGuardProps) {
 
   if (loading || status === 'loading') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center">
-        <div className="bg-white/10 backdrop-blur-md rounded-xl p-8 border border-white/20 text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400 mx-auto mb-4"></div>
-          <p className="text-white">Checking admin privileges...</p>
+      <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-6">
+          <div className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-purple-400 animate-[pulse_1.4s_ease-in-out_infinite]" />
+            <span className="h-2 w-2 rounded-full bg-purple-400 animate-[pulse_1.4s_ease-in-out_0.2s_infinite]" />
+            <span className="h-2 w-2 rounded-full bg-purple-400 animate-[pulse_1.4s_ease-in-out_0.4s_infinite]" />
+          </div>
+          <p className="text-sm text-gray-400 tracking-wide">Loading</p>
         </div>
       </div>
     );
@@ -66,23 +70,29 @@ export function AdminGuard({ children }: AdminGuardProps) {
 
   if (status === 'unauthenticated' || !isAdmin) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center">
-        <div className="bg-white/10 backdrop-blur-md rounded-xl p-8 border border-white/20 text-center max-w-md">
-          <div className="text-6xl mb-6">🚫</div>
-          <h2 className="text-3xl font-bold text-white mb-6">Access Denied</h2>
-          <p className="text-gray-300 mb-8">
-            You need admin privileges to access this page.
-          </p>
-          <div className="space-y-4">
+      <div className="min-h-screen bg-[var(--background)] flex items-center justify-center px-4">
+        <div className="w-full max-w-sm text-center space-y-6">
+          <div className="w-10 h-10 rounded-full border border-red-500/20 flex items-center justify-center mx-auto">
+            <svg className="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+            </svg>
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-white mb-2">Access Denied</h2>
+            <p className="text-sm text-gray-400">
+              Admin privileges are required to view this page.
+            </p>
+          </div>
+          <div className="space-y-3">
             <button
               onClick={() => router.push('/portal')}
-              className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-8 py-4 rounded-lg font-bold text-lg transition-all duration-200 transform hover:scale-105 shadow-lg"
+              className="w-full bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors"
             >
               Go to Portal
             </button>
             <button
               onClick={() => router.push('/')}
-              className="w-full border-2 border-purple-400 text-purple-400 hover:bg-purple-400 hover:text-white px-8 py-4 rounded-lg font-bold text-lg transition-all duration-200"
+              className="w-full text-sm text-gray-500 hover:text-gray-300 py-2 transition-colors"
             >
               Back to Home
             </button>

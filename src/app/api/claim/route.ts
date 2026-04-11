@@ -20,10 +20,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       claim: claimStatus,
-      claimWithFees: {
-        ...claimWithFeesStatus,
-        cost: claimWithFeesStatus.cost.toString(),
-      },
+      claimWithFees: claimWithFeesStatus,
     });
   } catch (error) {
     console.error('Error in claim status API:', error);

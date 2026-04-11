@@ -98,33 +98,61 @@ export const ShelliesPointsService = {
   },
 
   async getClaimWithFeesStatus(walletAddress: string): Promise<{
-    lastClaim: number;
-    cooldown: number;
-    canClaim: boolean;
-    cost: bigint;
-    reward: number;
+    lastClaimStaker: number;
+    lastClaimHolder: number;
+    lastClaimRegular: number;
+    stakerTier: { cost: bigint; pointsPerStakedNFT: number; cooldown: number };
+    holderTier: { cost: bigint; pointsPerHeldNFT: number; cooldown: number };
+    regularTier: { cost: bigint; reward: number; cooldown: number };
   }> {
-    const [lastClaimRaw, cooldownRaw, costRaw, rewardRaw] = await Promise.all([
-      readContract<bigint>('lastClaimWithFees', [walletAddress as `0x${string}`]),
-      readContract<bigint>('claimWithFeesCooldown'),
-      readContract<bigint>('claimWithFeesCost'),
-      readContract<bigint>('claimWithFeesReward'),
+    const [
+      lastClaimStakerRaw,
+      lastClaimHolderRaw,
+      lastClaimRegularRaw,
+      stakerTierCostRaw,
+      pointsPerStakedNFTRaw,
+      stakerTierCooldownRaw,
+      holderTierCostRaw,
+      pointsPerHeldNFTRaw,
+      holderTierCooldownRaw,
+      regularTierCostRaw,
+      rewardPerRegularUserRaw,
+      regularTierCooldownRaw,
+    ] = await Promise.all([
+      readContract<bigint>('lastClaimStakerTier', [walletAddress as `0x${string}`]),
+      readContract<bigint>('lastClaimHolderTier', [walletAddress as `0x${string}`]),
+      readContract<bigint>('lastClaimRegularTier', [walletAddress as `0x${string}`]),
+      readContract<bigint>('stakerTierCost'),
+      readContract<bigint>('pointsPerStakedNFT'),
+      readContract<bigint>('stakerTierCooldown'),
+      readContract<bigint>('holderTierCost'),
+      readContract<bigint>('pointsPerHeldNFT'),
+      readContract<bigint>('holderTierCooldown'),
+      readContract<bigint>('regularTierCost'),
+      readContract<bigint>('rewardPerRegularUser'),
+      readContract<bigint>('regularTierCooldown'),
     ]);
 
-    const lastClaim = Number(lastClaimRaw);
-    const cooldown = Number(cooldownRaw);
-    const cost = costRaw;
-    const reward = Number(rewardRaw);
-
-    const nowSec = Math.floor(Date.now() / 1000);
-    let canClaim: boolean;
-    if (cooldown === 0) {
-      canClaim = true;
-    } else {
-      canClaim = nowSec >= lastClaim + cooldown;
-    }
-
-    return { lastClaim, cooldown, canClaim, cost, reward };
+    return {
+      lastClaimStaker: Number(lastClaimStakerRaw),
+      lastClaimHolder: Number(lastClaimHolderRaw),
+      lastClaimRegular: Number(lastClaimRegularRaw),
+      stakerTier: {
+        cost: stakerTierCostRaw,
+        pointsPerStakedNFT: Number(pointsPerStakedNFTRaw),
+        cooldown: Number(stakerTierCooldownRaw),
+      },
+      holderTier: {
+        cost: holderTierCostRaw,
+        pointsPerHeldNFT: Number(pointsPerHeldNFTRaw),
+        cooldown: Number(holderTierCooldownRaw),
+      },
+      regularTier: {
+        cost: regularTierCostRaw,
+        reward: Number(rewardPerRegularUserRaw),
+        cooldown: Number(regularTierCooldownRaw),
+      },
+    };
   },
 
   async signConvertXpVoucher(
@@ -191,10 +219,18 @@ export const ShelliesPointsService = {
     pointsPerDailyStakedNFT: number;
     pointsPerWeeklyStakedNFT: number;
     pointsPerMonthlyStakedNFT: number;
-    claimWithFeesCost: string;
-    claimWithFeesCostEth: string;
-    claimWithFeesReward: number;
-    claimWithFeesCooldown: number;
+    stakerTierCost: string;
+    stakerTierCostEth: string;
+    pointsPerStakedNFT: number;
+    stakerTierCooldown: number;
+    holderTierCost: string;
+    holderTierCostEth: string;
+    pointsPerHeldNFT: number;
+    holderTierCooldown: number;
+    regularTierCost: string;
+    regularTierCostEth: string;
+    rewardPerRegularUser: number;
+    regularTierCooldown: number;
     xpConversionRate: number;
     minXpToConvert: number;
     authorizedSigner: string;
@@ -207,9 +243,15 @@ export const ShelliesPointsService = {
       pointsPerDailyRaw,
       pointsPerWeeklyRaw,
       pointsPerMonthlyRaw,
-      claimWithFeesCostRaw,
-      claimWithFeesRewardRaw,
-      claimWithFeesCooldownRaw,
+      stakerTierCostRaw,
+      pointsPerStakedNFTRaw,
+      stakerTierCooldownRaw,
+      holderTierCostRaw,
+      pointsPerHeldNFTRaw,
+      holderTierCooldownRaw,
+      regularTierCostRaw,
+      rewardPerRegularUserRaw,
+      regularTierCooldownRaw,
       xpConversionRateRaw,
       minXpToConvertRaw,
       authorizedSignerRaw,
@@ -221,9 +263,15 @@ export const ShelliesPointsService = {
       readContract<bigint>('pointsPerDailyStakedNFT'),
       readContract<bigint>('pointsPerWeeklyStakedNFT'),
       readContract<bigint>('pointsPerMonthlyStakedNFT'),
-      readContract<bigint>('claimWithFeesCost'),
-      readContract<bigint>('claimWithFeesReward'),
-      readContract<bigint>('claimWithFeesCooldown'),
+      readContract<bigint>('stakerTierCost'),
+      readContract<bigint>('pointsPerStakedNFT'),
+      readContract<bigint>('stakerTierCooldown'),
+      readContract<bigint>('holderTierCost'),
+      readContract<bigint>('pointsPerHeldNFT'),
+      readContract<bigint>('holderTierCooldown'),
+      readContract<bigint>('regularTierCost'),
+      readContract<bigint>('rewardPerRegularUser'),
+      readContract<bigint>('regularTierCooldown'),
       readContract<bigint>('xpConversionRate'),
       readContract<bigint>('minXpToConvert'),
       readContract<string>('authorizedSigner'),
@@ -237,11 +285,18 @@ export const ShelliesPointsService = {
       pointsPerDailyStakedNFT: Number(pointsPerDailyRaw),
       pointsPerWeeklyStakedNFT: Number(pointsPerWeeklyRaw),
       pointsPerMonthlyStakedNFT: Number(pointsPerMonthlyRaw),
-      // cost stored in wei; also expose as ETH string for the UI
-      claimWithFeesCost: claimWithFeesCostRaw.toString(),
-      claimWithFeesCostEth: ethers.formatEther(claimWithFeesCostRaw),
-      claimWithFeesReward: Number(claimWithFeesRewardRaw),
-      claimWithFeesCooldown: Number(claimWithFeesCooldownRaw),
+      stakerTierCost: stakerTierCostRaw.toString(),
+      stakerTierCostEth: ethers.formatEther(stakerTierCostRaw),
+      pointsPerStakedNFT: Number(pointsPerStakedNFTRaw),
+      stakerTierCooldown: Number(stakerTierCooldownRaw),
+      holderTierCost: holderTierCostRaw.toString(),
+      holderTierCostEth: ethers.formatEther(holderTierCostRaw),
+      pointsPerHeldNFT: Number(pointsPerHeldNFTRaw),
+      holderTierCooldown: Number(holderTierCooldownRaw),
+      regularTierCost: regularTierCostRaw.toString(),
+      regularTierCostEth: ethers.formatEther(regularTierCostRaw),
+      rewardPerRegularUser: Number(rewardPerRegularUserRaw),
+      regularTierCooldown: Number(regularTierCooldownRaw),
       xpConversionRate: Number(xpConversionRateRaw),
       minXpToConvert: Number(minXpToConvertRaw),
       authorizedSigner: authorizedSignerRaw as string,
@@ -294,17 +349,40 @@ export const ShelliesPointsService = {
     return this._ownerCall('setPointsPerMonthlyStakedNFT(uint256)', [BigInt(amount)]);
   },
 
-  // costEth: ETH amount as a decimal string, e.g. "0.001"
-  setClaimWithFeesCost(costEth: string) {
-    return this._ownerCall('setClaimWithFeesCost(uint256)', [ethers.parseEther(costEth)]);
+  setStakerTierCost(costEth: string) {
+    return this._ownerCall('setStakerTierCost(uint256)', [ethers.parseEther(costEth)]);
   },
 
-  setClaimWithFeesReward(amount: number) {
-    return this._ownerCall('setClaimWithFeesReward(uint256)', [BigInt(amount)]);
+  setPointsPerStakedNFT(amount: number) {
+    return this._ownerCall('setPointsPerStakedNFT(uint256)', [BigInt(amount)]);
   },
 
-  setClaimWithFeesCooldown(seconds: number) {
-    return this._ownerCall('setClaimWithFeesCooldown(uint256)', [BigInt(seconds)]);
+  setStakerTierCooldown(seconds: number) {
+    return this._ownerCall('setStakerTierCooldown(uint256)', [BigInt(seconds)]);
+  },
+
+  setHolderTierCost(costEth: string) {
+    return this._ownerCall('setHolderTierCost(uint256)', [ethers.parseEther(costEth)]);
+  },
+
+  setPointsPerHeldNFT(amount: number) {
+    return this._ownerCall('setPointsPerHeldNFT(uint256)', [BigInt(amount)]);
+  },
+
+  setHolderTierCooldown(seconds: number) {
+    return this._ownerCall('setHolderTierCooldown(uint256)', [BigInt(seconds)]);
+  },
+
+  setRegularTierCost(costEth: string) {
+    return this._ownerCall('setRegularTierCost(uint256)', [ethers.parseEther(costEth)]);
+  },
+
+  setRewardPerRegularUser(amount: number) {
+    return this._ownerCall('setRewardPerRegularUser(uint256)', [BigInt(amount)]);
+  },
+
+  setRegularTierCooldown(seconds: number) {
+    return this._ownerCall('setRegularTierCooldown(uint256)', [BigInt(seconds)]);
   },
 
   setXpConversionRate(rate: number) {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/contexts/ThemeContext';
 import { parseConversionError } from '@/lib/errors';
@@ -61,7 +61,7 @@ interface PendingVoucher {
 interface XPBridgeProps {
   currentXP: number;
   currentPoints: number;
-  onConversionComplete: (newXP: number, newPoints: number) => void;
+  onConversionComplete: (() => void) | ((newXP: number, newPoints: number) => void);
 }
 
 /**
@@ -89,11 +89,24 @@ export default function XPBridge({
   // XP input state
   const [xpInput, setXpInput] = useState<string>('');
 
-  // Dynamic settings from API
-  const [conversionRate, setConversionRate] = useState<number>(DEFAULT_CONVERSION_RATE);
+  // Dynamic settings from API (fee only — rate & minXp come from on-chain)
   const [paymentAmountUsd, setPaymentAmountUsd] = useState<number>(DEFAULT_PAYMENT_AMOUNT_USD);
-  const [minimumXp, setMinimumXp] = useState<number>(DEFAULT_MINIMUM_XP);
   const [loadingSettings, setLoadingSettings] = useState<boolean>(true);
+
+  // On-chain conversion config (authoritative source for minting logic)
+  const { data: onChainRateRaw } = useReadContract({
+    address: SHELLIES_POINTS_ADDRESS,
+    abi: SHELLIES_POINTS_CONTRACT.abi,
+    functionName: 'xpConversionRate',
+  });
+  const { data: onChainMinXpRaw } = useReadContract({
+    address: SHELLIES_POINTS_ADDRESS,
+    abi: SHELLIES_POINTS_CONTRACT.abi,
+    functionName: 'minXpToConvert',
+  });
+
+  const conversionRate = onChainRateRaw ? Number(onChainRateRaw as bigint) : DEFAULT_CONVERSION_RATE;
+  const minimumXp = onChainMinXpRaw ? Number(onChainMinXpRaw as bigint) : DEFAULT_MINIMUM_XP;
 
   // Recovery mechanism state (old payment-tx recovery)
   const [pendingConversion, setPendingConversion] = useState<PendingConversion | null>(null);
@@ -116,7 +129,7 @@ export default function XPBridge({
 
   // Calculate points that will be received based on input
   const xpToConvert = xpInput ? parseInt(xpInput) || 0 : 0;
-  const calculatedPoints = xpToConvert / conversionRate;
+  const calculatedPoints = conversionRate > 0 ? Math.floor(xpToConvert / conversionRate) : 0;
   const ethAmount = ethPrice > 0 ? paymentAmountUsd / ethPrice : 0;
 
   // Fetch ETH price on mount
@@ -140,7 +153,7 @@ export default function XPBridge({
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch XP conversion settings from API
+  // Fetch fee setting from API (rate & minXp are read on-chain above)
   useEffect(() => {
     const fetchSettings = async () => {
       try {
@@ -148,13 +161,10 @@ export default function XPBridge({
         const response = await fetch('/api/xp-settings');
         if (response.ok) {
           const data = await response.json();
-          setConversionRate(data.conversionRate || DEFAULT_CONVERSION_RATE);
           setPaymentAmountUsd(data.feeUsd || DEFAULT_PAYMENT_AMOUNT_USD);
-          setMinimumXp(data.minXp || DEFAULT_MINIMUM_XP);
         }
       } catch (error) {
         console.error('Failed to fetch XP settings:', error);
-        // Keep defaults on error
       } finally {
         setLoadingSettings(false);
       }
@@ -249,10 +259,14 @@ export default function XPBridge({
     if (isConvertXpSuccess) {
       localStorage.removeItem(PENDING_VOUCHER_KEY);
       setPendingVoucher(null);
+      setXpInput('');
       setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 3000);
-      // Refresh caller's balance
+      setTimeout(() => setShowSuccess(false), 5000);
+      // Refresh caller's balance immediately + with delays for RPC lag
       onConversionComplete(currentXP, currentPoints);
+      const t1 = setTimeout(() => onConversionComplete(currentXP, currentPoints), 2000);
+      const t2 = setTimeout(() => onConversionComplete(currentXP, currentPoints), 5000);
+      return () => { clearTimeout(t1); clearTimeout(t2); };
     }
   }, [isConvertXpSuccess]);
 
@@ -670,7 +684,7 @@ export default function XPBridge({
                       <div className={`flex items-center justify-between text-[11px] ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
                         <span>You receive</span>
                         <span className={`font-semibold tabular-nums ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>
-                          {calculatedPoints.toFixed(1)} points
+                          {calculatedPoints} points
                         </span>
                       </div>
                     )}
@@ -756,7 +770,7 @@ export default function XPBridge({
                   ) : !xpInput || !inputValidation.isValid ? (
                     <span>Enter XP amount</span>
                   ) : (
-                    <span>Convert {xpToConvert.toLocaleString()} XP → {calculatedPoints.toFixed(1)} pts</span>
+                    <span>Convert {xpToConvert.toLocaleString()} XP → {calculatedPoints} pts</span>
                   )}
                 </button>
               )}

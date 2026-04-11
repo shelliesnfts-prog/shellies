@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
-import { useAccount, useWalletClient } from 'wagmi';
-import { SHELLIES_POINTS_ADDRESS } from '@/lib/shellies-points-contract';
+import { useAccount } from 'wagmi';
 import { useRouter, usePathname } from 'next/navigation';
 import { usePoints } from '@/contexts/PointsContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -42,7 +41,7 @@ export function PortalSidebar({
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const { data: session } = useSession();
   const { address, isConnected } = useAccount();
-  const { data: walletClient } = useWalletClient();
+
   const router = useRouter();
   const pathname = usePathname();
   const { isDarkMode, toggleDarkMode } = useTheme();
@@ -50,23 +49,6 @@ export function PortalSidebar({
 
   // Get wallet address from session or wagmi
   const walletAddress = address || session?.address || '';
-
-  const addSPTSToWallet = async () => {
-    if (!walletClient) return;
-    try {
-      await walletClient.watchAsset({
-        type: 'ERC20',
-        options: {
-          address: SHELLIES_POINTS_ADDRESS,
-          symbol: 'SPTS',
-          decimals: 0,
-          image: 'https://www.shellies.xyz/shellies_icon.jpg',
-        },
-      });
-    } catch {
-      // User rejected or wallet doesn't support watchAsset — silently ignore
-    }
-  };
 
   const handleClaimDaily = async () => {
     // Just submit the transaction — PointsContext watches isClaimSuccess
@@ -250,25 +232,14 @@ export function PortalSidebar({
                       </div>
                     ) : (
                       <>
-                        <p className="text-white text-sm font-bold mr-2">{user?.points?.toFixed(1) || '0.0'}</p>
+                        <p className="text-white text-sm font-bold mr-2">{user?.points ?? 0}</p>
                         <p className="text-white font-medium text-xs">Point{(user?.points ?? 0) !== 1 ? 's' : ''}</p>
-                        {walletClient && (
-                          <button
-                            onClick={addSPTSToWallet}
-                            title="Add SPTS to wallet"
-                            className="ml-2 text-white/60 hover:text-white transition-colors duration-150"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
-                            </svg>
-                          </button>
-                        )}
                       </>
                     )}
                   </div>
                   {!userLoading && (
                     <button
-                      onClick={() => handleNavigation('/portal/profile')}
+                      onClick={() => handleNavigation('/portal/claim')}
                       className="relative px-2 py-1 bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-300 hover:to-orange-400 rounded-md transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 overflow-hidden group"
                     >
                       {/* Shining animation overlay */}
@@ -291,6 +262,21 @@ export function PortalSidebar({
         {/* Navigation Section */}
         <nav className="flex-1 px-4 py-6 overflow-y-auto">
           <ul className="space-y-1">
+            {/* Claim */}
+            <li>
+              <button
+                onClick={() => handleNavigation('/portal/claim')}
+                className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
+                  isActive('/portal/claim')
+                    ? 'bg-purple-100 text-gray-900'
+                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                }`}
+              >
+                <Gift className="w-5 h-5 mr-3" />
+                <span className="font-medium text-sm">Claim</span>
+              </button>
+            </li>
+
             {/* Profile */}
             <li>
               <button

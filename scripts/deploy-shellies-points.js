@@ -29,7 +29,7 @@ async function main() {
   const stakingContract = process.env.NEXT_PUBLIC_STAKING_CONTRACT_ADDRESS;
   const nftContract = process.env.NEXT_PUBLIC_SHELLIES_CONTRACT_ADDRESS;
   const authorizedSigner = process.env.AUTHORIZED_SIGNER_ADDRESS;
-  const initialSupply = process.env.INITIAL_SUPPLY || "0";
+  const initialSupply = process.env.INITIAL_SUPPLY ? parseInt(process.env.INITIAL_SUPPLY, 10) : 0;
 
   if (!stakingContract || stakingContract === "0xYourRaffleContractAddressOnInkChain") {
     throw new Error("Missing NEXT_PUBLIC_STAKING_CONTRACT_ADDRESS in .env");

@@ -60,16 +60,32 @@ interface PointsContextType {
   canPerformStaking: boolean;
   claimCooldown: number;
 
-  // Paid claim state
+  // Paid claim state (tiered) + backward compat aliases (staker tier as default)
+  canClaimWithFeesStaker: boolean;
+  canClaimWithFeesHolder: boolean;
+  canClaimWithFeesRegular: boolean;
+  secondsUntilStaker: number;
+  secondsUntilHolder: number;
+  secondsUntilRegular: number;
+  stakerTierCost: bigint;
+  holderTierCost: bigint;
+  regularTierCost: bigint;
+  pointsPerStakedNFT: number;
+  pointsPerHeldNFT: number;
+  rewardPerRegularUser: number;
+  executeClaimWithFeesStaker: () => void;
+  executeClaimWithFeesHolder: () => void;
+  executeClaimWithFeesRegular: () => void;
+  isClaimWithFeesPending: boolean;
+  isClaimWithFeesConfirming: boolean;
+  isLoadingClaimStatus: boolean;
+  // Backward compat — staker tier values
   canClaimWithFees: boolean;
   secondsUntilClaimWithFees: number;
   claimWithFeesCost: bigint;
   claimWithFeesReward: number;
-  isClaimWithFeesPending: boolean;
-  isClaimWithFeesConfirming: boolean;
   isLoadingPaidClaimConfig: boolean;
   isPaidClaimConfigured: boolean;
-  isLoadingClaimStatus: boolean;
 }
 
 const PointsContext = createContext<PointsContextType | undefined>(undefined);
@@ -118,7 +134,6 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
 
   const {
     executeClaim: claimWrite,
-    executeClaimWithFees: claimWithFeesWrite,
     isClaimSuccess,
     isClaimWithFeesSuccess,
     claiming,
@@ -126,14 +141,24 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
     secondsUntilClaim,
     claimCooldown,
     refreshClaimStatus,
-    canClaimWithFees,
-    secondsUntilClaimWithFees,
-    claimWithFeesCost,
-    claimWithFeesReward,
+    // Tiered paid claim
+    canClaimWithFeesStaker,
+    canClaimWithFeesHolder,
+    canClaimWithFeesRegular,
+    secondsUntilStaker,
+    secondsUntilHolder,
+    secondsUntilRegular,
+    stakerTierCost,
+    holderTierCost,
+    regularTierCost,
+    pointsPerStakedNFT,
+    pointsPerHeldNFT,
+    rewardPerRegularUser,
+    executeClaimWithFeesStaker,
+    executeClaimWithFeesHolder,
+    executeClaimWithFeesRegular,
     isClaimWithFeesPending,
     isClaimWithFeesConfirming,
-    isLoadingPaidClaimConfig,
-    isPaidClaimConfigured,
     isLoadingClaimStatus,
   } = useClaiming();
 
@@ -225,8 +250,8 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
   }, [claimWrite]);
 
   const executeClaimWithFees = useCallback(() => {
-    claimWithFeesWrite();
-  }, [claimWithFeesWrite]);
+    executeClaimWithFeesStaker();
+  }, [executeClaimWithFeesStaker]);
 
   // Legacy wrappers for existing consumers
   const executeRegularClaim = useCallback(async (): Promise<ClaimResult> => {
@@ -337,14 +362,30 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
     updatePoints,
     canPerformStaking,
     claimCooldown,
-    canClaimWithFees,
-    secondsUntilClaimWithFees,
-    claimWithFeesCost,
-    claimWithFeesReward,
+    canClaimWithFeesStaker,
+    canClaimWithFeesHolder,
+    canClaimWithFeesRegular,
+    secondsUntilStaker,
+    secondsUntilHolder,
+    secondsUntilRegular,
+    stakerTierCost,
+    holderTierCost,
+    regularTierCost,
+    pointsPerStakedNFT,
+    pointsPerHeldNFT,
+    rewardPerRegularUser,
+    executeClaimWithFeesStaker,
+    executeClaimWithFeesHolder,
+    executeClaimWithFeesRegular,
     isClaimWithFeesPending,
     isClaimWithFeesConfirming,
-    isLoadingPaidClaimConfig,
-    isPaidClaimConfigured,
+    // Backward compat aliases for paid claim (uses staker tier as default)
+    canClaimWithFees: canClaimWithFeesStaker,
+    secondsUntilClaimWithFees: secondsUntilStaker,
+    claimWithFeesCost: stakerTierCost,
+    claimWithFeesReward: pointsPerStakedNFT,
+    isLoadingPaidClaimConfig: false,
+    isPaidClaimConfigured: true,
     isLoadingClaimStatus,
   };
 

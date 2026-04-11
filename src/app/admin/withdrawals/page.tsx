@@ -451,18 +451,6 @@ export default function WithdrawalsPage() {
                   <span className="font-medium text-sm">Withdrawals</span>
                 </button>
               </li>
-
-              {/* XP Settings */}
-              <li>
-                <button
-                  onClick={() => router.push('/admin/xp-settings')}
-                  className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${isDarkMode ? 'text-gray-400 hover:bg-gray-700 hover:text-gray-300' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
-                    }`}
-                >
-                  <Square className="w-5 h-5 mr-3" />
-                  <span className="font-medium text-sm">XP Settings</span>
-                </button>
-              </li>
               <li>
                 <button
                   onClick={() => router.push('/admin/points-config')}
@@ -580,8 +568,12 @@ export default function WithdrawalsPage() {
               </div>
 
               {loadingTiers ? (
-                <div className="text-center py-6">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600 mx-auto"></div>
+                <div className="flex justify-center py-6">
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-[pulse_1.4s_ease-in-out_infinite]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-[pulse_1.4s_ease-in-out_0.2s_infinite]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-[pulse_1.4s_ease-in-out_0.4s_infinite]" />
+                  </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -761,8 +753,12 @@ export default function WithdrawalsPage() {
                 </div>
 
                 {balanceLoading ? (
-                  <div className="text-center py-4">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600 mx-auto"></div>
+                  <div className="flex justify-center py-4">
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-[pulse_1.4s_ease-in-out_infinite]" />
+                      <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-[pulse_1.4s_ease-in-out_0.2s_infinite]" />
+                      <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-[pulse_1.4s_ease-in-out_0.4s_infinite]" />
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -789,7 +785,11 @@ export default function WithdrawalsPage() {
                     >
                       {isWithdrawPending || isConfirming ? (
                         <span className="flex items-center justify-center gap-2">
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          <div className="flex items-center gap-1">
+                            <span className="h-1 w-1 rounded-full bg-white animate-[pulse_1.4s_ease-in-out_infinite]" />
+                            <span className="h-1 w-1 rounded-full bg-white animate-[pulse_1.4s_ease-in-out_0.2s_infinite]" />
+                            <span className="h-1 w-1 rounded-full bg-white animate-[pulse_1.4s_ease-in-out_0.4s_infinite]" />
+                          </div>
                           {isWithdrawPending ? 'Initiating...' : 'Confirming...'}
                         </span>
                       ) : contractBalance === BigInt(0) ? (

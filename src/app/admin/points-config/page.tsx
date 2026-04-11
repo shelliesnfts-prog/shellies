@@ -16,7 +16,6 @@ import {
   MoreHorizontal,
   ExternalLink,
   Clock,
-  Zap,
   Save,
   RefreshCw,
   Settings,
@@ -33,10 +32,18 @@ interface ContractConfig {
   pointsPerDailyStakedNFT: number;
   pointsPerWeeklyStakedNFT: number;
   pointsPerMonthlyStakedNFT: number;
-  claimWithFeesCost: string;
-  claimWithFeesCostEth: string;
-  claimWithFeesReward: number;
-  claimWithFeesCooldown: number;
+  stakerTierCost: string;
+  stakerTierCostEth: string;
+  pointsPerStakedNFT: number;
+  stakerTierCooldown: number;
+  holderTierCost: string;
+  holderTierCostEth: string;
+  pointsPerHeldNFT: number;
+  holderTierCooldown: number;
+  regularTierCost: string;
+  regularTierCostEth: string;
+  rewardPerRegularUser: number;
+  regularTierCooldown: number;
   xpConversionRate: number;
   minXpToConvert: number;
   authorizedSigner: string;
@@ -65,10 +72,22 @@ export default function AdminPointsConfigPage() {
   const [pointsPerWeeklyStakedNFT, setPointsPerWeeklyStakedNFT] = useState('');
   const [pointsPerMonthlyStakedNFT, setPointsPerMonthlyStakedNFT] = useState('');
 
-  // Claim-with-fees form
-  const [claimWithFeesCostEth, setClaimWithFeesCostEth] = useState('');
-  const [claimWithFeesReward, setClaimWithFeesReward] = useState('');
-  const [claimWithFeesCooldown, setClaimWithFeesCooldown] = useState('');
+  // Claim-with-fees form (tiered - dynamic)
+  const [stakerTierCostEth, setStakerTierCostEth] = useState('');
+  const [pointsPerStakedNFT, setPointsPerStakedNFT] = useState('');
+  const [stakerTierCooldown, setStakerTierCooldown] = useState('');
+  const [holderTierCostEth, setHolderTierCostEth] = useState('');
+  const [pointsPerHeldNFT, setPointsPerHeldNFT] = useState('');
+  const [holderTierCooldown, setHolderTierCooldown] = useState('');
+  const [regularTierCostEth, setRegularTierCostEth] = useState('');
+  const [rewardPerRegularUser, setRewardPerRegularUser] = useState('');
+  const [regularTierCooldown, setRegularTierCooldown] = useState('');
+
+  // XP Conversion (on-chain + DB fee)
+  const [xpConversionRate, setXpConversionRate] = useState('');
+  const [minXpToConvert, setMinXpToConvert] = useState('');
+  const [xpConversionFeeUsd, setXpConversionFeeUsd] = useState('');
+  const [xpConversionFeeUsdOriginal, setXpConversionFeeUsdOriginal] = useState('');
 
   // Per-field saving/message state
   const [savingField, setSavingField] = useState<string | null>(null);
@@ -100,10 +119,34 @@ export default function AdminPointsConfigPage() {
       setPointsPerDailyStakedNFT(c.pointsPerDailyStakedNFT.toString());
       setPointsPerWeeklyStakedNFT(c.pointsPerWeeklyStakedNFT.toString());
       setPointsPerMonthlyStakedNFT(c.pointsPerMonthlyStakedNFT.toString());
-      setClaimWithFeesCostEth(c.claimWithFeesCostEth);
-      setClaimWithFeesReward(c.claimWithFeesReward.toString());
-      setClaimWithFeesCooldown(c.claimWithFeesCooldown.toString());
+      // Staker tier
+      setStakerTierCostEth(c.stakerTierCostEth);
+      setPointsPerStakedNFT(c.pointsPerStakedNFT.toString());
+      setStakerTierCooldown(c.stakerTierCooldown.toString());
+      // Holder tier
+      setHolderTierCostEth(c.holderTierCostEth);
+      setPointsPerHeldNFT(c.pointsPerHeldNFT.toString());
+      setHolderTierCooldown(c.holderTierCooldown.toString());
+      // Regular tier
+      setRegularTierCostEth(c.regularTierCostEth);
+      setRewardPerRegularUser(c.rewardPerRegularUser.toString());
+      setRegularTierCooldown(c.regularTierCooldown.toString());
       setAuthorizedSigner(c.authorizedSigner);
+      setXpConversionRate(c.xpConversionRate.toString());
+      setMinXpToConvert(c.minXpToConvert.toString());
+
+      // Load DB-only fee setting
+      try {
+        const feeRes = await fetch('/api/admin/xp-settings');
+        if (feeRes.ok) {
+          const feeData = await feeRes.json();
+          const feeVal = feeData.settings?.feeUsd?.toString() ?? '0.1';
+          setXpConversionFeeUsd(feeVal);
+          setXpConversionFeeUsdOriginal(feeVal);
+        }
+      } catch {
+        console.warn('Failed to load XP fee setting');
+      }
     } catch {
       setFieldMsgs({ global: { type: 'error', text: 'Failed to load contract config' } });
     } finally {
@@ -139,6 +182,29 @@ export default function AdminPointsConfigPage() {
       setTimeout(() => setFieldMsgs(prev => ({ ...prev, [fieldKey]: null })), 4000);
     } catch (e) {
       setFieldMsgs(prev => ({ ...prev, [fieldKey]: { type: 'error', text: e instanceof Error ? e.message : 'Transaction failed' } }));
+      setTimeout(() => setFieldMsgs(prev => ({ ...prev, [fieldKey]: null })), 6000);
+    } finally {
+      setSavingField(null);
+    }
+  };
+
+  const saveDbField = async (fieldKey: string, dbKey: string, value: string) => {
+    setSavingField(fieldKey);
+    setFieldMsgs(prev => ({ ...prev, [fieldKey]: null }));
+    try {
+      const res = await fetch('/api/admin/xp-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [dbKey]: value }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to save');
+      }
+      setFieldMsgs(prev => ({ ...prev, [fieldKey]: { type: 'success', text: 'Saved' } }));
+      setTimeout(() => setFieldMsgs(prev => ({ ...prev, [fieldKey]: null })), 4000);
+    } catch (e) {
+      setFieldMsgs(prev => ({ ...prev, [fieldKey]: { type: 'error', text: e instanceof Error ? e.message : 'Save failed' } }));
       setTimeout(() => setFieldMsgs(prev => ({ ...prev, [fieldKey]: null })), 6000);
     } finally {
       setSavingField(null);
@@ -362,11 +428,6 @@ export default function AdminPointsConfigPage() {
                 </button>
               </li>
               <li>
-                <button onClick={() => router.push('/admin/xp-settings')} className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${isDarkMode ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-500 hover:bg-gray-50'}`}>
-                  <Zap className="w-5 h-5 mr-3" /><span className="font-medium text-sm">XP Settings</span>
-                </button>
-              </li>
-              <li>
                 <button onClick={() => router.push('/admin/points-config')} className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'}`}>
                   <Settings className="w-5 h-5 mr-3" /><span className="font-medium text-sm">Points Config</span>
                 </button>
@@ -407,9 +468,13 @@ export default function AdminPointsConfigPage() {
             </div>
 
             {loading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-4"></div>
-                <p className={isDarkMode ? 'text-white' : 'text-gray-700'}>Loading contract config…</p>
+              <div className="flex flex-col items-center gap-4 py-8">
+                <div className="flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-[pulse_1.4s_ease-in-out_infinite]" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-[pulse_1.4s_ease-in-out_0.2s_infinite]" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-[pulse_1.4s_ease-in-out_0.4s_infinite]" />
+                </div>
+                <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-700'}`}>Loading config...</p>
               </div>
             ) : (
               <div className="space-y-6">
@@ -491,39 +556,157 @@ export default function AdminPointsConfigPage() {
                   </div>
                 </div>
 
-                {/* ── Claim with Fees ── */}
+                {/* ── Staker Tier ── */}
                 <div className={cardCls}>
-                  <h2 className={`text-base font-semibold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Claim with Fees</h2>
+                  <h2 className={`text-base font-semibold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Staker Tier</h2>
+                  <p className={`text-xs mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Users with ≥1 NFT staked</p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <FieldInput
-                      fieldKey="claimWithFeesCostEth"
+                      fieldKey="stakerTierCostEth"
                       label="Cost (ETH)"
-                      hint="ETH amount users pay for this claim type"
-                      value={claimWithFeesCostEth}
-                      contractValue={config?.claimWithFeesCostEth ?? '0'}
-                      onChange={setClaimWithFeesCostEth}
-                      onSave={() => saveField('claimWithFeesCostEth', 'setClaimWithFeesCost', [parseEther(claimWithFeesCostEth)])}
+                      hint="ETH amount stakers pay"
+                      value={stakerTierCostEth}
+                      contractValue={config?.stakerTierCostEth ?? '0'}
+                      onChange={setStakerTierCostEth}
+                      onSave={() => saveField('stakerTierCostEth', 'setStakerTierCost', [parseEther(stakerTierCostEth)])}
                       type="number"
                       step="0.0001"
                       placeholder="0.001"
                     />
                     <FieldInput
-                      fieldKey="claimWithFeesReward"
-                      label="Reward (points)"
-                      hint="Points awarded on a paid claim"
-                      value={claimWithFeesReward}
-                      contractValue={config?.claimWithFeesReward ?? 0}
-                      onChange={setClaimWithFeesReward}
-                      onSave={() => saveField('claimWithFeesReward', 'setClaimWithFeesReward', [BigInt(claimWithFeesReward)])}
+                      fieldKey="pointsPerStakedNFT"
+                      label="Points per Staked NFT"
+                      hint="Points per staked NFT (combined)"
+                      value={pointsPerStakedNFT}
+                      contractValue={config?.pointsPerStakedNFT ?? 0}
+                      onChange={setPointsPerStakedNFT}
+                      onSave={() => saveField('pointsPerStakedNFT', 'setPointsPerStakedNFT', [BigInt(pointsPerStakedNFT)])}
                     />
                     <FieldInput
-                      fieldKey="claimWithFeesCooldown"
+                      fieldKey="stakerTierCooldown"
                       label="Cooldown (seconds)"
-                      hint="Seconds between paid claims per user"
-                      value={claimWithFeesCooldown}
-                      contractValue={config?.claimWithFeesCooldown ?? 0}
-                      onChange={setClaimWithFeesCooldown}
-                      onSave={() => saveField('claimWithFeesCooldown', 'setClaimWithFeesCooldown', [BigInt(claimWithFeesCooldown)])}
+                      hint="Seconds between claims for stakers"
+                      value={stakerTierCooldown}
+                      contractValue={config?.stakerTierCooldown ?? 0}
+                      onChange={setStakerTierCooldown}
+                      onSave={() => saveField('stakerTierCooldown', 'setStakerTierCooldown', [BigInt(stakerTierCooldown)])}
+                    />
+                  </div>
+                </div>
+
+                {/* ── Holder Tier ── */}
+                <div className={cardCls}>
+                  <h2 className={`text-base font-semibold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Holder Tier</h2>
+                  <p className={`text-xs mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Users with ≥1 NFT in wallet (not staked)</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <FieldInput
+                      fieldKey="holderTierCostEth"
+                      label="Cost (ETH)"
+                      hint="ETH amount holders pay"
+                      value={holderTierCostEth}
+                      contractValue={config?.holderTierCostEth ?? '0'}
+                      onChange={setHolderTierCostEth}
+                      onSave={() => saveField('holderTierCostEth', 'setHolderTierCost', [parseEther(holderTierCostEth)])}
+                      type="number"
+                      step="0.0001"
+                      placeholder="0.001"
+                    />
+                    <FieldInput
+                      fieldKey="pointsPerHeldNFT"
+                      label="Points per Held NFT"
+                      hint="Points per NFT held in wallet"
+                      value={pointsPerHeldNFT}
+                      contractValue={config?.pointsPerHeldNFT ?? 0}
+                      onChange={setPointsPerHeldNFT}
+                      onSave={() => saveField('pointsPerHeldNFT', 'setPointsPerHeldNFT', [BigInt(pointsPerHeldNFT)])}
+                    />
+                    <FieldInput
+                      fieldKey="holderTierCooldown"
+                      label="Cooldown (seconds)"
+                      hint="Seconds between claims for holders"
+                      value={holderTierCooldown}
+                      contractValue={config?.holderTierCooldown ?? 0}
+                      onChange={setHolderTierCooldown}
+                      onSave={() => saveField('holderTierCooldown', 'setHolderTierCooldown', [BigInt(holderTierCooldown)])}
+                    />
+                  </div>
+                </div>
+
+                {/* ── Regular Tier ── */}
+                <div className={cardCls}>
+                  <h2 className={`text-base font-semibold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Regular Tier</h2>
+                  <p className={`text-xs mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Users with no Shellies NFTs</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <FieldInput
+                      fieldKey="regularTierCostEth"
+                      label="Cost (ETH)"
+                      hint="ETH amount regular users pay"
+                      value={regularTierCostEth}
+                      contractValue={config?.regularTierCostEth ?? '0'}
+                      onChange={setRegularTierCostEth}
+                      onSave={() => saveField('regularTierCostEth', 'setRegularTierCost', [parseEther(regularTierCostEth)])}
+                      type="number"
+                      step="0.0001"
+                      placeholder="0.001"
+                    />
+                    <FieldInput
+                      fieldKey="rewardPerRegularUser"
+                      label="Reward (points)"
+                      hint="Fixed points for regular users"
+                      value={rewardPerRegularUser}
+                      contractValue={config?.rewardPerRegularUser ?? 0}
+                      onChange={setRewardPerRegularUser}
+                      onSave={() => saveField('rewardPerRegularUser', 'setRewardPerRegularUser', [BigInt(rewardPerRegularUser)])}
+                    />
+                    <FieldInput
+                      fieldKey="regularTierCooldown"
+                      label="Cooldown (seconds)"
+                      hint="Seconds between claims for regular users"
+                      value={regularTierCooldown}
+                      contractValue={config?.regularTierCooldown ?? 0}
+                      onChange={setRegularTierCooldown}
+                      onSave={() => saveField('regularTierCooldown', 'setRegularTierCooldown', [BigInt(regularTierCooldown)])}
+                    />
+                  </div>
+                </div>
+
+                {/* ── XP Conversion (On-Chain) ── */}
+                <div className={cardCls}>
+                  <h2 className={`text-base font-semibold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>XP Conversion (On-Chain)</h2>
+                  <p className={`text-xs mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Controls how game XP converts to ShelliesPoints tokens on-chain</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <FieldInput
+                      fieldKey="xpConversionRate"
+                      label="XP Conversion Rate"
+                      hint="XP per point (e.g. 2 means 100 XP = 50 pts)"
+                      value={xpConversionRate}
+                      contractValue={config?.xpConversionRate ?? 0}
+                      onChange={setXpConversionRate}
+                      onSave={() => saveField('xpConversionRate', 'setXpConversionRate', [BigInt(xpConversionRate)])}
+                    />
+                    <FieldInput
+                      fieldKey="minXpToConvert"
+                      label="Minimum XP to Convert"
+                      hint="Minimum XP required to perform a conversion"
+                      value={minXpToConvert}
+                      contractValue={config?.minXpToConvert ?? 0}
+                      onChange={setMinXpToConvert}
+                      onSave={() => saveField('minXpToConvert', 'setMinXpToConvert', [BigInt(minXpToConvert)])}
+                    />
+                    <FieldInput
+                      fieldKey="xpConversionFeeUsd"
+                      label="Conversion Fee (USD)"
+                      hint="Fee users pay to convert XP (saved to DB)"
+                      value={xpConversionFeeUsd}
+                      contractValue={xpConversionFeeUsdOriginal}
+                      onChange={setXpConversionFeeUsd}
+                      onSave={() => {
+                        saveDbField('xpConversionFeeUsd', 'feeUsd', xpConversionFeeUsd);
+                        setXpConversionFeeUsdOriginal(xpConversionFeeUsd);
+                      }}
+                      type="number"
+                      step="0.01"
+                      placeholder="0.10"
                     />
                   </div>
                 </div>

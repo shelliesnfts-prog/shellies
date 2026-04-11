@@ -7,7 +7,7 @@ export default function Portal() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace('/portal/profile');
+    router.replace('/portal/claim');
   }, [router]);
 
   return null;
