@@ -157,112 +157,99 @@ export function PortalSidebar({
 
         {/* Wallet Card Section */}
         <div className={`p-2 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-100'}`}>
-          <div className="relative group">
-            {/* Wallet Card with Purple Gradient */}
-            <div className="bg-gradient-to-r from-purple-600 to-purple-800 rounded-xl p-6 h-[145px] relative overflow-hidden cursor-pointer transition-transform duration-300 hover:scale-105">
-              {/* Shimmer overlay effect */}
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 transform translate-x-full group-hover:translate-x-[-200%] transition-transform duration-1000" />
-              
-              {/* Content */}
-              <div className="relative z-10 h-full flex flex-col justify-between">
-                {/* Top Row - Wallet Connection */}
-                <div className="flex items-center justify-between">
-                  <ConnectButton.Custom>
-                    {({
-                      account,
-                      chain,
-                      openAccountModal,
-                      openChainModal,
-                      openConnectModal,
-                      mounted,
-                    }) => {
-                      const ready = mounted;
-                      const connected = ready && account && chain;
-
-                      return (
-                        <div className="flex items-center justify-between w-full">
-                          {!connected ? (
+          {session?.address ? (
+            /* Authenticated: full purple card with address + points */
+            <div className="relative group">
+              <div className="bg-gradient-to-r from-purple-600 to-purple-800 rounded-xl p-6 h-[145px] relative overflow-hidden cursor-pointer transition-transform duration-300 hover:scale-105">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 transform translate-x-full group-hover:translate-x-[-200%] transition-transform duration-1000" />
+                <div className="relative z-10 h-full flex flex-col justify-between">
+                  {/* Top Row */}
+                  <div className="flex items-center justify-between w-full">
+                    <ConnectButton.Custom>
+                      {({ account, chain, openAccountModal, openChainModal, mounted }) => {
+                        const ready = mounted;
+                        const connected = ready && account && chain;
+                        if (!connected) return null;
+                        return (
+                          <div className="flex items-center justify-between w-full">
                             <button
-                              onClick={openConnectModal}
-                              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg transition-colors duration-200"
+                              onClick={openAccountModal}
+                              className="flex flex-col hover:bg-white/10 rounded-lg px-2 py-1 transition-colors duration-200"
                             >
-                              <span className="text-white text-xs font-medium">Connect Wallet</span>
+                              <p className="text-white/70 text-xs font-mono">{account.displayName}</p>
                             </button>
-                          ) : (
-                            <>
+                            {chain.unsupported ? (
                               <button
-                                onClick={openAccountModal}
-                                className="flex flex-col hover:bg-white/10 rounded-lg px-2 py-1 transition-colors duration-200"
+                                onClick={openChainModal}
+                                className="px-2 py-1 bg-red-500/90 hover:bg-red-600 rounded-lg transition-colors duration-200"
                               >
-                                <p className="text-white/70 text-xs font-mono">
-                                  {account.displayName}
-                                </p>
+                                <span className="text-white text-xs font-medium">Wrong Network</span>
                               </button>
-                              
-                              {chain.unsupported ? (
-                                <button
-                                  onClick={openChainModal}
-                                  className="px-2 py-1 bg-red-500/90 hover:bg-red-600 rounded-lg transition-colors duration-200"
-                                >
-                                  <span className="text-white text-xs font-medium">Wrong Network</span>
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={handleLogout}
-                                  className="px-2 py-1 hover:bg-white/10 rounded-lg transition-colors duration-200"
-                                >
-                                  <span className="text-white/80 hover:text-white text-xs font-medium">Logout</span>
-                                </button>
-                              )}
-                            </>
-                          )}
+                            ) : (
+                              <button
+                                onClick={handleLogout}
+                                className="px-2 py-1 hover:bg-white/10 rounded-lg transition-colors duration-200"
+                              >
+                                <span className="text-white/80 hover:text-white text-xs font-medium">Logout</span>
+                              </button>
+                            )}
+                          </div>
+                        );
+                      }}
+                    </ConnectButton.Custom>
+                  </div>
+                  {/* Bottom Row */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      {userLoading ? (
+                        <div className="flex items-center">
+                          <div className="h-4 bg-white/20 rounded animate-pulse w-8 mr-2" />
+                          <div className="h-3 bg-white/20 rounded animate-pulse w-12" />
                         </div>
-                      );
-                    }}
-                  </ConnectButton.Custom>
-                </div>
-                
-                {/* Bottom Row */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    {userLoading ? (
-                      <div className="flex items-center">
-                        <div className="h-4 bg-white/20 rounded animate-pulse w-8 mr-2"></div>
-                        <div className="h-3 bg-white/20 rounded animate-pulse w-12"></div>
-                      </div>
-                    ) : (
-                      <>
-                        <p className="text-white text-sm font-bold mr-2">{user?.points ?? 0}</p>
-                        <p className="text-white font-medium text-xs">Point{(user?.points ?? 0) !== 1 ? 's' : ''}</p>
-                      </>
+                      ) : (
+                        <>
+                          <p className="text-white text-sm font-bold mr-2">{user?.points ?? 0}</p>
+                          <p className="text-white font-medium text-xs">Point{(user?.points ?? 0) !== 1 ? 's' : ''}</p>
+                        </>
+                      )}
+                    </div>
+                    {!userLoading && (
+                      <button
+                        onClick={() => handleNavigation('/portal/claim')}
+                        className="relative px-2 py-1 bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-300 hover:to-orange-400 rounded-md transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 overflow-hidden group"
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -skew-x-12 transform translate-x-full group-hover:translate-x-[-200%] transition-transform duration-700 ease-out" />
+                        <span className="relative text-white font-bold text-xs drop-shadow-sm">Claim</span>
+                      </button>
                     )}
                   </div>
-                  {!userLoading && (
-                    <button
-                      onClick={() => handleNavigation('/portal/claim')}
-                      className="relative px-2 py-1 bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-300 hover:to-orange-400 rounded-md transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 overflow-hidden group"
-                    >
-                      {/* Shining animation overlay */}
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -skew-x-12 transform translate-x-full group-hover:translate-x-[-200%] transition-transform duration-700 ease-out" />
-                      {/* Continuous shine animation */}
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 transform animate-pulse"
-                           style={{
-                             animation: 'shine 2s infinite linear',
-                             animationDelay: '0.5s'
-                           }} />
-                      <span className="relative text-white font-bold text-xs drop-shadow-sm">Claim</span>
-                    </button>
-                  )}
                 </div>
               </div>
             </div>
-          </div>
+          ) : (
+            /* Not authenticated: simple connect button */
+            <ConnectButton.Custom>
+              {({ openConnectModal, mounted }) => (
+                <button
+                  onClick={openConnectModal}
+                  disabled={!mounted}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white text-sm font-semibold transition-all duration-200 shadow-md hover:shadow-lg"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  Connect Wallet
+                </button>
+              )}
+            </ConnectButton.Custom>
+          )}
         </div>
 
         {/* Navigation Section */}
         <nav className="flex-1 px-4 py-6 overflow-y-auto">
           <ul className="space-y-1">
-            {/* Claim */}
+            {/* Claim — wallet required */}
+            {!!session?.address && (
             <li>
               <button
                 onClick={() => handleNavigation('/portal/claim')}
@@ -276,8 +263,10 @@ export function PortalSidebar({
                 <span className="font-medium text-sm">Claim</span>
               </button>
             </li>
+            )}
 
-            {/* Profile */}
+            {/* Profile — wallet required */}
+            {!!session?.address && (
             <li>
               <button
                 onClick={() => handleNavigation('/portal/profile')}
@@ -291,8 +280,10 @@ export function PortalSidebar({
                 <span className="font-medium text-sm">Profile</span>
               </button>
             </li>
+            )}
 
-            {/* Staking */}
+            {/* Staking — wallet required */}
+            {!!session?.address && (
             <li>
               <button
                 onClick={() => handleNavigation('/portal/staking')}
@@ -306,6 +297,7 @@ export function PortalSidebar({
                 <span className="font-medium text-sm">Staking</span>
               </button>
             </li>
+            )}
 
             {/* Raffles */}
             <li>

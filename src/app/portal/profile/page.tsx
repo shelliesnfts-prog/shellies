@@ -1,5 +1,6 @@
 'use client';
 
+import { AuthGuard } from '@/components/AuthGuard';
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useAccount } from 'wagmi';
@@ -54,6 +55,7 @@ export default function ProfilePage() {
 
 
   return (
+    <AuthGuard>
     <div className={`min-h-screen flex transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <PortalSidebar
         isMobileMenuOpen={isMobileMenuOpen}
@@ -312,5 +314,6 @@ export default function ProfilePage() {
         </main>
       </div>
     </div>
+    </AuthGuard>
   );
 }

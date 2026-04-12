@@ -473,7 +473,7 @@ export default function MarioGameConsoleV2() {
   }
 
   // Collapsible FAQ state
-  const [faqOpen, setFaqOpen] = useState(false);
+  const [faqOpen, setFaqOpen] = useState(true);
 
   // Show skeleton loader while loading score
   if (scoreLoading) {

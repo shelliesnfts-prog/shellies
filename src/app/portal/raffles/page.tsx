@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useSession } from 'next-auth/react';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
 import { RaffleCard } from '@/components/portal/RaffleCard';
 import { RaffleSkeletonGrid } from '@/components/portal/RaffleCardSkeleton';
 import JoinRaffleModal from '@/components/JoinRaffleModal';
+import { ConnectWalletGate } from '@/components/ConnectWalletGate';
 import { Gift, Loader2 } from 'lucide-react';
 import { Raffle } from '@/lib/supabase';
 import { useDashboard } from '@/hooks/useDashboard';
@@ -21,7 +23,9 @@ export default function RafflesPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedRaffle, setSelectedRaffle] = useState<Raffle | null>(null);
+  const [isConnectGateOpen, setIsConnectGateOpen] = useState(false);
   const { isDarkMode } = useTheme();
+  const { status } = useSession();
   const { fetchUser } = useDashboard();
   const fetchingRef = useRef(false);
 
@@ -68,6 +72,10 @@ export default function RafflesPage() {
 
 
   const handleJoinRaffle = (raffle: Raffle) => {
+    if (status !== 'authenticated') {
+      setIsConnectGateOpen(true);
+      return;
+    }
     // Find the most up-to-date raffle data from our current list
     const currentRaffle = raffles.find(r => r.id === raffle.id) || raffle;
     setSelectedRaffle(currentRaffle);
@@ -229,6 +237,13 @@ export default function RafflesPage() {
         raffle={selectedRaffle}
         isDarkMode={isDarkMode}
         onSuccess={handleRaffleSuccess}
+      />
+
+      {/* Connect Wallet Gate */}
+      <ConnectWalletGate
+        isOpen={isConnectGateOpen}
+        onClose={() => setIsConnectGateOpen(false)}
+        action="join this raffle"
       />
     </div>
   );

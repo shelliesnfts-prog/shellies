@@ -33,13 +33,6 @@ export function AuthGuard({ children }: AuthGuardProps) {
     }
   }, [status, session, isConnected, address, isConnecting]);
 
-  // Redirect unauthenticated users
-  useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/');
-    }
-  }, [status, router]);
-
   // Loading state
   if (status === 'loading' || isConnecting) {
     return (

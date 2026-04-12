@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
 import { useAccount } from 'wagmi';
 import { useSearchParams } from 'next/navigation';
@@ -15,7 +15,7 @@ import { formatXP } from '@/lib/format-utils';
 import { useToast } from '@/hooks/useToast';
 import { ToastContainer } from '@/components/Toast';
 
-export default function LeaderboardPage() {
+function LeaderboardPageInner() {
   const searchParams = useSearchParams();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
@@ -1146,5 +1146,13 @@ export default function LeaderboardPage() {
       </div>
     </div>
     </>
+  );
+}
+
+export default function LeaderboardPage() {
+  return (
+    <Suspense>
+      <LeaderboardPageInner />
+    </Suspense>
   );
 }

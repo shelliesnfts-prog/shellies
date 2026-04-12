@@ -1,5 +1,6 @@
 'use client';
 
+import { AuthGuard } from '@/components/AuthGuard';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { useQueryClient } from '@tanstack/react-query';
@@ -737,6 +738,7 @@ export default function StakingPage() {
   }
 
   return (
+    <AuthGuard>
     <div className={`min-h-screen flex transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'}`}>
       <PortalSidebar
         isMobileMenuOpen={isMobileMenuOpen}
@@ -1122,5 +1124,6 @@ export default function StakingPage() {
         userAddress={address || ''}
       />
     </div>
+    </AuthGuard>
   );
 }

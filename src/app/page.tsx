@@ -3,6 +3,7 @@
 import { useAccount } from 'wagmi';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { motion, type Variants } from 'framer-motion';
 import CustomConnectButton from '@/components/CustomConnectButton';
 
@@ -22,17 +23,16 @@ function FeatureCard({
   title,
   description,
   tag,
+  href,
 }: {
   icon: React.ReactNode;
   title: string;
   description: string;
   tag: string;
+  href?: string;
 }) {
-  return (
-    <motion.div
-      variants={fadeUp}
-      className="group rounded-2xl bg-white/[0.03] border border-white/10 p-7 hover:border-purple-500/40 hover:bg-white/[0.05] transition-all duration-300"
-    >
+  const inner = (
+    <>
       <div className="w-10 h-10 rounded-xl bg-purple-500/15 flex items-center justify-center text-purple-400 mb-5 group-hover:bg-purple-500/25 transition-colors">
         {icon}
       </div>
@@ -41,6 +41,28 @@ function FeatureCard({
       <span className="text-xs font-medium text-purple-400 bg-purple-500/10 px-3 py-1 rounded-full border border-purple-500/20">
         {tag}
       </span>
+    </>
+  );
+
+  if (href) {
+    return (
+      <motion.div variants={fadeUp}>
+        <Link
+          href={href}
+          className="group block rounded-2xl bg-white/[0.03] border border-white/10 p-7 hover:border-purple-500/40 hover:bg-white/[0.05] transition-all duration-300"
+        >
+          {inner}
+        </Link>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div
+      variants={fadeUp}
+      className="group rounded-2xl bg-white/[0.03] border border-white/10 p-7 hover:border-purple-500/40 hover:bg-white/[0.05] transition-all duration-300"
+    >
+      {inner}
     </motion.div>
   );
 }
@@ -208,6 +230,18 @@ export default function LandingPage() {
                 {id}
               </button>
             ))}
+            <Link
+              href="/portal/raffles"
+              className="px-4 py-2 text-sm text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors"
+            >
+              Raffles
+            </Link>
+            <Link
+              href="/portal/leaderboard"
+              className="px-4 py-2 text-sm text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors"
+            >
+              Leaderboard
+            </Link>
           </div>
 
           <div className="flex items-center gap-3">
@@ -295,14 +329,25 @@ export default function LandingPage() {
                     <ArrowRight />
                   </button>
                 ) : (
-                  <CustomConnectButton size="lg" />
+                  <>
+                    <CustomConnectButton size="lg" />
+                    <Link
+                      href="/portal/raffles"
+                      className="inline-flex items-center gap-2 px-7 py-3.5 text-sm font-semibold text-gray-300 hover:text-white border border-white/15 hover:border-white/30 rounded-xl transition-colors"
+                    >
+                      Browse Raffles
+                      <ArrowRight />
+                    </Link>
+                  </>
                 )}
-                <button
-                  onClick={() => scrollTo('about')}
-                  className="inline-flex items-center gap-2 px-7 py-3.5 text-sm font-semibold text-gray-300 hover:text-white border border-white/15 hover:border-white/30 rounded-xl transition-colors"
-                >
-                  How it works
-                </button>
+                {isConnected && session && (
+                  <button
+                    onClick={() => scrollTo('about')}
+                    className="inline-flex items-center gap-2 px-7 py-3.5 text-sm font-semibold text-gray-300 hover:text-white border border-white/15 hover:border-white/30 rounded-xl transition-colors"
+                  >
+                    How it works
+                  </button>
+                )}
               </motion.div>
 
               {/* Stats row */}
@@ -402,6 +447,7 @@ export default function LandingPage() {
               title="Premium Raffles"
               description="Spend your earned points to enter exclusive raffles featuring rare NFTs, tokens, and other high-value prizes from the community."
               tag="High-value prizes"
+              href="/portal/raffles"
             />
             <FeatureCard
               icon={
@@ -413,6 +459,7 @@ export default function LandingPage() {
               title="Leaderboard"
               description="Compete with other Shellies holders for top spots on the community leaderboard and earn recognition and special bonuses."
               tag="Community status"
+              href="/portal/leaderboard"
             />
           </motion.div>
 
@@ -533,7 +580,23 @@ export default function LandingPage() {
                 <ArrowRight />
               </button>
             ) : (
-              <CustomConnectButton size="xl" />
+              <div className="flex flex-wrap items-center justify-center gap-4">
+                <CustomConnectButton size="xl" />
+                <div className="flex items-center gap-3">
+                  <Link
+                    href="/portal/raffles"
+                    className="inline-flex items-center gap-2 px-6 py-3 text-sm font-medium text-gray-300 hover:text-white border border-white/15 hover:border-white/30 rounded-xl transition-colors"
+                  >
+                    View Raffles
+                  </Link>
+                  <Link
+                    href="/portal/leaderboard"
+                    className="inline-flex items-center gap-2 px-6 py-3 text-sm font-medium text-gray-300 hover:text-white border border-white/15 hover:border-white/30 rounded-xl transition-colors"
+                  >
+                    Leaderboard
+                  </Link>
+                </div>
+              </div>
             )}
             <p className="text-sm text-gray-500 mt-5">
               Join <span className="text-white font-medium">2,222 Shellies</span> holders earning daily
