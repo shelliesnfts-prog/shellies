@@ -28,9 +28,15 @@ export function useClaiming() {
   const { address } = useAccount();
   const nowSec = Math.floor(Date.now() / 1000);
 
-  // Optimistic timestamp set immediately after a successful free claim so the
-  // cooldown row appears without waiting for the on-chain refetch to complete.
+  // Optimistic timestamps set immediately after a successful claim so the
+  // cooldown appears without waiting for the on-chain refetch to complete.
   const [optimisticLastClaim, setOptimisticLastClaim] = useState<number | null>(null);
+  const [optimisticLastClaimStaker, setOptimisticLastClaimStaker] = useState<number | null>(null);
+  const [optimisticLastClaimHolder, setOptimisticLastClaimHolder] = useState<number | null>(null);
+  const [optimisticLastClaimRegular, setOptimisticLastClaimRegular] = useState<number | null>(null);
+  // Tracks which paid tier the in-flight tx belongs to so we know which
+  // optimistic timestamp to set on success.
+  const [pendingPaidTier, setPendingPaidTier] = useState<'staker' | 'holder' | 'regular' | null>(null);
 
   // ── Free claim reads (unchanged) ───────────────────────────────────────
 
@@ -167,7 +173,7 @@ export function useClaiming() {
     : lastClaimOnChain;
   const secondsUntilClaim = Math.max(0, lastClaim + claimCooldown - nowSec);
   const isLoadingClaimStatus = isLoadingLastClaim || isFetchingLastClaim;
-  const canClaim = !isLoadingClaimStatus && secondsUntilClaim === 0 && optimisticLastClaim === null;
+  const canClaim = !isLoadingClaimStatus && secondsUntilClaim === 0;
 
   // ── Derived paid-claim state per tier ──────────────────────────────────
 
@@ -179,9 +185,19 @@ export function useClaiming() {
   const holderTierCooldown = holderTierCooldownRaw ? Number(holderTierCooldownRaw as bigint) : 0;
   const regularTierCooldown = regularTierCooldownRaw ? Number(regularTierCooldownRaw as bigint) : 0;
 
-  const lastClaimStaker = lastClaimStakerTierRaw ? Number(lastClaimStakerTierRaw as bigint) : 0;
-  const lastClaimHolder = lastClaimHolderTierRaw ? Number(lastClaimHolderTierRaw as bigint) : 0;
-  const lastClaimRegular = lastClaimRegularTierRaw ? Number(lastClaimRegularTierRaw as bigint) : 0;
+  const lastClaimStakerOnChain = lastClaimStakerTierRaw ? Number(lastClaimStakerTierRaw as bigint) : 0;
+  const lastClaimHolderOnChain = lastClaimHolderTierRaw ? Number(lastClaimHolderTierRaw as bigint) : 0;
+  const lastClaimRegularOnChain = lastClaimRegularTierRaw ? Number(lastClaimRegularTierRaw as bigint) : 0;
+
+  const lastClaimStaker = optimisticLastClaimStaker !== null
+    ? Math.max(optimisticLastClaimStaker, lastClaimStakerOnChain)
+    : lastClaimStakerOnChain;
+  const lastClaimHolder = optimisticLastClaimHolder !== null
+    ? Math.max(optimisticLastClaimHolder, lastClaimHolderOnChain)
+    : lastClaimHolderOnChain;
+  const lastClaimRegular = optimisticLastClaimRegular !== null
+    ? Math.max(optimisticLastClaimRegular, lastClaimRegularOnChain)
+    : lastClaimRegularOnChain;
 
   const secondsUntilStaker = stakerTierCooldown === 0 ? 0 : Math.max(0, lastClaimStaker + stakerTierCooldown - nowSec);
   const secondsUntilHolder = holderTierCooldown === 0 ? 0 : Math.max(0, lastClaimHolder + holderTierCooldown - nowSec);
@@ -217,6 +233,7 @@ export function useClaiming() {
   }, [writeClaim]);
 
   const executeClaimWithFeesStaker = useCallback(() => {
+    setPendingPaidTier('staker');
     writeClaimWithFees({
       address: SHELLIES_POINTS_ADDRESS,
       abi: SHELLIES_POINTS_CONTRACT.abi,
@@ -226,6 +243,7 @@ export function useClaiming() {
   }, [writeClaimWithFees, stakerTierCost]);
 
   const executeClaimWithFeesHolder = useCallback(() => {
+    setPendingPaidTier('holder');
     writeClaimWithFees({
       address: SHELLIES_POINTS_ADDRESS,
       abi: SHELLIES_POINTS_CONTRACT.abi,
@@ -235,6 +253,7 @@ export function useClaiming() {
   }, [writeClaimWithFees, holderTierCost]);
 
   const executeClaimWithFeesRegular = useCallback(() => {
+    setPendingPaidTier('regular');
     writeClaimWithFees({
       address: SHELLIES_POINTS_ADDRESS,
       abi: SHELLIES_POINTS_CONTRACT.abi,
@@ -262,20 +281,47 @@ export function useClaiming() {
   }, [isClaimSuccess, refetchLastClaim]);
 
   // Clear the optimistic timestamp once the refetch returns fresh on-chain data.
+  // Allow ~30s of slack because block timestamps trail local clock by a few seconds.
   useEffect(() => {
-    if (optimisticLastClaim !== null && lastClaimOnChain >= optimisticLastClaim) {
+    if (optimisticLastClaim !== null && lastClaimOnChain >= optimisticLastClaim - 30) {
       setOptimisticLastClaim(null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastClaimOnChain]);
 
   useEffect(() => {
-    if (isClaimWithFeesSuccess) {
-      refetchStaker();
-      refetchHolder();
-      refetchRegular();
+    if (!isClaimWithFeesSuccess) return;
+    const ts = Math.floor(Date.now() / 1000);
+    if (pendingPaidTier === 'staker') setOptimisticLastClaimStaker(ts);
+    else if (pendingPaidTier === 'holder') setOptimisticLastClaimHolder(ts);
+    else if (pendingPaidTier === 'regular') setOptimisticLastClaimRegular(ts);
+    setPendingPaidTier(null);
+    refetchStaker();
+    refetchHolder();
+    refetchRegular();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isClaimWithFeesSuccess]);
+
+  useEffect(() => {
+    if (optimisticLastClaimStaker !== null && lastClaimStakerOnChain >= optimisticLastClaimStaker - 30) {
+      setOptimisticLastClaimStaker(null);
     }
-  }, [isClaimWithFeesSuccess, refetchStaker, refetchHolder, refetchRegular]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastClaimStakerOnChain]);
+
+  useEffect(() => {
+    if (optimisticLastClaimHolder !== null && lastClaimHolderOnChain >= optimisticLastClaimHolder - 30) {
+      setOptimisticLastClaimHolder(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastClaimHolderOnChain]);
+
+  useEffect(() => {
+    if (optimisticLastClaimRegular !== null && lastClaimRegularOnChain >= optimisticLastClaimRegular - 30) {
+      setOptimisticLastClaimRegular(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastClaimRegularOnChain]);
 
   // Legacy alias
   const claiming = isClaimPending || isClaimConfirming || isClaimWithFeesPending || isClaimWithFeesConfirming;

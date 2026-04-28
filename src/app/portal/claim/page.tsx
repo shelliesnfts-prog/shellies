@@ -430,27 +430,28 @@ export default function ClaimPage() {
                   {/* Push action to bottom */}
                   <div className="flex-1" />
 
-                  {/* Cooldown row */}
-                  {liveFreeCountdown > 0 && (
-                    <div className={`flex items-center justify-between px-4 py-3 rounded-xl ${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-                      <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Next claim in</span>
-                      <span className={`font-mono text-sm font-semibold tabular-nums ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
-                        {formatTimer(liveFreeCountdown)}
-                      </span>
-                    </div>
-                  )}
-
                   {/* Action */}
                   <button
                     onClick={() => executeClaim()}
-                    disabled={!canClaim || isClaimPending || isClaimConfirming || isClaimSuccess}
-                    className={`w-full py-3 rounded-xl text-sm font-semibold transition-colors ${
-                      !canClaim || isClaimPending || isClaimConfirming || isClaimSuccess
-                        ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    disabled={!canClaim || isClaimPending || isClaimConfirming}
+                    className={`w-full py-3 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${
+                      !canClaim || isClaimPending || isClaimConfirming
+                        ? isDarkMode ? 'bg-gray-700 text-gray-400 cursor-not-allowed' : 'bg-gray-100 text-gray-500 cursor-not-allowed'
                         : 'bg-green-600 hover:bg-green-700 text-white'
                     }`}
                   >
-                    {isClaimPending ? 'Confirm in wallet...' : isClaimConfirming ? 'Claiming...' : 'Claim Free Points'}
+                    {isClaimPending ? (
+                      'Confirm in wallet...'
+                    ) : isClaimConfirming ? (
+                      'Claiming...'
+                    ) : liveFreeCountdown > 0 ? (
+                      <>
+                        <span>Next claim in</span>
+                        <span className="font-mono tabular-nums">{formatTimer(liveFreeCountdown)}</span>
+                      </>
+                    ) : (
+                      'Claim Free Points'
+                    )}
                   </button>
                 </div>
               </div>
@@ -506,27 +507,28 @@ export default function ClaimPage() {
                   {/* Push action to bottom */}
                   <div className="flex-1" />
 
-                  {/* Cooldown row */}
-                  {liveCountdown > 0 && (
-                    <div className={`flex items-center justify-between px-4 py-3 rounded-xl ${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-                      <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Next claim in</span>
-                      <span className={`font-mono text-sm font-semibold tabular-nums ${isDarkMode ? 'text-amber-400' : 'text-amber-600'}`}>
-                        {formatTimer(liveCountdown)}
-                      </span>
-                    </div>
-                  )}
-
                   {/* Action */}
                   <button
                     onClick={activePaidTier?.fn}
-                    disabled={anyPaidPending || !activePaidTier?.can || isClaimWithFeesSuccess}
-                    className={`w-full py-3 rounded-xl text-sm font-semibold transition-colors ${
-                      anyPaidPending || !activePaidTier?.can || isClaimWithFeesSuccess
-                        ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    disabled={anyPaidPending || !activePaidTier?.can}
+                    className={`w-full py-3 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${
+                      anyPaidPending || !activePaidTier?.can
+                        ? isDarkMode ? 'bg-gray-700 text-gray-400 cursor-not-allowed' : 'bg-gray-100 text-gray-500 cursor-not-allowed'
                         : 'bg-amber-500 hover:bg-amber-600 text-white'
                     }`}
                   >
-                    {isClaimWithFeesPending ? 'Confirm in wallet...' : isClaimWithFeesConfirming ? 'Processing...' : 'Buy Points'}
+                    {isClaimWithFeesPending ? (
+                      'Confirm in wallet...'
+                    ) : isClaimWithFeesConfirming ? (
+                      'Processing...'
+                    ) : liveCountdown > 0 ? (
+                      <>
+                        <span>Next claim in</span>
+                        <span className="font-mono tabular-nums">{formatTimer(liveCountdown)}</span>
+                      </>
+                    ) : (
+                      'Buy Points'
+                    )}
                   </button>
                 </div>
               </div>
