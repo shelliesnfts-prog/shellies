@@ -1,10 +1,10 @@
 'use client';
 
-import { AuthGuard } from '@/components/AuthGuard';
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useAccount } from 'wagmi';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
+import { WalletRequired } from '@/components/portal/WalletRequired';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePoints } from '@/contexts/PointsContext';
 import { useClaiming } from '@/hooks/useClaiming';
@@ -156,6 +156,7 @@ export default function ClaimPage() {
   const { address } = useAccount();
 
   const walletAddress = address || session?.address || '';
+  const isWalletConnected = !!(address && session?.address && address.toLowerCase() === session.address.toLowerCase());
   const { ethPrice } = useInkEthPrice();
 
   const { user, loading: userLoading, error: claimError, refreshUserData } = usePoints();
@@ -254,19 +255,6 @@ export default function ClaimPage() {
     }
   }, [liveCountdown, refreshClaimStatus]);
 
-  if (userLoading) {
-    return (
-      <div className={`min-h-screen flex transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-        <PortalSidebar isMobileMenuOpen={isMobileMenuOpen} setIsMobileMenuOpen={setIsMobileMenuOpen} />
-        <div className="flex-1 flex flex-col lg:ml-4 min-h-screen">
-          <main className="flex-1 p-3 sm:p-4 lg:p-6 mt-16 lg:mt-0 mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 xl:px-16 2xl:px-32">
-            <ClaimPageSkeleton isDarkMode={isDarkMode} />
-          </main>
-        </div>
-      </div>
-    );
-  }
-
   // ── Daily tier data ──────────────────────────────────────────────────────
   const stakerDailyPts =
     stakingBreakdown.day * pointsPerDailyStakedNFT +
@@ -356,7 +344,6 @@ export default function ClaimPage() {
   const anyPaidPending = isClaimWithFeesPending || isClaimWithFeesConfirming;
 
   return (
-    <AuthGuard>
     <div className={`min-h-screen flex transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <PortalSidebar isMobileMenuOpen={isMobileMenuOpen} setIsMobileMenuOpen={setIsMobileMenuOpen} />
 
@@ -378,6 +365,18 @@ export default function ClaimPage() {
                 {walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : 'Not connected'}
               </div>
             </div>
+
+            {!isWalletConnected ? (
+              <WalletRequired
+                variant="card"
+                isDarkMode={isDarkMode}
+                title="Connect your wallet"
+                action="connect to view your claim options"
+              />
+            ) : userLoading ? (
+              <ClaimPageSkeleton isDarkMode={isDarkMode} />
+            ) : (
+              <>
 
             {/* Two claim panels side by side */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
@@ -556,10 +555,11 @@ export default function ClaimPage() {
               </div>
             )}
 
+            </>
+          )}
           </div>
         </main>
       </div>
     </div>
-    </AuthGuard>
   );
 }

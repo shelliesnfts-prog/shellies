@@ -248,8 +248,7 @@ export function PortalSidebar({
         {/* Navigation Section */}
         <nav className="flex-1 px-4 py-6 overflow-y-auto">
           <ul className="space-y-1">
-            {/* Claim — wallet required */}
-            {!!session?.address && (
+            {/* Claim */}
             <li>
               <button
                 onClick={() => handleNavigation('/portal/claim')}
@@ -263,10 +262,8 @@ export function PortalSidebar({
                 <span className="font-medium text-sm">Claim</span>
               </button>
             </li>
-            )}
 
-            {/* Profile — wallet required */}
-            {!!session?.address && (
+            {/* Profile */}
             <li>
               <button
                 onClick={() => handleNavigation('/portal/profile')}
@@ -280,10 +277,8 @@ export function PortalSidebar({
                 <span className="font-medium text-sm">Profile</span>
               </button>
             </li>
-            )}
 
-            {/* Staking — wallet required */}
-            {!!session?.address && (
+            {/* Staking */}
             <li>
               <button
                 onClick={() => handleNavigation('/portal/staking')}
@@ -297,7 +292,6 @@ export function PortalSidebar({
                 <span className="font-medium text-sm">Staking</span>
               </button>
             </li>
-            )}
 
             {/* Raffles */}
             <li>

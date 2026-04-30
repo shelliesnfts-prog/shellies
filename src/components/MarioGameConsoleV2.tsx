@@ -11,7 +11,7 @@ import { useNFTAnalytics } from '@/hooks/useNFTAnalytics';
 import { useWriteContract, useAccount, useSwitchChain } from 'wagmi';
 import { formatEther } from 'viem';
 import { GamePaymentService } from '@/lib/contracts';
-import GameWalletPrompt from './GameWalletPrompt';
+import { WalletRequired } from '@/components/portal/WalletRequired';
 import PaymentLoadingOverlay from './PaymentLoadingOverlay';
 import { inkChain } from '@/lib/wagmi';
 
@@ -469,7 +469,9 @@ export default function MarioGameConsoleV2() {
   // CONDITIONAL RENDERING AFTER ALL HOOKS
   // If not connected, show wallet prompt
   if (!session?.address) {
-    return <GameWalletPrompt />;
+    return <WalletRequired variant="card" isDarkMode={isDarkMode}
+            title="Connect your wallet"
+            action="connect to play the Shellies game and earn XP" />;
   }
 
   // Collapsible FAQ state

@@ -1,10 +1,11 @@
 'use client';
 
-import { AuthGuard } from '@/components/AuthGuard';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSession } from 'next-auth/react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { useQueryClient } from '@tanstack/react-query';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
+import { WalletRequired } from '@/components/portal/WalletRequired';
 import { Trophy, Star, TrendingUp, Loader2, CheckCircle, AlertTriangle, Coins, Lock, Unlock, Shield } from 'lucide-react';
 import { NFTService } from '@/lib/nft-service';
 import { StakingService, LockPeriod } from '@/lib/staking-service';
@@ -169,6 +170,9 @@ export default function StakingPage() {
 
 
   const { address, isConnected } = useAccount();
+  const { data: session } = useSession();
+
+  const isWalletConnected = !!(address && session?.address && address.toLowerCase() === session.address.toLowerCase());
   const { writeContractAsync } = useWriteContract();
   const queryClient = useQueryClient();
   const { data: txReceipt, isLoading: isTxLoading, error: txError } = useWaitForTransactionReceipt({
@@ -714,7 +718,7 @@ export default function StakingPage() {
     return ownedNFTs.filter(nft => viewMode === 'owned' ? !nft.isStaked : nft.isStaked);
   };
 
-  if (!isConnected) {
+  if (!isWalletConnected) {
     return (
       <div className={`min-h-screen flex transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <PortalSidebar
@@ -723,14 +727,12 @@ export default function StakingPage() {
         />
         <div className="flex-1 flex flex-col lg:ml-4 min-h-screen">
           <main className="flex-1 p-3 sm:p-4 lg:p-6 mt-16 lg:mt-0 mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 xl:px-16 2xl:px-32">
-            <div className="flex items-center justify-center h-64">
-              <div className={`text-center ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                <h2 className="text-xl font-semibold mb-2">Connect Your Wallet</h2>
-                <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Please connect your wallet to view and manage your NFT staking
-                </p>
-              </div>
-            </div>
+            <WalletRequired
+              variant="card"
+              isDarkMode={isDarkMode}
+              title="Connect your wallet"
+              action="connect to view and manage your NFT staking"
+            />
           </main>
         </div>
       </div>
@@ -738,7 +740,6 @@ export default function StakingPage() {
   }
 
   return (
-    <AuthGuard>
     <div className={`min-h-screen flex transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'}`}>
       <PortalSidebar
         isMobileMenuOpen={isMobileMenuOpen}
@@ -1124,6 +1125,5 @@ export default function StakingPage() {
         userAddress={address || ''}
       />
     </div>
-    </AuthGuard>
   );
 }

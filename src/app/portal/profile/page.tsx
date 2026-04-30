@@ -1,10 +1,10 @@
 'use client';
 
-import { AuthGuard } from '@/components/AuthGuard';
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useAccount } from 'wagmi';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
+import { WalletRequired } from '@/components/portal/WalletRequired';
 import { usePoints } from '@/contexts/PointsContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { ProfilePageSkeleton } from '@/components/portal/ProfilePageSkeleton';
@@ -29,6 +29,7 @@ export default function ProfilePage() {
   const pathname = usePathname();
 
   const walletAddress = address || session?.address || '';
+  const isWalletConnected = !!(address && session?.address && address.toLowerCase() === session.address.toLowerCase());
 
   const { user, loading: userLoading, refreshUserData, refreshWithFreshData } = usePoints();
   const { nftCount, stakingBreakdown, loading: loadingNftAndStaking } = useNftAndStaking();
@@ -55,7 +56,6 @@ export default function ProfilePage() {
 
 
   return (
-    <AuthGuard>
     <div className={`min-h-screen flex transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <PortalSidebar
         isMobileMenuOpen={isMobileMenuOpen}
@@ -65,7 +65,27 @@ export default function ProfilePage() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col lg:ml-4 min-h-screen">
         <main className="flex-1 p-3 sm:p-4 lg:p-6 mt-16 lg:mt-0 mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 xl:px-16 2xl:px-32">
-          {userLoading ? (
+          {!isWalletConnected ? (
+            <div className="space-y-6">
+              {/* Header Section — always visible */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h1 className={`text-xl sm:text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    Profile Overview
+                  </h1>
+                  <p className={`text-sm mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Track your NFTs, points, and daily rewards
+                  </p>
+                </div>
+              </div>
+              <WalletRequired
+                variant="card"
+                isDarkMode={isDarkMode}
+                title="Connect your wallet"
+                action="connect to view your profile"
+              />
+            </div>
+          ) : userLoading ? (
             <ProfilePageSkeleton isDarkMode={isDarkMode} />
           ) : (
             <div className="space-y-6">
@@ -314,6 +334,5 @@ export default function ProfilePage() {
         </main>
       </div>
     </div>
-    </AuthGuard>
   );
 }

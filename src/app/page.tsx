@@ -4,18 +4,10 @@ import { useAccount } from 'wagmi';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { motion, type Variants } from 'framer-motion';
+import { motion } from 'framer-motion';
 import CustomConnectButton from '@/components/CustomConnectButton';
-
-/* ─── animation primitives ─────────────────────────────────────────────────── */
-const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } },
-};
-const stagger: Variants = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.08 } },
-};
+import { LandingRafflesSection } from '@/components/landing/LandingRafflesSection';
+import { fadeUp, stagger } from '@/app/_landing-motion';
 
 /* ─── small reusables ───────────────────────────────────────────────────────── */
 function FeatureCard({
@@ -393,6 +385,9 @@ export default function LandingPage() {
           </motion.div>
         </div>
       </section>
+
+      {/* ── Live Raffles ─────────────────────────────────────────────────────── */}
+      <LandingRafflesSection />
 
       {/* ── About / How it works ─────────────────────────────────────────────── */}
       <section id="about" className="py-28 px-6 relative">
