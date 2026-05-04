@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useAccount } from 'wagmi';
+import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
-import { WalletRequired } from '@/components/portal/WalletRequired';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePoints } from '@/contexts/PointsContext';
 import { useClaiming } from '@/hooks/useClaiming';
@@ -157,6 +157,7 @@ export default function ClaimPage() {
 
   const walletAddress = address || session?.address || '';
   const isWalletConnected = !!(address && session?.address && address.toLowerCase() === session.address.toLowerCase());
+  const { openConnectModal } = useConnectModal();
   const { ethPrice } = useInkEthPrice();
 
   const { user, loading: userLoading, error: claimError, refreshUserData } = usePoints();
@@ -366,14 +367,7 @@ export default function ClaimPage() {
               </div>
             </div>
 
-            {!isWalletConnected ? (
-              <WalletRequired
-                variant="card"
-                isDarkMode={isDarkMode}
-                title="Connect your wallet"
-                action="connect to view your claim options"
-              />
-            ) : userLoading ? (
+            {isWalletConnected && userLoading ? (
               <ClaimPageSkeleton isDarkMode={isDarkMode} />
             ) : (
               <>
@@ -401,12 +395,12 @@ export default function ClaimPage() {
                       </div>
                     </div>
                     <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
-                      canClaim
+                      isWalletConnected && canClaim
                         ? isDarkMode ? 'bg-green-500/20 text-green-400' : 'bg-green-50 text-green-700'
                         : isDarkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'
                     }`}>
-                      <span className={`inline-block w-1.5 h-1.5 rounded-full ${canClaim ? 'bg-green-500' : 'bg-gray-400'}`} />
-                      {canClaim ? 'Ready' : 'Cooldown'}
+                      <span className={`inline-block w-1.5 h-1.5 rounded-full ${isWalletConnected && canClaim ? 'bg-green-500' : 'bg-gray-400'}`} />
+                      {!isWalletConnected ? '—' : canClaim ? 'Ready' : 'Cooldown'}
                     </div>
                   </div>
 
@@ -416,7 +410,7 @@ export default function ClaimPage() {
                       <TierCard
                         key={key}
                         label={label}
-                        isActive={active}
+                        isActive={active && isWalletConnected}
                         pts={pts}
                         ptsLabel={ptsLabel}
                         rows={rows}
@@ -431,15 +425,17 @@ export default function ClaimPage() {
 
                   {/* Action */}
                   <button
-                    onClick={() => executeClaim()}
-                    disabled={!canClaim || isClaimPending || isClaimConfirming}
+                    onClick={() => isWalletConnected ? executeClaim() : openConnectModal?.()}
+                    disabled={isWalletConnected && (!canClaim || isClaimPending || isClaimConfirming)}
                     className={`w-full py-3 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${
-                      !canClaim || isClaimPending || isClaimConfirming
+                      isWalletConnected && (!canClaim || isClaimPending || isClaimConfirming)
                         ? isDarkMode ? 'bg-gray-700 text-gray-400 cursor-not-allowed' : 'bg-gray-100 text-gray-500 cursor-not-allowed'
                         : 'bg-green-600 hover:bg-green-700 text-white'
                     }`}
                   >
-                    {isClaimPending ? (
+                    {!isWalletConnected ? (
+                      'Connect Wallet'
+                    ) : isClaimPending ? (
                       'Confirm in wallet...'
                     ) : isClaimConfirming ? (
                       'Claiming...'
@@ -475,12 +471,12 @@ export default function ClaimPage() {
                       </div>
                     </div>
                     <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
-                      activePaidTier?.can
+                      isWalletConnected && activePaidTier?.can
                         ? isDarkMode ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-50 text-amber-700'
                         : isDarkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'
                     }`}>
-                      <span className={`inline-block w-1.5 h-1.5 rounded-full ${activePaidTier?.can ? 'bg-amber-500' : 'bg-gray-400'}`} />
-                      {activePaidTier?.can ? 'Ready' : 'Cooldown'}
+                      <span className={`inline-block w-1.5 h-1.5 rounded-full ${isWalletConnected && activePaidTier?.can ? 'bg-amber-500' : 'bg-gray-400'}`} />
+                      {!isWalletConnected ? '—' : activePaidTier?.can ? 'Ready' : 'Cooldown'}
                     </div>
                   </div>
 
@@ -490,7 +486,7 @@ export default function ClaimPage() {
                       <TierCard
                         key={key}
                         label={label}
-                        isActive={active}
+                        isActive={active && isWalletConnected}
                         pts={pts}
                         ptsLabel="pts instant"
                         rows={[
@@ -508,15 +504,17 @@ export default function ClaimPage() {
 
                   {/* Action */}
                   <button
-                    onClick={activePaidTier?.fn}
-                    disabled={anyPaidPending || !activePaidTier?.can}
+                    onClick={() => isWalletConnected ? activePaidTier?.fn?.() : openConnectModal?.()}
+                    disabled={isWalletConnected && (anyPaidPending || !activePaidTier?.can)}
                     className={`w-full py-3 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${
-                      anyPaidPending || !activePaidTier?.can
+                      isWalletConnected && (anyPaidPending || !activePaidTier?.can)
                         ? isDarkMode ? 'bg-gray-700 text-gray-400 cursor-not-allowed' : 'bg-gray-100 text-gray-500 cursor-not-allowed'
                         : 'bg-amber-500 hover:bg-amber-600 text-white'
                     }`}
                   >
-                    {isClaimWithFeesPending ? (
+                    {!isWalletConnected ? (
+                      'Connect Wallet'
+                    ) : isClaimWithFeesPending ? (
                       'Confirm in wallet...'
                     ) : isClaimWithFeesConfirming ? (
                       'Processing...'
