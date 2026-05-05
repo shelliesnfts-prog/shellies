@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useAccount } from 'wagmi';
 import { useSearchParams } from 'next/navigation';
@@ -32,6 +32,7 @@ function LeaderboardPageInner() {
   const [pointsLoading, setPointsLoading] = useState(true);
   const [pointsNextPageParams, setPointsNextPageParams] = useState<Record<string, string | number> | null>(null);
   const [pointsPageHistory, setPointsPageHistory] = useState<(Record<string, string | number> | null)[]>([null]);
+  const [pointsPageOffset, setPointsPageOffset] = useState(0);
   const [pointsCacheTimestamp, setPointsCacheTimestamp] = useState<number | null>(null);
   const [pointsError, setPointsError] = useState<string | null>(null);
   
@@ -61,7 +62,6 @@ function LeaderboardPageInner() {
     points: number;
     game_score: number;
   } | null>(null);
-  const [userRankLoading, setUserRankLoading] = useState(false);
 
   // Shared state
   const [loadingMore, setLoadingMore] = useState(false);
@@ -87,13 +87,35 @@ function LeaderboardPageInner() {
   const { address } = useAccount();
   const walletAddress = address || session?.address || '';
   const { toasts, removeToast, toast } = useToast();
+  const walletAddressRef = useRef('');
+  const pointsRankRequestId = useRef(0);
+  const gameXPRankRequestId = useRef(0);
+  walletAddressRef.current = walletAddress;
 
   const isCacheValid = (timestamp: number | null): boolean => {
     if (!timestamp) return false;
     return Date.now() - timestamp < CACHE_DURATION;
   };
 
-  const fetchPointsLeaderboard = async (pageParams: Record<string, string | number> | null = null) => {
+  const getPointsPageOffset = (
+    nextPageParams: Record<string, string | number> | null | undefined,
+    itemCount: number,
+    pageIndex: number
+  ): number => {
+    const itemsCount = Number(nextPageParams?.items_count);
+    const fallbackOffset = pageIndex * PAGE_SIZE;
+
+    if (Number.isFinite(itemsCount) && itemsCount >= fallbackOffset + itemCount) {
+      return itemsCount - itemCount;
+    }
+
+    return fallbackOffset;
+  };
+
+  const fetchPointsLeaderboard = async (
+    pageParams: Record<string, string | number> | null = null,
+    pageIndex: number = 0
+  ) => {
     try {
       setPointsLoading(true);
       setPointsError(null);
@@ -126,10 +148,30 @@ function LeaderboardPageInner() {
           : false,
       }));
 
+      const pageOffset = getPointsPageOffset(data.next_page_params ?? null, processedData.length, pageIndex);
+
       setPointsLeaderboard(processedData);
       setPointsNextPageParams(data.next_page_params ?? null);
+      setPointsPageOffset(pageOffset);
       setPointsCacheTimestamp(Date.now());
       setPointsError(null);
+
+      // Update immediately when the connected wallet is visible on this on-chain page.
+      if (walletAddress && walletAddressRef.current.toLowerCase() === walletAddress.toLowerCase()) {
+        const userIndex = processedData.findIndex(
+          (u: any) => u.wallet_address.toLowerCase() === walletAddress.toLowerCase()
+        );
+
+        if (userIndex >= 0) {
+          const u = processedData[userIndex];
+          setCurrentUserPointsRank({
+            rank: pageOffset + userIndex + 1,
+            wallet_address: u.wallet_address,
+            points: u.points,
+            game_score: 0,
+          });
+        }
+      }
     } catch (error) {
       console.error('Error fetching points leaderboard:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to load points leaderboard';
@@ -262,6 +304,11 @@ function LeaderboardPageInner() {
       // Fetch stats if switching to game XP
       if (type === 'gameXP') {
         fetchGameStats();
+        if (walletAddress && !currentUserGameXPRank) {
+          fetchCurrentUserGameXPRank();
+        }
+      } else if (walletAddress && !currentUserPointsRank) {
+        fetchCurrentUserPointsRank();
       }
     } else {
       // Start fade-out transition for data fetch
@@ -275,9 +322,11 @@ function LeaderboardPageInner() {
         if (type === 'gameXP') {
           fetchGameXPLeaderboard(null, false, false, '');
           fetchGameStats();
+          if (walletAddress) fetchCurrentUserGameXPRank();
         } else if (type === 'points') {
           setPointsPageHistory([null]);
           fetchPointsLeaderboard(null);
+          if (walletAddress) fetchCurrentUserPointsRank();
         }
         
         // End transition after fade-in
@@ -296,15 +345,16 @@ function LeaderboardPageInner() {
 
   const handlePointsNextPage = () => {
     if (!pointsNextPageParams) return;
-    setPointsPageHistory(prev => [...prev, pointsNextPageParams]);
-    fetchPointsLeaderboard(pointsNextPageParams);
+    const newHistory = [...pointsPageHistory, pointsNextPageParams];
+    setPointsPageHistory(newHistory);
+    fetchPointsLeaderboard(pointsNextPageParams, newHistory.length - 1);
   };
 
   const handlePointsPrevPage = () => {
     if (pointsPageHistory.length <= 1) return;
     const newHistory = pointsPageHistory.slice(0, -1);
     setPointsPageHistory(newHistory);
-    fetchPointsLeaderboard(newHistory[newHistory.length - 1]);
+    fetchPointsLeaderboard(newHistory[newHistory.length - 1], newHistory.length - 1);
   };
 
   const handleManualRefresh = () => {
@@ -313,12 +363,12 @@ function LeaderboardPageInner() {
       setPointsCacheTimestamp(null);
       setPointsPageHistory([null]);
       fetchPointsLeaderboard(null);
-      if (walletAddress) fetchUserRank('points');
+      if (walletAddress) fetchCurrentUserPointsRank();
     } else {
       setGameXPCacheTimestamp(null);
       fetchGameXPLeaderboard(null, false, true, debouncedSearchQuery);
       fetchGameStats();
-      if (walletAddress) fetchUserRank('gameXP');
+      if (walletAddress) fetchCurrentUserGameXPRank();
     }
   };
 
@@ -328,6 +378,7 @@ function LeaderboardPageInner() {
       setPointsError(null);
       setPointsPageHistory([null]);
       fetchPointsLeaderboard(null);
+      if (walletAddress) fetchCurrentUserPointsRank();
     } else {
       setGameXPError(null);
       fetchGameXPLeaderboard(null, false, true, debouncedSearchQuery);
@@ -344,76 +395,64 @@ function LeaderboardPageInner() {
     setIsSearching(false);
   };
 
-  // Optimized: Fetch both ranks in a single API call
-  const fetchBothUserRanks = async () => {
-    if (!walletAddress) return;
+  const fetchCurrentUserPointsRank = async () => {
+    if (!walletAddress) {
+      pointsRankRequestId.current += 1;
+      setCurrentUserPointsRank(null);
+      return;
+    }
+
+    const requestId = pointsRankRequestId.current + 1;
+    pointsRankRequestId.current = requestId;
 
     try {
-      setUserRankLoading(true);
       const params = new URLSearchParams({
-        walletAddress,
-        type: 'both'
+        walletAddress
       });
 
-      const response = await fetch(`/api/leaderboard/user-rank?${params.toString()}`);
+      const response = await fetch(`/api/leaderboard/points-rank?${params.toString()}`);
+
+      if (requestId !== pointsRankRequestId.current) return;
 
       if (!response.ok) {
         if (response.status === 404) {
           setCurrentUserPointsRank(null);
-          setCurrentUserGameXPRank(null);
           return;
         }
-        throw new Error('Failed to fetch user ranks');
+        throw new Error('Failed to fetch points rank');
       }
 
       const data = await response.json();
 
-      // Set points rank
-      if (data.pointsRank) {
-        setCurrentUserPointsRank({
-          rank: data.pointsRank.rank,
-          wallet_address: data.wallet_address,
-          points: data.pointsRank.points,
-          game_score: data.gameXPRank?.game_score || 0
-        });
-      }
+      if (requestId !== pointsRankRequestId.current) return;
 
-      // Set game XP rank
-      if (data.gameXPRank) {
-        setCurrentUserGameXPRank({
-          rank: data.gameXPRank.rank,
-          wallet_address: data.wallet_address,
-          points: data.pointsRank?.points || 0,
-          game_score: data.gameXPRank.game_score
-        });
-      }
+      setCurrentUserPointsRank(data);
     } catch (error) {
-      console.error('Error fetching user ranks:', error);
-    } finally {
-      setUserRankLoading(false);
+      if (requestId === pointsRankRequestId.current) {
+        console.error('Error fetching on-chain points rank:', error);
+      }
     }
   };
 
-  // Single rank fetch for manual refresh (when we only need one)
-  const fetchUserRank = async (type: 'points' | 'gameXP') => {
+  const fetchCurrentUserGameXPRank = async () => {
     if (!walletAddress) return;
 
+    const requestId = gameXPRankRequestId.current + 1;
+    gameXPRankRequestId.current = requestId;
+
     try {
-      setUserRankLoading(true);
       const params = new URLSearchParams({
         walletAddress,
-        type
+        type: 'gameXP'
       });
 
       const response = await fetch(`/api/leaderboard/user-rank?${params.toString()}`);
 
+      if (requestId !== gameXPRankRequestId.current) return;
+
       if (!response.ok) {
         if (response.status === 404) {
-          if (type === 'points') {
-            setCurrentUserPointsRank(null);
-          } else {
-            setCurrentUserGameXPRank(null);
-          }
+          setCurrentUserGameXPRank(null);
           return;
         }
         throw new Error('Failed to fetch user rank');
@@ -421,15 +460,13 @@ function LeaderboardPageInner() {
 
       const data = await response.json();
 
-      if (type === 'points') {
-        setCurrentUserPointsRank(data);
-      } else {
-        setCurrentUserGameXPRank(data);
-      }
+      if (requestId !== gameXPRankRequestId.current) return;
+
+      setCurrentUserGameXPRank(data);
     } catch (error) {
-      console.error(`Error fetching user ${type} rank:`, error);
-    } finally {
-      setUserRankLoading(false);
+      if (requestId === gameXPRankRequestId.current) {
+        console.error('Error fetching user game XP rank:', error);
+      }
     }
   };
 
@@ -453,6 +490,10 @@ function LeaderboardPageInner() {
     // Invalidate cache when wallet changes
     setPointsCacheTimestamp(null);
     setGameXPCacheTimestamp(null);
+    setCurrentUserPointsRank(null);
+    setCurrentUserGameXPRank(null);
+    pointsRankRequestId.current += 1;
+    gameXPRankRequestId.current += 1;
 
     // Fetch appropriate leaderboard based on initial tab
     if (initialTab === 'gameXP') {
@@ -461,9 +502,9 @@ function LeaderboardPageInner() {
       fetchPointsLeaderboard();
     }
 
-    // Optimized: Fetch both ranks in a single API call on initial load
     if (walletAddress) {
-      fetchBothUserRanks();
+      fetchCurrentUserPointsRank();
+      fetchCurrentUserGameXPRank();
     }
   }, [walletAddress]);
 
@@ -892,7 +933,7 @@ function LeaderboardPageInner() {
                     if (!currentUserRank) return null;
 
                     const metricValue = activeLeaderboard === 'points'
-                      ? currentUserRank.points.toFixed(1)
+                      ? currentUserRank.points.toLocaleString()
                       : formatXP(currentUserRank.game_score || 0);
                     const metricLabel = activeLeaderboard === 'points' ? 'Points' : 'XP';
 
@@ -974,6 +1015,10 @@ function LeaderboardPageInner() {
                 >
                   {(activeLeaderboard === 'points' ? pointsLeaderboard : gameXPLeaderboard).length > 0 ? (activeLeaderboard === 'points' ? pointsLeaderboard : gameXPLeaderboard).map((user: any, index: number) => {
                     const isCurrentUser = user.isCurrentUser;
+                    const displayRank = activeLeaderboard === 'points'
+                      ? pointsPageOffset + index + 1
+                      : index + 1;
+                    const rankIndex = displayRank - 1;
                     const metricValue = activeLeaderboard === 'points'
                       ? user.points.toLocaleString()
                       : formatXP(user.game_score || 0);
@@ -983,7 +1028,7 @@ function LeaderboardPageInner() {
                       <div
                         key={user.wallet_address}
                         role="listitem"
-                        aria-label={`Rank ${index + 1}: ${user.wallet_address.slice(0, 12)}...${user.wallet_address.slice(-8)}, ${metricValue} ${metricLabel}${isCurrentUser ? ', Your entry' : ''}`}
+                        aria-label={`Rank ${displayRank}: ${user.wallet_address.slice(0, 12)}...${user.wallet_address.slice(-8)}, ${metricValue} ${metricLabel}${isCurrentUser ? ', Your entry' : ''}`}
                         className={`relative p-4 sm:p-6 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl ${
                           isCurrentUser 
                             ? isDarkMode
@@ -1006,8 +1051,8 @@ function LeaderboardPageInner() {
                         
                         <div className="flex items-center space-x-4">
                           {/* Rank Badge */}
-                          <div className={getRankBadge(index, isCurrentUser)}>
-                            {getRankIcon(index, isCurrentUser) || `#${index + 1}`}
+                          <div className={getRankBadge(rankIndex, isCurrentUser)}>
+                            {getRankIcon(rankIndex, isCurrentUser) || `#${displayRank}`}
                           </div>
                           
                           {/* User Info */}
