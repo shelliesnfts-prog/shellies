@@ -28,6 +28,8 @@ import {
   Gamepad2
 } from 'lucide-react';
 
+const ADMIN_STATUS_CACHE_TTL = 5 * 60 * 1000;
+
 interface PortalSidebarProps {
   isMobileMenuOpen: boolean;
   setIsMobileMenuOpen: (open: boolean) => void;
@@ -66,10 +68,33 @@ export function PortalSidebar({
       return;
     }
 
+    const cacheKey = `shellies-admin-status:${walletAddress.toLowerCase()}`;
+    try {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached) as { isAdmin: boolean; timestamp: number };
+        if (Date.now() - parsed.timestamp < ADMIN_STATUS_CACHE_TTL) {
+          setIsAdmin(parsed.isAdmin);
+          return;
+        }
+      }
+    } catch {
+      // Ignore malformed cache entries.
+    }
+
     try {
       const response = await fetch('/api/admin/check');
       const data = await response.json();
-      setIsAdmin(data.isAdmin || false);
+      const nextIsAdmin = data.isAdmin || false;
+      setIsAdmin(nextIsAdmin);
+      try {
+        sessionStorage.setItem(cacheKey, JSON.stringify({
+          isAdmin: nextIsAdmin,
+          timestamp: Date.now(),
+        }));
+      } catch {
+        // Session storage may be unavailable in strict browser modes.
+      }
     } catch (error) {
       console.error('Error checking admin status:', error);
       setIsAdmin(false);

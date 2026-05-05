@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { createClient } from '@supabase/supabase-js';
-import { createPublicClient, http, decodeEventLog } from 'viem';
+import { createPublicClient, http, decodeEventLog, fallback } from 'viem';
 import { authOptions } from '@/lib/auth';
 import { inkChain } from '@/lib/wagmi';
 import { ValidationError, AuthenticationError, NotFoundError, createErrorResponse, createSuccessResponse, ERROR_CODES } from '@/lib/errors';
@@ -11,6 +11,22 @@ const supabaseService = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
+
+const inkRpcEndpoints = Array.from(new Set([
+  process.env.INK_RPC_URL,
+  process.env.NEXT_PUBLIC_INK_RPC_URL,
+  'https://rpc-qnd.inkonchain.com',
+  'https://rpc-gel.inkonchain.com',
+  'https://ink.drpc.org',
+].filter((url): url is string => Boolean(url))));
+
+const publicClient = createPublicClient({
+  chain: inkChain,
+  transport: fallback(
+    inkRpcEndpoints.map((url) => http(url, { timeout: 4000, retryCount: 0 })),
+    { retryCount: 0 }
+  ),
+});
 
 // Minimal ABI fragment for the RaffleEntered event
 const RAFFLE_ENTERED_ABI = [
@@ -63,12 +79,21 @@ export async function POST(request: NextRequest) {
       throw new ValidationError('Raffle contract not configured', ERROR_CODES.INVALID_REQUEST, 500);
     }
 
-    const client = createPublicClient({ chain: inkChain, transport: http() });
-
-    const [receipt, tx] = await Promise.all([
-      client.getTransactionReceipt({ hash: txHash as `0x${string}` }),
-      client.getTransaction({ hash: txHash as `0x${string}` }),
-    ]);
+    let receipt;
+    let tx;
+    try {
+      [receipt, tx] = await Promise.all([
+        publicClient.getTransactionReceipt({ hash: txHash as `0x${string}` }),
+        publicClient.getTransaction({ hash: txHash as `0x${string}` }),
+      ]);
+    } catch (error) {
+      console.error('Failed to verify raffle entry transaction:', error);
+      throw new ValidationError(
+        'Transaction is not confirmed yet. Please wait a moment and try again.',
+        'INVALID_TRANSACTION',
+        400
+      );
+    }
 
     if (!receipt || receipt.status !== 'success') {
       throw new ValidationError('Transaction not found or failed on-chain', 'INVALID_TRANSACTION', 400);
@@ -118,24 +143,37 @@ export async function POST(request: NextRequest) {
       throw new ValidationError('Transaction ticket count does not match request', 'INVALID_TRANSACTION', 400);
     }
 
-    // ── 4. Deduplication — reject if txHash already recorded ─────────────────
-    const { data: existingEntry } = await supabaseService
-      .from('shellies_raffle_entries')
-      .select('id')
-      .eq('join_tx_hash', txHash)
-      .maybeSingle();
+    // ── 4. Fetch all DB state in parallel ────────────────────────────────────
+    const [existingEntryResult, raffleResult, existingEntriesResult] = await Promise.all([
+      supabaseService
+        .from('shellies_raffle_entries')
+        .select('id')
+        .eq('join_tx_hash', txHash)
+        .maybeSingle(),
+      supabaseService
+        .from('shellies_raffle_raffles')
+        .select('id, title, points_per_ticket, max_tickets_per_user, end_date')
+        .eq('id', parsedRaffleId)
+        .single(),
+      supabaseService
+        .from('shellies_raffle_entries')
+        .select('ticket_count')
+        .eq('wallet_address', walletAddress)
+        .eq('raffle_id', parsedRaffleId),
+    ]);
 
+    if (existingEntryResult.error) {
+      console.error('Failed to check duplicate raffle entry:', existingEntryResult.error);
+      throw new ValidationError('Failed to validate transaction uniqueness', ERROR_CODES.DATABASE_ERROR, 500);
+    }
+
+    const { data: existingEntry } = existingEntryResult;
     if (existingEntry) {
       throw new ValidationError('This transaction has already been recorded', 'TRANSACTION_ALREADY_USED', 400);
     }
 
-    // ── 5. Fetch raffle from DB ───────────────────────────────────────────────
-    const { data: raffle, error: raffleError } = await supabaseService
-      .from('shellies_raffle_raffles')
-      .select('id, title, points_per_ticket, max_tickets_per_user, end_date')
-      .eq('id', parsedRaffleId)
-      .single();
-
+    // ── 5. Validate raffle and existing DB entries ───────────────────────────
+    const { data: raffle, error: raffleError } = raffleResult;
     if (raffleError || !raffle) {
       throw new NotFoundError('Raffle not found', ERROR_CODES.RAFFLE_NOT_FOUND);
     }
@@ -144,14 +182,12 @@ export async function POST(request: NextRequest) {
       throw new ValidationError('This raffle has ended', ERROR_CODES.RAFFLE_ENDED, 400);
     }
 
-    // ── 6. Check ticket limits from existing DB entries ───────────────────────
-    const { data: existingEntries } = await supabaseService
-      .from('shellies_raffle_entries')
-      .select('ticket_count')
-      .eq('wallet_address', walletAddress)
-      .eq('raffle_id', parsedRaffleId);
+    if (existingEntriesResult.error) {
+      console.error('Failed to fetch existing raffle entries:', existingEntriesResult.error);
+      throw new ValidationError('Failed to validate existing entries', ERROR_CODES.DATABASE_ERROR, 500);
+    }
 
-    const currentTickets = (existingEntries || []).reduce((sum, e) => sum + e.ticket_count, 0);
+    const currentTickets = (existingEntriesResult.data || []).reduce((sum, e) => sum + e.ticket_count, 0);
     const newTotalTickets = currentTickets + ticketCount;
 
     if (currentTickets >= raffle.max_tickets_per_user) {

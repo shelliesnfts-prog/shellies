@@ -9,7 +9,7 @@ import JoinRaffleModal from '@/components/JoinRaffleModal';
 import { ConnectWalletGate } from '@/components/ConnectWalletGate';
 import { Gift, Loader2 } from 'lucide-react';
 import { Raffle } from '@/lib/supabase';
-import { useDashboard } from '@/hooks/useDashboard';
+import { usePoints } from '@/contexts/PointsContext';
 import { useTheme } from '@/contexts/ThemeContext';
 
 export default function RafflesPage() {
@@ -26,7 +26,7 @@ export default function RafflesPage() {
   const [isConnectGateOpen, setIsConnectGateOpen] = useState(false);
   const { isDarkMode } = useTheme();
   const { status } = useSession();
-  const { fetchUser } = useDashboard();
+  const { refreshUserData } = usePoints();
   const fetchingRef = useRef(false);
 
   const fetchRaffles = async (page = 1, isLoadMore = false) => {
@@ -41,7 +41,8 @@ export default function RafflesPage() {
         setRaffles([]);
       }
       
-      const response = await fetch(`/api/raffles?status=${raffleView}&page=${page}&limit=6`);
+      const includeWinners = raffleView === 'active' ? '' : '&includeWinners=true';
+      const response = await fetch(`/api/raffles?status=${raffleView}&page=${page}&limit=6${includeWinners}`);
       if (response.ok) {
         const data = await response.json();
         
@@ -89,7 +90,7 @@ export default function RafflesPage() {
 
   const handleRaffleSuccess = () => {
     // Refresh user data and raffle list to get updated ticket counts
-    fetchUser();
+    refreshUserData();
     fetchRaffles(currentPage, false);
   };
 

@@ -64,7 +64,7 @@ export function useDashboard() {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`/api/dashboard?_t=${Date.now()}&_r=${Math.random()}`, {
+      const response = await fetch('/api/dashboard', {
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Pragma': 'no-cache',

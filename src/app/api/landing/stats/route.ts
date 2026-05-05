@@ -3,6 +3,14 @@ import { supabase, supabaseAdmin } from '@/lib/supabase';
 
 export const revalidate = 60;
 
+const CACHE_HEADERS = {
+  'Cache-Control': 'public, max-age=300, s-maxage=300, stale-while-revalidate=600',
+};
+
+const ERROR_CACHE_HEADERS = {
+  'Cache-Control': 'no-store',
+};
+
 export async function GET() {
   try {
     const db = supabaseAdmin || supabase;
@@ -24,12 +32,12 @@ export async function GET() {
       rafflesCompleted: completedRes.count ?? 0,
       rafflesTotal: totalRafflesRes.count ?? 0,
       ticketsSold: totalTicketsSold,
-    });
+    }, { headers: CACHE_HEADERS });
   } catch (err) {
     console.error('landing/stats error', err);
     return NextResponse.json(
       { holders: 0, rafflesCompleted: 0, rafflesTotal: 0, ticketsSold: 0 },
-      { status: 200 }
+      { status: 200, headers: ERROR_CACHE_HEADERS }
     );
   }
 }

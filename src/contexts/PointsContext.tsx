@@ -214,7 +214,7 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`/api/dashboard?_t=${Date.now()}`, {
+      const response = await fetch('/api/dashboard', {
         headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
         cache: 'no-store',
       });

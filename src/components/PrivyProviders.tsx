@@ -16,10 +16,9 @@ import { useMemo } from 'react';
 const createQueryClient = () => new QueryClient({
   defaultOptions: {
     queries: {
-      // Disable caching for all queries by default
-      staleTime: 0,
-      gcTime: 0, // Previously cacheTime in v4
-      refetchOnWindowFocus: true,
+      staleTime: 60 * 1000,
+      gcTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
       refetchOnMount: true,
       refetchOnReconnect: true,
     },
@@ -57,8 +56,8 @@ export function Web3Providers({
       <QueryClientProvider client={queryClient}>
         <SessionProvider 
           session={session}
-          refetchInterval={5 * 60} // Refetch session every 5 minutes
-          refetchOnWindowFocus={true}
+          refetchInterval={0}
+          refetchOnWindowFocus={false}
         >
           <RainbowKitSiweNextAuthProvider 
             getSiweMessageOptions={getSiweMessageOptions}

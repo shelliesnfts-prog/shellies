@@ -471,10 +471,10 @@ function LeaderboardPageInner() {
     // Initial fetch
     fetchStakingStats();
 
-    // Set up interval to refresh every 30 seconds (reduced from 5 to avoid rate limiting)
+    // Refresh global stats occasionally; each refresh hits our API and external RPC.
     const intervalId = setInterval(() => {
       fetchStakingStats();
-    }, 30000);
+    }, 5 * 60 * 1000);
 
     // Cleanup interval on unmount
     return () => clearInterval(intervalId);

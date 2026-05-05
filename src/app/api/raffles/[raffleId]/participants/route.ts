@@ -3,6 +3,14 @@ import { getServerSession } from 'next-auth/next';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { authOptions } from '@/lib/auth';
 
+type ParticipantRow = {
+  wallet_address: string;
+  ticket_count: number;
+  points_spent: number;
+  created_at: string;
+  join_tx_hash?: string | null;
+};
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ raffleId: string }> }
@@ -29,62 +37,36 @@ export async function GET(
     }
 
 
-    // Use admin client to bypass RLS since we've already authenticated the request
-    if (!supabaseAdmin) {
-      return NextResponse.json(
-        { error: 'Service configuration error' },
-        { status: 500 }
-      );
+    const client = supabaseAdmin || supabase;
+
+    const { data: rpcParticipants, error: rpcError } = await client.rpc('get_raffle_participants_summary', {
+      p_raffle_id: raffleId,
+    });
+
+    if (!rpcError && rpcParticipants) {
+      return NextResponse.json({
+        success: true,
+        data: rpcParticipants,
+        total: rpcParticipants.length
+      });
     }
 
-    // Fetch all participants for this raffle with their transaction data
-    // First try with join_tx_hash, fallback without it if column doesn't exist
-    let participants, participantsError;
-    
-    try {
-      const result = await supabaseAdmin
-        .from('shellies_raffle_entries')
-        .select(`
-          wallet_address,
-          ticket_count,
-          points_spent,
-          created_at,
-          join_tx_hash
-        `)
-        .eq('raffle_id', raffleId)
-        .order('created_at', { ascending: false });
-      
-      participants = result.data;
-      participantsError = result.error;
-      
-    } catch (error: any) {
-      // If join_tx_hash column doesn't exist, query without it
-      if (error?.code === '42703' || (error?.message && error.message.includes('join_tx_hash'))) {
-        const fallbackResult = await supabaseAdmin
-          .from('shellies_raffle_entries')
-          .select(`
-            wallet_address,
-            ticket_count,
-            points_spent,
-            created_at
-          `)
-          .eq('raffle_id', raffleId)
-          .order('created_at', { ascending: false });
-        
-        participants = fallbackResult.data;
-        participantsError = fallbackResult.error;
-        
-        // Add join_tx_hash as null for all entries
-        if (participants) {
-          participants = participants.map((entry: any) => ({
-            ...entry,
-            join_tx_hash: null
-          }));
-        }
-      } else {
-        participantsError = error;
-      }
+    if (rpcError && rpcError.code !== '42883') {
+      console.warn('Falling back to raw participant query:', rpcError);
     }
+
+    // Fallback for environments where the aggregate RPC migration has not been applied.
+    const { data: participants, error: participantsError } = await client
+      .from('shellies_raffle_entries')
+      .select(`
+        wallet_address,
+        ticket_count,
+        points_spent,
+        created_at,
+        join_tx_hash
+      `)
+      .eq('raffle_id', raffleId)
+      .order('created_at', { ascending: true });
 
     if (participantsError) {
       console.error('Error fetching raffle participants:', participantsError);
@@ -95,12 +77,12 @@ export async function GET(
     }
 
     // Group entries by wallet address and sum tickets
-    const participantMap = new Map();
+    const participantMap = new Map<string, ParticipantRow>();
     
     participants?.forEach(entry => {
       const wallet = entry.wallet_address;
       if (participantMap.has(wallet)) {
-        const existing = participantMap.get(wallet);
+        const existing = participantMap.get(wallet)!;
         existing.ticket_count += entry.ticket_count;
         existing.points_spent += entry.points_spent;
         // Keep the earliest join date for this wallet

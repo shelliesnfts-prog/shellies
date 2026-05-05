@@ -31,7 +31,7 @@ export function useUser() {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`/api/user?_t=${Date.now()}&_r=${Math.random()}`, {
+      const response = await fetch('/api/user', {
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Pragma': 'no-cache',
@@ -65,7 +65,7 @@ export function useUser() {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`/api/user?_t=${Date.now()}&_r=${Math.random()}`, {
+      const response = await fetch('/api/user', {
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Pragma': 'no-cache',

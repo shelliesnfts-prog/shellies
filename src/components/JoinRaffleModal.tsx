@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useWriteContract, useAccount } from 'wagmi';
+import { waitForTransactionReceipt } from '@wagmi/core';
 import { X, Calendar, Target, Users, Clock, ImageOff, Plus, Minus, Loader2, CheckCircle, AlertCircle, Crown, Trophy } from 'lucide-react';
 import { Raffle } from '@/lib/supabase';
 import { getTimeRemaining, isRaffleActive } from '@/lib/dateUtils';
 import { RaffleContractService } from '@/lib/raffle-contract';
 import { raffle_abi } from '@/lib/raffle-abi';
+import { getConfig } from '@/lib/wagmi';
 import { parseContractError } from '@/lib/errors';
 import { formatTokenDisplay, formatNumberWithSpaces } from '@/lib/token-utils';
 import { usePoints } from '@/contexts/PointsContext';
@@ -34,6 +36,13 @@ interface Participant {
   join_tx_hash?: string;
 }
 
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+const normalizeAddress = (walletAddress?: string | null) => walletAddress?.toLowerCase() || '';
+const isSameAddress = (first?: string | null, second?: string | null) =>
+  Boolean(first && second && normalizeAddress(first) === normalizeAddress(second));
+const hasUsableWinnerAddress = (walletAddress?: string | null) =>
+  Boolean(walletAddress && normalizeAddress(walletAddress) !== ZERO_ADDRESS);
+
 export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = false, onSuccess }: JoinRaffleModalProps) {
   const [imageError, setImageError] = useState(false);
   const [ticketCount, setTicketCount] = useState(1);
@@ -43,6 +52,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
   const [loadingEntry, setLoadingEntry] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loadingParticipants, setLoadingParticipants] = useState(false);
+  const [resolvedWinner, setResolvedWinner] = useState<string | null>(null);
 
   // Wagmi hooks for contract interaction
   const { address, isConnected } = useAccount();
@@ -57,9 +67,63 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  const normalizeAddress = (walletAddress?: string | null) => walletAddress?.toLowerCase() || '';
-  const isSameAddress = (first?: string | null, second?: string | null) =>
-    Boolean(first && second && normalizeAddress(first) === normalizeAddress(second));
+  const winnerAddress = useMemo(() => {
+    if (hasUsableWinnerAddress(resolvedWinner)) return resolvedWinner;
+    if (hasUsableWinnerAddress(raffle?.winner)) return raffle?.winner || null;
+    return null;
+  }, [raffle?.winner, resolvedWinner]);
+
+  const sortedParticipants = useMemo(() => {
+    return [...participants].sort((a, b) => {
+      if (raffle?.status === 'COMPLETED' && winnerAddress) {
+        if (isSameAddress(a.wallet_address, winnerAddress)) return -1;
+        if (isSameAddress(b.wallet_address, winnerAddress)) return 1;
+      }
+
+      if (isSameAddress(a.wallet_address, address)) return -1;
+      if (isSameAddress(b.wallet_address, address)) return 1;
+
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    });
+  }, [address, participants, raffle?.status, winnerAddress]);
+
+  useEffect(() => {
+    if (!raffle) {
+      setResolvedWinner(null);
+      return;
+    }
+
+    setResolvedWinner(hasUsableWinnerAddress(raffle.winner) ? raffle.winner! : null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [raffle?.id, raffle?.winner]);
+
+  useEffect(() => {
+    if (!isOpen || !raffle || raffle.status !== 'COMPLETED' || winnerAddress) return;
+
+    let cancelled = false;
+
+    const loadWinner = async () => {
+      try {
+        const raffleInfo = raffle.id >= 98 && raffle.id <= 108
+          ? await RaffleContractService.getRafflePrizeInfoFromOldContract(raffle.id.toString())
+          : await RaffleContractService.getRafflePrizeInfo(raffle.id.toString());
+
+        const contractWinner = raffleInfo?.winner || null;
+        if (!cancelled && hasUsableWinnerAddress(contractWinner)) {
+          setResolvedWinner(contractWinner);
+        }
+      } catch (error) {
+        console.error('Error fetching raffle winner:', error);
+      }
+    };
+
+    loadWinner();
+
+    return () => {
+      cancelled = true;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, raffle?.id, raffle?.status, winnerAddress]);
 
   // Reset modal state when opened — depend only on isOpen + raffle.id to avoid
   // re-running every time the parent re-renders with a new raffle object reference
@@ -97,13 +161,17 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
 
     if (!isRaffleStillActive) return;
 
-    // Set up polling interval (every 8 seconds)
+    // Poll occasionally while the modal is visible. This keeps live counts useful
+    // without creating a steady stream of API requests for idle tabs.
     const pollInterval = setInterval(() => {
-      // Only poll if raffle is still active
-      if (raffle.status === 'ACTIVE' && isRaffleActive(raffle.end_date)) {
+      if (
+        document.visibilityState === 'visible' &&
+        raffle.status === 'ACTIVE' &&
+        isRaffleActive(raffle.end_date)
+      ) {
         fetchParticipants(false); // Poll without loading indicator
       }
-    }, 8000);
+    }, 30000);
 
     // Cleanup interval on component unmount or when dependencies change
     return () => {
@@ -144,27 +212,12 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
       const data = await response.json();
 
       if (data.success && data.data) {
-        // Sort participants: winner first (for completed raffles), then connected user, then by join date
-        const winnerAddress = raffle?.winner || null;
-        const sortedParticipants = [...data.data].sort((a, b) => {
-          // Winner always goes first for completed raffles
-          if (raffle?.status === 'COMPLETED' && winnerAddress) {
-            if (isSameAddress(a.wallet_address, winnerAddress)) return -1;
-            if (isSameAddress(b.wallet_address, winnerAddress)) return 1;
-          }
-
-          // Then connected user
-          if (isSameAddress(a.wallet_address, address)) return -1;
-          if (isSameAddress(b.wallet_address, address)) return 1;
-
-          // Finally by join date
-          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-        });
-        setParticipants(sortedParticipants);
+        const fetchedParticipants = data.data as Participant[];
+        setParticipants(fetchedParticipants);
 
         // Update raffle participant count based on actual data
         if (raffle) {
-          raffle.current_participants = sortedParticipants.length;
+          raffle.current_participants = fetchedParticipants.length;
         }
       } else {
         setParticipants([]);
@@ -323,10 +376,45 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
 
       setMessage({
         type: 'success',
-        text: 'Transaction signed! Processing your entry...'
+        text: 'Transaction submitted. Waiting for confirmation...'
       });
 
-      // Step 2: If contract interaction succeeds, proceed with API call
+      try {
+        const receipt = await waitForTransactionReceipt(getConfig(), {
+          hash: txHash,
+          confirmations: 1,
+          timeout: 60000,
+        });
+
+        if (receipt.status !== 'success') {
+          throw new Error('Transaction failed on-chain');
+        }
+
+        setMessage({
+          type: 'success',
+          text: 'Transaction confirmed. Recording your entry...'
+        });
+      } catch (confirmationError) {
+        const confirmationMessage = confirmationError instanceof Error
+          ? confirmationError.message.toLowerCase()
+          : '';
+
+        if (
+          !confirmationMessage.includes('timeout') &&
+          !confirmationMessage.includes('not found') &&
+          !confirmationMessage.includes('network') &&
+          !confirmationMessage.includes('fetch')
+        ) {
+          throw confirmationError;
+        }
+
+        setMessage({
+          type: 'success',
+          text: 'Transaction submitted. Verifying your entry...'
+        });
+      }
+
+      // Step 2: If contract interaction succeeds, proceed with API verification
       const response = await fetch('/api/raffle-entries/enter', {
         method: 'POST',
         headers: {
@@ -486,7 +574,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                     <Trophy className={`w-3 h-3 ${raffle.status === 'COMPLETED' ? 'text-yellow-600' : 'text-green-600'
                       }`} />
                     <span>
-                      Win {formatNumberWithSpaces(raffle.prize_amount || 0)} Tokens{raffle.status === 'COMPLETED' && raffle.winner ? ' 🎊' : '!'}
+                      Win {formatNumberWithSpaces(raffle.prize_amount || 0)} Tokens{raffle.status === 'COMPLETED' && winnerAddress ? ' 🎊' : '!'}
                     </span>
                   </div>
 
@@ -502,7 +590,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                     <Trophy className={`w-3 h-3 ${raffle.status === 'COMPLETED' ? 'text-yellow-600' : 'text-purple-600'
                       }`} />
                     <span>
-                      Win NFT #{formatNumberWithSpaces(raffle.prize_token_id || 0)}{raffle.status === 'COMPLETED' && raffle.winner ? ' 🎊' : '!'}
+                      Win NFT #{formatNumberWithSpaces(raffle.prize_token_id || 0)}{raffle.status === 'COMPLETED' && winnerAddress ? ' 🎊' : '!'}
                     </span>
                   </div>
 
@@ -589,8 +677,8 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                       </div>
                     ) : participants.length > 0 ? (
                       // Show actual participants
-                      participants.map((participant, index) => {
-                        const isWinner = raffle?.status === 'COMPLETED' && isSameAddress(participant.wallet_address, raffle?.winner);
+                      sortedParticipants.map((participant, index) => {
+                        const isWinner = raffle?.status === 'COMPLETED' && isSameAddress(participant.wallet_address, winnerAddress);
                         const isCurrentUser = isSameAddress(participant.wallet_address, address);
 
                         return (

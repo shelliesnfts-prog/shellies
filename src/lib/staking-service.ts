@@ -525,16 +525,15 @@ export class StakingService {
 
       // Get total stakers count and NFTs owned by staking contract in parallel
       // Use the same API endpoint that staking page uses
-      const apiUrl = `/api/nft/total?address=${encodeURIComponent(this.contractAddress)}&_t=${Date.now()}`;
+      const apiUrl = `/api/nft/total?address=${encodeURIComponent(this.contractAddress)}`;
 
       const [totalStakers, nftTotalResponse] = await Promise.all([
         this.getTotalStakers(),
         fetch(apiUrl, {
           headers: {
             'Accept': 'application/json',
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
           },
-          cache: 'no-store'
+          cache: 'force-cache'
         })
       ]);
       if (!nftTotalResponse.ok) {

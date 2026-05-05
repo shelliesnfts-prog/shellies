@@ -422,7 +422,7 @@ export class NFTService {
       // Use our API endpoint instead of direct explorer API call
       const apiUrl = `/api/nft/owned?address=${encodeURIComponent(walletAddress)}`;
       
-      const response = await fetch(apiUrl + `&_t=${Date.now()}&_r=${Math.random()}`, {
+      const response = await fetch(apiUrl, {
         headers: {
           'Accept': 'application/json',
           'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -797,7 +797,7 @@ export class NFTService {
       try {
         const apiUrl = `/api/nft/staked?stakingAddress=${encodeURIComponent(stakingContractAddress)}&tokenIds=${tokenIds.join(',')}`;
 
-        const response = await fetch(apiUrl + `&_t=${Date.now()}&_r=${Math.random()}`, {
+        const response = await fetch(apiUrl, {
           headers: {
             'Accept': 'application/json',
             'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -893,7 +893,7 @@ export class NFTService {
         apiUrl += `&bustCache=true`;
       }
 
-      const response = await fetch(apiUrl + `&_t=${Date.now()}&_r=${Math.random()}`, {
+      const response = await fetch(apiUrl, {
         headers: {
           'Accept': 'application/json',
           'Cache-Control': 'no-cache, no-store, must-revalidate',
