@@ -9,7 +9,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { LeaderboardPageSkeleton } from '@/components/portal/LeaderboardPageSkeleton';
 import { GameStatsCards } from '@/components/portal/GameStatsCards';
 import { StunningToggleSwitcher } from '@/components/portal/StunningToggleSwitcher';
-import { Trophy, Medal, Award, Crown, Star, ChevronDown, Users, TrendingUp, Lock, Calendar, Clock, AlertCircle, RefreshCw, Search, X } from 'lucide-react';
+import { Trophy, Medal, Award, Crown, Star, ChevronDown, ChevronLeft, ChevronRight, Users, TrendingUp, Lock, Calendar, Clock, AlertCircle, RefreshCw, Search, X } from 'lucide-react';
 import { StakingService } from '@/lib/staking-service';
 import { formatXP } from '@/lib/format-utils';
 import { useToast } from '@/hooks/useToast';
@@ -30,8 +30,8 @@ function LeaderboardPageInner() {
   // Points leaderboard state
   const [pointsLeaderboard, setPointsLeaderboard] = useState<any[]>([]);
   const [pointsLoading, setPointsLoading] = useState(true);
-  const [pointsCursor, setPointsCursor] = useState<number | null>(null);
-  const [pointsHasMore, setPointsHasMore] = useState(true);
+  const [pointsNextPageParams, setPointsNextPageParams] = useState<Record<string, string | number> | null>(null);
+  const [pointsPageHistory, setPointsPageHistory] = useState<(Record<string, string | number> | null)[]>([null]);
   const [pointsCacheTimestamp, setPointsCacheTimestamp] = useState<number | null>(null);
   const [pointsError, setPointsError] = useState<string | null>(null);
   
@@ -93,81 +93,50 @@ function LeaderboardPageInner() {
     return Date.now() - timestamp < CACHE_DURATION;
   };
 
-  const fetchPointsLeaderboard = async (cursorValue: number | null = null, append = false, forceRefresh = false, searchWallet?: string) => {
+  const fetchPointsLeaderboard = async (pageParams: Record<string, string | number> | null = null) => {
     try {
-      if (!append) {
-        setPointsLoading(true);
-        setPointsError(null);
-        if (searchWallet !== undefined) {
-          setIsSearching(searchWallet.length > 0);
-        }
-      } else {
-        setLoadingMore(true);
+      setPointsLoading(true);
+      setPointsError(null);
+
+      const contractAddress = process.env.NEXT_PUBLIC_SHELLIES_POINTS_CONTRACT_ADDRESS;
+      const explorerParams = new URLSearchParams();
+      if (pageParams) {
+        Object.entries(pageParams).forEach(([key, value]) => {
+          explorerParams.append(key, String(value));
+        });
       }
-      
-      const params = new URLSearchParams({ limit: PAGE_SIZE.toString() });
-      if (walletAddress) {
-        params.append('userWallet', walletAddress);
-      }
-      if (cursorValue !== null) {
-        params.append('cursor', cursorValue.toString());
-      }
-      // Use provided searchWallet or fall back to current debounced query
-      const searchTerm = searchWallet !== undefined ? searchWallet : debouncedSearchQuery;
-      if (searchTerm) {
-        params.append('searchWallet', searchTerm);
-      }
-      
-      const response = await fetch(`/api/leaderboard/points?${params.toString()}`);
-      
+
+      const url = `https://explorer.inkonchain.com/api/v2/tokens/${contractAddress}/holders${
+        explorerParams.toString() ? '?' + explorerParams.toString() : ''
+      }`;
+
+      const response = await fetch(url);
+
       if (!response.ok) {
         throw new Error(`Failed to fetch points leaderboard: ${response.status} ${response.statusText}`);
       }
-      
+
       const data = await response.json();
-      
-      // Mark connected user for highlighting without moving position
-      let processedData = [...data];
-      if (walletAddress) {
-        processedData = processedData.map(user => ({
-          ...user,
-          isCurrentUser: user.wallet_address.toLowerCase() === walletAddress.toLowerCase()
-        }));
-      }
-      
-      if (append) {
-        setPointsLeaderboard(prev => [...prev, ...processedData]);
-      } else {
-        setPointsLeaderboard(processedData);
-        // Update cache timestamp only on initial load or refresh
-        setPointsCacheTimestamp(Date.now());
-      }
-      
-      // Update cursor to the last user's points for next pagination
-      if (processedData.length > 0) {
-        const lastUser = processedData[processedData.length - 1];
-        setPointsCursor(lastUser.points);
-      }
-      
-      // Check if there are more entries (if we got less than PAGE_SIZE, no more data)
-      setPointsHasMore(data.length === PAGE_SIZE);
-      
-      // Clear any previous errors
+
+      const processedData = (data.items || []).map((item: any) => ({
+        wallet_address: item.address.hash,
+        points: parseInt(item.value, 10),
+        isCurrentUser: walletAddress
+          ? item.address.hash.toLowerCase() === walletAddress.toLowerCase()
+          : false,
+      }));
+
+      setPointsLeaderboard(processedData);
+      setPointsNextPageParams(data.next_page_params ?? null);
+      setPointsCacheTimestamp(Date.now());
       setPointsError(null);
     } catch (error) {
       console.error('Error fetching points leaderboard:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to load points leaderboard';
       setPointsError(errorMessage);
-      
-      // Show toast notification for network failures
-      if (!append) {
-        toast.error('Unable to load points leaderboard. Please try again.');
-      } else {
-        toast.error('Failed to load more entries. Please try again.');
-      }
+      toast.error('Unable to load points leaderboard. Please try again.');
     } finally {
       setPointsLoading(false);
-      setLoadingMore(false);
     }
   };
 
@@ -307,7 +276,8 @@ function LeaderboardPageInner() {
           fetchGameXPLeaderboard(null, false, false, '');
           fetchGameStats();
         } else if (type === 'points') {
-          fetchPointsLeaderboard(null, false, false, '');
+          setPointsPageHistory([null]);
+          fetchPointsLeaderboard(null);
         }
         
         // End transition after fade-in
@@ -319,18 +289,30 @@ function LeaderboardPageInner() {
   };
 
   const loadMore = () => {
-    if (activeLeaderboard === 'points' && pointsCursor !== null) {
-      fetchPointsLeaderboard(pointsCursor, true, false, debouncedSearchQuery);
-    } else if (activeLeaderboard === 'gameXP' && gameXPCursor !== null) {
+    if (activeLeaderboard === 'gameXP' && gameXPCursor !== null) {
       fetchGameXPLeaderboard(gameXPCursor, true, false, debouncedSearchQuery);
     }
+  };
+
+  const handlePointsNextPage = () => {
+    if (!pointsNextPageParams) return;
+    setPointsPageHistory(prev => [...prev, pointsNextPageParams]);
+    fetchPointsLeaderboard(pointsNextPageParams);
+  };
+
+  const handlePointsPrevPage = () => {
+    if (pointsPageHistory.length <= 1) return;
+    const newHistory = pointsPageHistory.slice(0, -1);
+    setPointsPageHistory(newHistory);
+    fetchPointsLeaderboard(newHistory[newHistory.length - 1]);
   };
 
   const handleManualRefresh = () => {
     // Invalidate cache and force refresh current leaderboard
     if (activeLeaderboard === 'points') {
       setPointsCacheTimestamp(null);
-      fetchPointsLeaderboard(null, false, true, debouncedSearchQuery);
+      setPointsPageHistory([null]);
+      fetchPointsLeaderboard(null);
       if (walletAddress) fetchUserRank('points');
     } else {
       setGameXPCacheTimestamp(null);
@@ -344,7 +326,8 @@ function LeaderboardPageInner() {
     // Retry fetching the current leaderboard
     if (activeLeaderboard === 'points') {
       setPointsError(null);
-      fetchPointsLeaderboard(null, false, true, debouncedSearchQuery);
+      setPointsPageHistory([null]);
+      fetchPointsLeaderboard(null);
     } else {
       setGameXPError(null);
       fetchGameXPLeaderboard(null, false, true, debouncedSearchQuery);
@@ -519,13 +502,9 @@ function LeaderboardPageInner() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Trigger search when debounced query changes
+  // Trigger search when debounced query changes (points tab uses on-chain data, no search support)
   useEffect(() => {
-    // Reset pagination and fetch with search
-    if (activeLeaderboard === 'points') {
-      setPointsCursor(null);
-      fetchPointsLeaderboard(null, false, false, debouncedSearchQuery);
-    } else {
+    if (activeLeaderboard === 'gameXP') {
       setGameXPCursor(null);
       fetchGameXPLeaderboard(null, false, false, debouncedSearchQuery);
     }
@@ -634,8 +613,8 @@ function LeaderboardPageInner() {
                 />
               </div>
 
-              {/* Wallet Address Search */}
-              <div className="w-full max-w-md">
+              {/* Wallet Address Search — only for Game XP tab */}
+              <div className={`w-full max-w-md ${activeLeaderboard === 'points' ? 'hidden' : ''}`}>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Search className={`w-5 h-5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
@@ -983,14 +962,14 @@ function LeaderboardPageInner() {
                 >
                   {(activeLeaderboard === 'points' ? pointsLeaderboard : gameXPLeaderboard).length > 0 ? (activeLeaderboard === 'points' ? pointsLeaderboard : gameXPLeaderboard).map((user: any, index: number) => {
                     const isCurrentUser = user.isCurrentUser;
-                    const metricValue = activeLeaderboard === 'points' 
-                      ? user.points.toFixed(1) 
+                    const metricValue = activeLeaderboard === 'points'
+                      ? user.points.toLocaleString()
                       : formatXP(user.game_score || 0);
                     const metricLabel = activeLeaderboard === 'points' ? 'Points' : 'XP';
                     
                     return (
-                      <div 
-                        key={user.id} 
+                      <div
+                        key={user.wallet_address}
                         role="listitem"
                         aria-label={`Rank ${index + 1}: ${user.wallet_address.slice(0, 12)}...${user.wallet_address.slice(-8)}, ${metricValue} ${metricLabel}${isCurrentUser ? ', Your entry' : ''}`}
                         className={`relative p-4 sm:p-6 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl ${
@@ -1050,8 +1029,8 @@ function LeaderboardPageInner() {
                               <p className={`text-xl font-bold ${
                                 isCurrentUser ? 'text-purple-600' : activeLeaderboard === 'points' ? 'text-blue-600' : 'text-yellow-600'
                               }`}>
-                                {activeLeaderboard === 'points' 
-                                  ? user.points.toFixed(1) 
+                                {activeLeaderboard === 'points'
+                                  ? user.points.toLocaleString()
                                   : formatXP(user.game_score || 0)
                                 }
                               </p>
@@ -1106,8 +1085,49 @@ function LeaderboardPageInner() {
                 </>
               )}
               
-              {/* Load More Button */}
-              {!(activeLeaderboard === 'points' ? pointsLoading : gameXPLoading) && (activeLeaderboard === 'points' ? pointsHasMore : gameXPHasMore) && (activeLeaderboard === 'points' ? pointsLeaderboard : gameXPLeaderboard).length > 0 && (
+              {/* Points tab: Prev / Next pagination */}
+              {activeLeaderboard === 'points' && !pointsLoading && pointsLeaderboard.length > 0 && (
+                <div className={`p-6 border-t flex items-center justify-between gap-4 ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                  <button
+                    onClick={handlePointsPrevPage}
+                    disabled={pointsPageHistory.length <= 1}
+                    aria-label="Previous page"
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                      pointsPageHistory.length <= 1
+                        ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : isDarkMode
+                          ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg hover:scale-105'
+                          : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg hover:scale-105'
+                    }`}
+                  >
+                    <ChevronLeft className="w-4 h-4" aria-hidden="true" />
+                    <span>Previous</span>
+                  </button>
+
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Page {pointsPageHistory.length}
+                  </span>
+
+                  <button
+                    onClick={handlePointsNextPage}
+                    disabled={!pointsNextPageParams}
+                    aria-label="Next page"
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                      !pointsNextPageParams
+                        ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : isDarkMode
+                          ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg hover:scale-105'
+                          : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg hover:scale-105'
+                    }`}
+                  >
+                    <span>Next</span>
+                    <ChevronRight className="w-4 h-4" aria-hidden="true" />
+                  </button>
+                </div>
+              )}
+
+              {/* Game XP tab: Load More */}
+              {activeLeaderboard === 'gameXP' && !gameXPLoading && gameXPHasMore && gameXPLeaderboard.length > 0 && (
                 <div className={`p-6 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                   <button
                     onClick={loadMore}
@@ -1117,8 +1137,8 @@ function LeaderboardPageInner() {
                       isDarkMode ? 'focus:ring-offset-gray-900' : 'focus:ring-offset-white'
                     } ${
                       loadingMore
-                        ? isDarkMode 
-                          ? 'bg-gray-700 text-gray-400 cursor-not-allowed' 
+                        ? isDarkMode
+                          ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
                           : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                         : isDarkMode
                           ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg hover:shadow-xl hover:scale-105'

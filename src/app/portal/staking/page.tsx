@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { useQueryClient } from '@tanstack/react-query';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
-import { WalletRequired } from '@/components/portal/WalletRequired';
+import { StakingPublicPreview } from '@/components/portal/StakingPublicPreview';
 import { Trophy, Star, TrendingUp, Loader2, CheckCircle, AlertTriangle, Coins, Lock, Unlock, Shield } from 'lucide-react';
 import { NFTService } from '@/lib/nft-service';
 import { StakingService, LockPeriod } from '@/lib/staking-service';
@@ -727,12 +727,7 @@ export default function StakingPage() {
         />
         <div className="flex-1 flex flex-col lg:ml-4 min-h-screen">
           <main className="flex-1 p-3 sm:p-4 lg:p-6 mt-16 lg:mt-0 mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 xl:px-16 2xl:px-32">
-            <WalletRequired
-              variant="card"
-              isDarkMode={isDarkMode}
-              title="Connect your wallet"
-              action="connect to view and manage your NFT staking"
-            />
+            <StakingPublicPreview isDarkMode={isDarkMode} />
           </main>
         </div>
       </div>

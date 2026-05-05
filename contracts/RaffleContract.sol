@@ -89,7 +89,6 @@ contract ShelliesRaffleContract is
      * @param raffleId Unique raffle ID from database (sequential)
      * @param prizeToken NFT contract address
      * @param tokenId NFT token ID
-     * @param endTimestamp When raffle ends
      */
     function createRaffleWithNFT(
         uint256 raffleId,
@@ -123,7 +122,6 @@ contract ShelliesRaffleContract is
      * @param raffleId Unique raffle ID from database (sequential)
      * @param prizeToken ERC20 contract address
      * @param amount Token amount to deposit
-     * @param endTimestamp When raffle ends
      */
     function createRaffleWithToken(
         uint256 raffleId,
@@ -173,7 +171,6 @@ contract ShelliesRaffleContract is
      * @param raffleId Unique raffle ID from database (sequential)
      * @param prizeToken NFT contract address
      * @param tokenId NFT token ID
-     * @param endTimestamp When raffle ends
      */
     function createAndActivateNFTRaffle(
         uint256 raffleId,
@@ -207,7 +204,6 @@ contract ShelliesRaffleContract is
      * @param raffleId Unique raffle ID from database (sequential)
      * @param prizeToken ERC20 contract address
      * @param amount Token amount to deposit
-     * @param endTimestamp When raffle ends
      */
     function createAndActivateTokenRaffle(
         uint256 raffleId,
@@ -247,10 +243,10 @@ contract ShelliesRaffleContract is
     function joinRaffle(
         uint256 raffleId,
         uint256 ticketCount
-    ) external 
+    ) external
         raffleExists(raffleId)
         raffleInState(raffleId, RaffleState.ACTIVE)
-        whenNotPaused 
+        whenNotPaused
     {
         require(ticketCount > 0, "Invalid ticket count");
         
@@ -286,9 +282,7 @@ contract ShelliesRaffleContract is
         
         // Handle case where no participants joined
         if (participants.length == 0) {
-            // Mark raffle as completed without winner
-            Raffle storage raffle = raffles[raffleId];
-            raffle.state = RaffleState.COMPLETED;
+            raffles[raffleId].state = RaffleState.COMPLETED;
             emit RaffleStateChanged(raffleId, RaffleState.ACTIVE, RaffleState.COMPLETED);
             emit RaffleEnded(raffleId, address(0), 0, 0);
             return;
