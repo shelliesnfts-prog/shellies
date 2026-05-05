@@ -473,11 +473,23 @@ function LeaderboardPageInner() {
 
     // Refresh global stats occasionally; each refresh hits our API and external RPC.
     const intervalId = setInterval(() => {
-      fetchStakingStats();
+      if (document.visibilityState === 'visible') {
+        fetchStakingStats();
+      }
     }, 5 * 60 * 1000);
 
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchStakingStats();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     // Cleanup interval on unmount
-    return () => clearInterval(intervalId);
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, []);
 
   // Check for reduced motion preference

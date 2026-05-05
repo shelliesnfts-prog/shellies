@@ -171,7 +171,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
       ) {
         fetchParticipants(false); // Poll without loading indicator
       }
-    }, 30000);
+    }, 90000);
 
     // Cleanup interval on component unmount or when dependencies change
     return () => {

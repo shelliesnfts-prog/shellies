@@ -214,10 +214,7 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       setError(null);
 
-      const response = await fetch('/api/dashboard', {
-        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
-        cache: 'no-store',
-      });
+      const response = await fetch('/api/dashboard');
 
       if (!response.ok) throw new Error('Failed to fetch user data');
 
@@ -341,8 +338,23 @@ export function PointsProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!canClaim) {
-      const interval = setInterval(() => fetchUserData(), 5 * 60 * 1000);
-      return () => clearInterval(interval);
+      const interval = setInterval(() => {
+        if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+          fetchUserData();
+        }
+      }, 5 * 60 * 1000);
+
+      const onVisibilityChange = () => {
+        if (document.visibilityState === 'visible') {
+          fetchUserData();
+        }
+      };
+      document.addEventListener('visibilitychange', onVisibilityChange);
+
+      return () => {
+        clearInterval(interval);
+        document.removeEventListener('visibilitychange', onVisibilityChange);
+      };
     }
   }, [canClaim, fetchUserData]);
 

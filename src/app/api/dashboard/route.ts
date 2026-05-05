@@ -76,6 +76,11 @@ export async function GET(request: NextRequest) {
         currentPoints: onChainPoints,
         lastClaim: user.last_claim
       }
+    }, {
+      headers: {
+        'Cache-Control': 'private, max-age=15, stale-while-revalidate=30',
+        'Vary': 'Cookie',
+      }
     });
 
   } catch (error) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 300;
 
 const CACHE_HEADERS = {
   'Cache-Control': 'public, max-age=300, s-maxage=300, stale-while-revalidate=600',
@@ -80,8 +80,7 @@ export async function GET(request: NextRequest) {
 
         response = await fetch(currentApiUrl, {
           headers,
-          cache: 'no-store',
-          next: { revalidate: 0 }
+          next: { revalidate: 300 }
         });
 
         if (response.ok) {
@@ -149,10 +148,8 @@ export async function GET(request: NextRequest) {
         headers: {
           'Accept': 'application/json',
           'User-Agent': 'Shellies-App/1.0',
-          'Cache-Control': 'no-cache'
         },
-        cache: 'no-store',
-        next: { revalidate: 0 }
+        next: { revalidate: 300 }
       });
 
       if (countersResponse.ok) {

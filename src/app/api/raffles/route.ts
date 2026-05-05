@@ -53,14 +53,32 @@ function emptySummary(): EntrySummary {
   };
 }
 
+// Module-scope cache: winners are immutable once resolved, so cache forever
+// across warm Lambda invocations. Cold start drops the cache, which is fine.
+const winnerCache = new Map<number, string>();
+
 async function getWinnerInfo(raffles: RaffleRow[], includeWinners: boolean): Promise<Record<string, string>> {
   if (!includeWinners) return {};
 
   const finishedRaffles = raffles.filter((raffle) => raffle.status === 'COMPLETED');
   if (finishedRaffles.length === 0) return {};
 
+  const result: Record<string, string> = {};
+  const uncachedRaffles: RaffleRow[] = [];
+
+  for (const raffle of finishedRaffles) {
+    const cached = winnerCache.get(raffle.id);
+    if (cached) {
+      result[raffle.id] = cached;
+    } else {
+      uncachedRaffles.push(raffle);
+    }
+  }
+
+  if (uncachedRaffles.length === 0) return result;
+
   const winnerResults = await Promise.all(
-    finishedRaffles.map(async (raffle) => {
+    uncachedRaffles.map(async (raffle) => {
       try {
         const raffleInfo = raffle.id >= 98 && raffle.id <= 108
           ? await RaffleContractService.getRafflePrizeInfoFromOldContract(raffle.id.toString())
@@ -80,12 +98,14 @@ async function getWinnerInfo(raffles: RaffleRow[], includeWinners: boolean): Pro
     })
   );
 
-  return winnerResults.reduce((acc: Record<string, string>, item) => {
+  for (const item of winnerResults) {
     if (item.winner) {
-      acc[item.raffleId] = item.winner;
+      result[item.raffleId] = item.winner;
+      winnerCache.set(item.raffleId, item.winner);
     }
-    return acc;
-  }, {});
+  }
+
+  return result;
 }
 
 async function getEntrySummaries(

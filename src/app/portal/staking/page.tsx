@@ -13,7 +13,6 @@ import { ImageUtils } from '@/lib/image-utils';
 import { staking_abi } from '@/lib/staking-abi';
 import { erc721Abi } from 'viem';
 import { parseContractError } from '@/lib/errors';
-import { useDashboard } from '@/hooks/useDashboard';
 import { usePoints } from '@/contexts/PointsContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { StakingPageSkeleton } from '@/components/portal/StakingPageSkeleton';
