@@ -89,11 +89,12 @@ export default function XPBridge({
   // XP input state
   const [xpInput, setXpInput] = useState<string>('');
 
-  // Dynamic settings from API (fee only — rate & minXp come from on-chain)
+  // Dynamic settings from API (fee + minXp — backend uses these for validation)
   const [paymentAmountUsd, setPaymentAmountUsd] = useState<number>(DEFAULT_PAYMENT_AMOUNT_USD);
+  const [apiMinXp, setApiMinXp] = useState<number | null>(null);
   const [loadingSettings, setLoadingSettings] = useState<boolean>(true);
 
-  // On-chain conversion config (authoritative source for minting logic)
+  // On-chain conversion config (used as additional fail-safe)
   const { data: onChainRateRaw } = useReadContract({
     address: SHELLIES_POINTS_ADDRESS,
     abi: SHELLIES_POINTS_CONTRACT.abi,
@@ -106,7 +107,13 @@ export default function XPBridge({
   });
 
   const conversionRate = onChainRateRaw ? Number(onChainRateRaw as bigint) : DEFAULT_CONVERSION_RATE;
-  const minimumXp = onChainMinXpRaw ? Number(onChainMinXpRaw as bigint) : DEFAULT_MINIMUM_XP;
+  // Effective minimum = max(DB, on-chain). Backend rejects below DB; contract rejects below on-chain.
+  // Fall back to default until API responds so we never under-validate.
+  const onChainMinXp = onChainMinXpRaw !== undefined ? Number(onChainMinXpRaw as bigint) : 0;
+  const minimumXp = Math.max(
+    apiMinXp ?? DEFAULT_MINIMUM_XP,
+    onChainMinXp,
+  );
 
   // Recovery mechanism state (old payment-tx recovery)
   const [pendingConversion, setPendingConversion] = useState<PendingConversion | null>(null);
@@ -162,6 +169,9 @@ export default function XPBridge({
         if (response.ok) {
           const data = await response.json();
           setPaymentAmountUsd(data.feeUsd || DEFAULT_PAYMENT_AMOUNT_USD);
+          if (typeof data.minXp === 'number' && data.minXp > 0) {
+            setApiMinXp(data.minXp);
+          }
         }
       } catch (error) {
         console.error('Failed to fetch XP settings:', error);
