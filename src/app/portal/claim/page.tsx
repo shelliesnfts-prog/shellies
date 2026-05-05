@@ -196,6 +196,7 @@ export default function ClaimPage() {
     isClaimWithFeesSuccess,
     isClaimSuccess,
     refreshClaimStatus,
+    userCategory,
   } = useClaiming();
 
   // Refresh context balance after successful paid or free claim on this page
@@ -207,7 +208,18 @@ export default function ClaimPage() {
   }, [isClaimWithFeesSuccess, isClaimSuccess]);
 
   const { nftCount, stakingBreakdown } = useNftAndStaking();
-  const category = getUserCategory(nftCount, stakingBreakdown.total);
+  // Display category derived from local NFT/staking reads (used for tier card visuals + daily pts).
+  const displayCategory = getUserCategory(nftCount, stakingBreakdown.total);
+  // Active paid tier MUST match what the contract will charge in claimWithFees(),
+  // which is determined on-chain by getUserCategory(msg.sender). Using the local
+  // derived category can desync (RPC lag, multi-RPC fallback) and cause
+  // "Insufficient fee" reverts after the user signs the tx. Prefer on-chain.
+  // userCategory: 2=STAKER, 1=HOLDER, 0=REGULAR
+  const category =
+    userCategory === 2 ? 'staker' as const
+    : userCategory === 1 ? 'holder' as const
+    : userCategory === 0 ? 'regular' as const
+    : displayCategory; // fallback while on-chain read pending
 
   // Live countdown for the free claim cooldown
   const [liveFreeCountdown, setLiveFreeCountdown] = useState<number>(secondsUntilClaim);
