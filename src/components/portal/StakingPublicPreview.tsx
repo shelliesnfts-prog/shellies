@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { Lock, TrendingUp, Star, Wallet, Clock, Calendar, CalendarDays } from 'lucide-react';
 import { StakingService, LockPeriod } from '@/lib/staking-service';
+import { useStakingPointRates } from '@/hooks/useStakingPointRates';
 
 interface StakingPublicPreviewProps {
   isDarkMode: boolean;
@@ -17,18 +18,14 @@ interface GlobalStats {
 
 const TOTAL_NFT_SUPPLY = 2222;
 
-const LOCK_TIERS: Array<{
+interface LockTier {
   period: LockPeriod;
   label: string;
   duration: string;
   points: number;
   accent: 'blue' | 'purple' | 'green';
   icon: typeof Clock;
-}> = [
-  { period: LockPeriod.DAY, label: '1 Day', duration: '24 hours', points: 7, accent: 'blue', icon: Clock },
-  { period: LockPeriod.WEEK, label: '1 Week', duration: '7 days', points: 10, accent: 'purple', icon: Calendar },
-  { period: LockPeriod.MONTH, label: '1 Month', duration: '30 days', points: 20, accent: 'green', icon: CalendarDays },
-];
+}
 
 export function StakingPublicPreview({ isDarkMode }: StakingPublicPreviewProps) {
   const [stats, setStats] = useState<GlobalStats>({
@@ -37,6 +34,15 @@ export function StakingPublicPreview({ isDarkMode }: StakingPublicPreviewProps) 
     tokenHoldersCount: 0,
   });
   const [loading, setLoading] = useState(true);
+  const pointRates = useStakingPointRates();
+
+  const lockTiers = useMemo<LockTier[]>(() => [
+    { period: LockPeriod.DAY, label: '1 Day', duration: '24 hours', points: pointRates.daily, accent: 'blue', icon: Clock },
+    { period: LockPeriod.WEEK, label: '1 Week', duration: '7 days', points: pointRates.weekly, accent: 'purple', icon: Calendar },
+    { period: LockPeriod.MONTH, label: '1 Month', duration: '30 days', points: pointRates.monthly, accent: 'green', icon: CalendarDays },
+  ], [pointRates.daily, pointRates.weekly, pointRates.monthly]);
+
+  const maxRate = Math.max(pointRates.daily, pointRates.weekly, pointRates.monthly);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,7 +76,7 @@ export function StakingPublicPreview({ isDarkMode }: StakingPublicPreviewProps) 
           </h1>
           <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
             Stake your Shellies NFTs to earn up to{' '}
-            <span className="font-semibold text-blue-600">20 points per day</span> per NFT
+            <span className="font-semibold text-blue-600">{maxRate} points per day</span> per NFT
           </p>
         </div>
         <div
@@ -258,7 +264,7 @@ export function StakingPublicPreview({ isDarkMode }: StakingPublicPreviewProps) 
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {LOCK_TIERS.map((tier) => (
+            {lockTiers.map((tier) => (
               <TierCard key={tier.label} tier={tier} isDarkMode={isDarkMode} />
             ))}
           </div>
@@ -272,7 +278,7 @@ function TierCard({
   tier,
   isDarkMode,
 }: {
-  tier: (typeof LOCK_TIERS)[number];
+  tier: LockTier;
   isDarkMode: boolean;
 }) {
   const Icon = tier.icon;

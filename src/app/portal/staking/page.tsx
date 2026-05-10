@@ -15,6 +15,7 @@ import { erc721Abi } from 'viem';
 import { parseContractError } from '@/lib/errors';
 import { usePoints } from '@/contexts/PointsContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useStakingPointRates } from '@/hooks/useStakingPointRates';
 import { StakingPageSkeleton } from '@/components/portal/StakingPageSkeleton';
 import ApprovalStakeModal from '@/components/ApprovalStakeModal';
 import StakingPeriodModal from '@/components/StakingPeriodModal';
@@ -166,6 +167,8 @@ export default function StakingPage() {
 
   // Get global points context early
   const { user, claimStatus, loading: dashboardLoading } = usePoints();
+  const pointRates = useStakingPointRates();
+  const maxPointRate = Math.max(pointRates.daily, pointRates.weekly, pointRates.monthly);
 
 
   const { address, isConnected } = useAccount();
@@ -754,7 +757,7 @@ export default function StakingPage() {
                   NFT Staking
                 </h1>
                 <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Stake your Shellies NFTs to earn <span className="font-semibold text-blue-600">10 points per day</span> for each staked NFT
+                  Stake your Shellies NFTs to earn up to <span className="font-semibold text-blue-600">{maxPointRate} points per day</span> for each staked NFT
                 </p>
               </div>
               <div className={`px-4 py-2 rounded-xl border ${
