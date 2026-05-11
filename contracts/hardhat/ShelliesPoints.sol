@@ -191,7 +191,7 @@ contract ShelliesPoints is ERC20, Ownable, ReentrancyGuard {
 
     // ── User Category Helper ─────────────────────────────────────────────────
 
-    function getUserCategory(address user) internal view returns (uint8) {
+    function getUserCategory(address user) public view returns (uint8) {
         if (ITimeLockStaking(stakingContract).getStakedTokens(user).length > 0) {
             return CATEGORY_STAKER;
         }
