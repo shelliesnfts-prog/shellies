@@ -10,7 +10,8 @@
  *   NEXT_PUBLIC_STAKING_CONTRACT_ADDRESS  TimeLockStaking contract address
  *   NEXT_PUBLIC_SHELLIES_CONTRACT_ADDRESS Shellies NFT contract address
  *   AUTHORIZED_SIGNER_ADDRESS     Public address of the XP voucher signing key
- *   INITIAL_SUPPLY               Initial supply of points to mint (optional, default 0)
+ *   INITIAL_SUPPLY               Hard cap on totalSupply, locked forever once set
+ *                                  (optional, default 0 = uncapped; can be set later via setInitialSupply())
  *
  * After deployment, add the printed address to .env:
  *   NEXT_PUBLIC_SHELLIES_POINTS_CONTRACT_ADDRESS=0x...
@@ -44,7 +45,7 @@ async function main() {
   console.log(`  Staking contract:     ${stakingContract}`);
   console.log(`  NFT contract:         ${nftContract}`);
   console.log(`  Authorized signer:    ${authorizedSigner}`);
-  console.log(`  Initial supply:       ${initialSupply}`);
+  console.log(`  Initial supply (cap): ${initialSupply}${initialSupply === 0 ? "  (uncapped — set later via setInitialSupply())" : "  (hard cap, locked once set)"}`);
 
   // ── Get deployer ───────────────────────────────────────────────────────
 

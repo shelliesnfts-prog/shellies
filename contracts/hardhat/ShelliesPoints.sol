@@ -92,8 +92,14 @@ contract ShelliesPoints is ERC20, Ownable, ReentrancyGuard {
     uint256 public xpConversionRate;           // XP per point (e.g. 10 XP = 1 pt)
     uint256 public minXpToConvert;             // minimum XP required to convert
 
+    // ── Hard Cap (one-shot) ──────────────────────────────────────────────────
+
+    uint256 public maxSupply;                  // hard cap on totalSupply (0 = uncapped/unset)
+    bool    public maxSupplySet;               // true once cap has been locked
+
     // ── Events ───────────────────────────────────────────────────────────────
 
+    event InitialSupplySet(uint256 cap);
     event Claimed(address indexed user, uint256 points, uint256 timestamp);
     event ClaimedWithFees(address indexed user, uint8 category, uint256 points, uint256 feePaid);
     event XpConverted(address indexed user, uint256 xpAmount, uint256 points, uint256 nonce);
@@ -129,7 +135,9 @@ contract ShelliesPoints is ERC20, Ownable, ReentrancyGuard {
         authorizedSigner  = _authorizedSigner;
 
         if (_initialSupply > 0) {
-            _mint(msg.sender, _initialSupply);
+            maxSupply    = _initialSupply;
+            maxSupplySet = true;
+            emit InitialSupplySet(_initialSupply);
         }
 
         // Free claim defaults
@@ -163,9 +171,13 @@ contract ShelliesPoints is ERC20, Ownable, ReentrancyGuard {
     function decimals() public pure override returns (uint8) { return 0; }
 
     /// @dev Soulbound — minting (from == 0) and burning (to == 0) are allowed;
-    ///      all peer-to-peer transfers are blocked.
+    ///      all peer-to-peer transfers are blocked. Mints are capped at maxSupply
+    ///      (when set). Burns free up cap room — re-mintable.
     function _update(address from, address to, uint256 amount) internal override {
         require(from == address(0) || to == address(0), "SPTS: non-transferable");
+        if (from == address(0) && maxSupplySet) {
+            require(totalSupply() + amount <= maxSupply, "SPTS: cap exceeded");
+        }
         super._update(from, to, amount);
     }
 
@@ -362,6 +374,21 @@ contract ShelliesPoints is ERC20, Ownable, ReentrancyGuard {
         require(amount > 0,         "Amount must be > 0");
         _burn(user, amount);
         emit AdminBurn(user, amount);
+    }
+
+    // ── Initial Supply / Hard Cap (one-shot, owner-only) ─────────────────────
+
+    /// @notice Owner sets the initial (max) supply post-deployment. Callable once.
+    /// @dev    Locks `maxSupply = amount`. All future mints (claim, claimWithFees,
+    ///         convertXp, adminMint) revert if they would push totalSupply past
+    ///         this cap. Burns reduce totalSupply and free up room for re-mints.
+    function setInitialSupply(uint256 amount) external onlyOwner {
+        require(!maxSupplySet, "Initial supply already set");
+        require(amount > 0,    "Amount must be > 0");
+        require(amount >= totalSupply(), "Cap below current supply");
+        maxSupply    = amount;
+        maxSupplySet = true;
+        emit InitialSupplySet(amount);
     }
 
     // ── Fee Withdrawal ───────────────────────────────────────────────────────
