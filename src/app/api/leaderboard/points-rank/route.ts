@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isHiddenLeaderboardWallet } from '@/lib/leaderboard-exclusions';
 
 const EXPLORER_BASE_URL = 'https://explorer.inkonchain.com';
 const MAX_SCAN_PAGES = 200;
@@ -22,20 +23,6 @@ function parsePoints(value: unknown): number {
   return Number.isFinite(points) ? points : 0;
 }
 
-function getNextOffset(
-  nextPageParams: ExplorerPageParams | null,
-  itemCount: number,
-  currentOffset: number
-): number {
-  const itemsCount = Number(nextPageParams?.items_count);
-
-  if (Number.isFinite(itemsCount) && itemsCount >= currentOffset + itemCount) {
-    return itemsCount;
-  }
-
-  return currentOffset + itemCount;
-}
-
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -46,12 +33,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Wallet address is required' }, { status: 400 });
     }
 
+    if (isHiddenLeaderboardWallet(walletAddress)) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
     if (!contractAddress || contractAddress === '0x') {
       return NextResponse.json({ error: 'Points contract address is not configured' }, { status: 500 });
     }
 
     let pageParams: ExplorerPageParams | null = null;
-    let offset = 0;
+    let visibleOffset = 0;
 
     for (let page = 0; page < MAX_SCAN_PAGES; page += 1) {
       const url = new URL(`/api/v2/tokens/${contractAddress}/holders`, EXPLORER_BASE_URL);
@@ -65,16 +56,17 @@ export async function GET(request: NextRequest) {
 
       const data = await response.json();
       const items = Array.isArray(data.items) ? data.items : [];
-      const userIndex = items.findIndex(
+      const visibleItems = items.filter((item: any) => !isHiddenLeaderboardWallet(getAddressHash(item)));
+      const userIndex = visibleItems.findIndex(
         (item: any) => getAddressHash(item)?.toLowerCase() === walletAddress.toLowerCase()
       );
 
       if (userIndex >= 0) {
-        const item = items[userIndex];
+        const item = visibleItems[userIndex];
         const matchedWallet = getAddressHash(item) || walletAddress;
 
         return NextResponse.json({
-          rank: offset + userIndex + 1,
+          rank: visibleOffset + userIndex + 1,
           wallet_address: matchedWallet,
           points: parsePoints(item.value),
           game_score: 0,
@@ -86,7 +78,7 @@ export async function GET(request: NextRequest) {
         break;
       }
 
-      offset = getNextOffset(nextPageParams, items.length, offset);
+      visibleOffset += visibleItems.length;
       pageParams = nextPageParams;
     }
 

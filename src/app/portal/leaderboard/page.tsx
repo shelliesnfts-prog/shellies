@@ -12,6 +12,7 @@ import { StunningToggleSwitcher } from '@/components/portal/StunningToggleSwitch
 import { Trophy, Medal, Award, Crown, Star, ChevronDown, ChevronLeft, ChevronRight, Users, TrendingUp, Lock, Calendar, Clock, AlertCircle, RefreshCw, Search, X } from 'lucide-react';
 import { StakingService } from '@/lib/staking-service';
 import { formatXP } from '@/lib/format-utils';
+import { isHiddenLeaderboardWallet } from '@/lib/leaderboard-exclusions';
 import { useToast } from '@/hooks/useToast';
 import { ToastContainer } from '@/components/Toast';
 
@@ -140,15 +141,20 @@ function LeaderboardPageInner() {
 
       const data = await response.json();
 
-      const processedData = (data.items || []).map((item: any) => ({
-        wallet_address: item.address.hash,
-        points: parseInt(item.value, 10),
-        isCurrentUser: walletAddress
-          ? item.address.hash.toLowerCase() === walletAddress.toLowerCase()
-          : false,
-      }));
+      const rawItems = data.items || [];
+      const processedData = rawItems
+        .filter((item: any) => !isHiddenLeaderboardWallet(item.address?.hash))
+        .map((item: any) => ({
+          wallet_address: item.address.hash,
+          points: parseInt(item.value, 10),
+          isCurrentUser: walletAddress
+            ? item.address.hash.toLowerCase() === walletAddress.toLowerCase()
+            : false,
+        }));
 
-      const pageOffset = getPointsPageOffset(data.next_page_params ?? null, processedData.length, pageIndex);
+      const rawPageOffset = getPointsPageOffset(data.next_page_params ?? null, rawItems.length, pageIndex);
+      const hiddenWalletWasOnPreviousPage = pageIndex > 0;
+      const pageOffset = Math.max(0, rawPageOffset - (hiddenWalletWasOnPreviousPage ? 1 : 0));
 
       setPointsLeaderboard(processedData);
       setPointsNextPageParams(data.next_page_params ?? null);

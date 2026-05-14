@@ -13,7 +13,7 @@ import { useInkEthPrice } from '@/hooks/useInkEthPrice';
 import XPBridge from '@/components/XPBridge';
 import { ClaimPageSkeleton } from '@/components/portal/ClaimPageSkeleton';
 import { formatEther } from 'viem';
-import { Gift, Zap } from 'lucide-react';
+import { Gift, Zap, Target } from 'lucide-react';
 
 function formatTimer(seconds: number): string {
   const d = Math.floor(seconds / 86400);
@@ -38,6 +38,113 @@ function getUserCategory(nftCount: number, stakingTotal: number) {
   if (stakingTotal > 0) return 'staker' as const;
   if (nftCount > 0) return 'holder' as const;
   return 'regular' as const;
+}
+
+function formatPointSupply(value: bigint): string {
+  return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+function getSupplyPercent(totalSupply: bigint, maxSupply: bigint): number {
+  if (maxSupply <= BigInt(0)) return 0;
+  const cappedTotal = totalSupply > maxSupply ? maxSupply : totalSupply;
+  return Number((cappedTotal * BigInt(10000)) / maxSupply) / 100;
+}
+
+function SupplyProgressCard({
+  totalSupply,
+  maxSupply,
+  maxSupplySet,
+  holdersCount,
+  isDarkMode,
+}: {
+  totalSupply: bigint;
+  maxSupply: bigint;
+  maxSupplySet: boolean;
+  holdersCount: number | null;
+  isDarkMode: boolean;
+}) {
+  const percent = maxSupplySet ? getSupplyPercent(totalSupply, maxSupply) : 0;
+  const displayPercent = maxSupplySet ? `${percent.toFixed(percent >= 10 ? 1 : 2)}%` : 'Uncapped';
+  const progressWidth = maxSupplySet ? `${Math.min(100, percent)}%` : '0%';
+
+  return (
+    <section
+      className={`rounded-2xl border overflow-hidden ${
+        isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+      }`}
+    >
+      <div className="p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className={`p-2 rounded-xl ${isDarkMode ? 'bg-cyan-500/15' : 'bg-cyan-50'}`}>
+              <Target className={`w-4 h-4 ${isDarkMode ? 'text-cyan-300' : 'text-cyan-700'}`} />
+            </div>
+            <div>
+              <h2 className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                Points Supply Progress
+              </h2>
+              <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                Claimed SPTS against the owner-set maximum supply
+              </p>
+            </div>
+          </div>
+
+          <div
+            className={`self-start rounded-full border px-3 py-1 text-xs font-semibold tabular-nums ${
+              isDarkMode ? 'border-cyan-400/20 bg-cyan-400/10 text-cyan-200' : 'border-cyan-200 bg-cyan-50 text-cyan-700'
+            }`}
+          >
+            {displayPercent}
+          </div>
+        </div>
+
+        <div className="mt-5">
+          <div
+            className={`relative h-3 overflow-hidden rounded-full ${
+              isDarkMode ? 'bg-gray-900 ring-1 ring-gray-700' : 'bg-gray-100 ring-1 ring-gray-200'
+            }`}
+            role="progressbar"
+            aria-valuenow={maxSupplySet ? Math.round(percent) : 0}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="Claimed points supply progress"
+          >
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-teal-400 to-green-500 shadow-[0_0_18px_rgba(34,211,238,0.35)] transition-all duration-700 ease-out"
+              style={{ width: progressWidth }}
+            />
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className={`rounded-xl border p-3 ${isDarkMode ? 'border-gray-700 bg-gray-900/40' : 'border-gray-200 bg-gray-50'}`}>
+              <div className={`text-[10px] font-semibold uppercase tracking-wider ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                Claimed
+              </div>
+              <div className={`mt-1 text-lg font-bold tabular-nums leading-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                {formatPointSupply(totalSupply)}
+              </div>
+            </div>
+            <div className={`rounded-xl border p-3 ${isDarkMode ? 'border-gray-700 bg-gray-900/40' : 'border-gray-200 bg-gray-50'}`}>
+              <div className={`text-[10px] font-semibold uppercase tracking-wider ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                Max Supply
+              </div>
+              <div className={`mt-1 text-lg font-bold tabular-nums leading-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                {maxSupplySet ? formatPointSupply(maxSupply) : 'Not set'}
+              </div>
+            </div>
+            <div className={`rounded-xl border p-3 ${isDarkMode ? 'border-gray-700 bg-gray-900/40' : 'border-gray-200 bg-gray-50'}`}>
+              <div className={`text-[10px] font-semibold uppercase tracking-wider ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                Unique Holders
+              </div>
+              <div className={`mt-1 text-lg font-bold tabular-nums leading-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                {holdersCount == null ? '—' : holdersCount.toLocaleString()}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 // ─── Shared TierCard ─────────────────────────────────────────────────────────
@@ -197,6 +304,9 @@ export default function ClaimPage() {
     isClaimSuccess,
     refreshClaimStatus,
     userCategory,
+    totalSupply,
+    maxSupply,
+    maxSupplySet,
   } = useClaiming();
 
   // Refresh context balance after successful paid or free claim on this page
@@ -251,6 +361,7 @@ export default function ClaimPage() {
     : secondsUntilRegular;
 
   const [liveCountdown, setLiveCountdown] = useState<number>(activeTierSecs);
+  const [holdersCount, setHoldersCount] = useState<number | null>(null);
 
   useEffect(() => {
     setLiveCountdown(activeTierSecs);
@@ -267,6 +378,35 @@ export default function ClaimPage() {
       refreshClaimStatus();
     }
   }, [liveCountdown, refreshClaimStatus]);
+
+  useEffect(() => {
+    let alive = true;
+
+    const loadHoldersCount = async () => {
+      try {
+        const response = await fetch('/api/leaderboard/points-stats');
+        if (!response.ok) {
+          throw new Error(`Failed to load holders count: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        if (alive) {
+          const nextCount = Number.parseInt(String(data.tokenHoldersCount ?? 0), 10);
+          setHoldersCount(Number.isFinite(nextCount) ? nextCount : 0);
+        }
+      } catch {
+        if (alive) {
+          setHoldersCount(null);
+        }
+      }
+    };
+
+    loadHoldersCount();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // ── Daily tier data ──────────────────────────────────────────────────────
   const stakerDailyPts =
@@ -383,6 +523,14 @@ export default function ClaimPage() {
               <ClaimPageSkeleton isDarkMode={isDarkMode} />
             ) : (
               <>
+
+            <SupplyProgressCard
+              totalSupply={totalSupply}
+              maxSupply={maxSupply}
+              maxSupplySet={maxSupplySet}
+              holdersCount={holdersCount}
+              isDarkMode={isDarkMode}
+            />
 
             {/* Two claim panels side by side */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
@@ -548,7 +696,10 @@ export default function ClaimPage() {
               <XPBridge
                 currentXP={user.game_score || 0}
                 currentPoints={user.points || 0}
-                onConversionComplete={refreshUserData}
+                onConversionComplete={() => {
+                  refreshUserData();
+                  refreshClaimStatus();
+                }}
               />
             ) : (
               <div className={`rounded-2xl border p-8 text-center ${isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-400' : 'bg-white border-gray-200 text-gray-500'}`}>

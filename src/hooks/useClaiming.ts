@@ -129,6 +129,25 @@ export function useClaiming() {
     functionName: 'pointsPerMonthlyStakedNFT',
   });
 
+  const { data: totalSupplyRaw, refetch: refetchTotalSupply } = useReadContract({
+    address: SHELLIES_POINTS_ADDRESS,
+    abi: SHELLIES_POINTS_CONTRACT.abi,
+    functionName: 'totalSupply',
+    query: { refetchInterval: 30_000 },
+  });
+
+  const { data: maxSupplyRaw } = useReadContract({
+    address: SHELLIES_POINTS_ADDRESS,
+    abi: SHELLIES_POINTS_CONTRACT.abi,
+    functionName: 'maxSupply',
+  });
+
+  const { data: maxSupplySetRaw } = useReadContract({
+    address: SHELLIES_POINTS_ADDRESS,
+    abi: SHELLIES_POINTS_CONTRACT.abi,
+    functionName: 'maxSupplySet',
+  });
+
   // ── Per-tier last-claim reads ──────────────────────────────────────────
 
   const { data: lastClaimStakerTierRaw, refetch: refetchStaker } = useReadContract({
@@ -267,7 +286,8 @@ export function useClaiming() {
     refetchStaker();
     refetchHolder();
     refetchRegular();
-  }, [refetchLastClaim, refetchStaker, refetchHolder, refetchRegular]);
+    refetchTotalSupply();
+  }, [refetchLastClaim, refetchStaker, refetchHolder, refetchRegular, refetchTotalSupply]);
 
   // Auto-refetch on-chain state after successful claims so the UI reflects
   // the new cooldown immediately without requiring a manual page refresh.
@@ -275,10 +295,11 @@ export function useClaiming() {
     if (isClaimSuccess) {
       setOptimisticLastClaim(nowSec);
       refetchLastClaim();
+      refetchTotalSupply();
     }
   // nowSec is recalculated each render — intentionally not in deps
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isClaimSuccess, refetchLastClaim]);
+  }, [isClaimSuccess, refetchLastClaim, refetchTotalSupply]);
 
   // Clear the optimistic timestamp once the refetch returns fresh on-chain data.
   // Allow ~30s of slack because block timestamps trail local clock by a few seconds.
@@ -299,6 +320,7 @@ export function useClaiming() {
     refetchStaker();
     refetchHolder();
     refetchRegular();
+    refetchTotalSupply();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isClaimWithFeesSuccess]);
 
@@ -353,6 +375,9 @@ export function useClaiming() {
     pointsPerMonthlyStakedNFT: pointsPerMonthlyStakedNFT ? Number(pointsPerMonthlyStakedNFT as bigint) : 0,
     pointsForRegularUser: pointsForRegularUser ? Number(pointsForRegularUser as bigint) : 0,
     rewardPerRegularUser: rewardPerRegularUser ? Number(rewardPerRegularUser as bigint) : 0,
+    totalSupply: (totalSupplyRaw as bigint | undefined) ?? BigInt(0),
+    maxSupply: (maxSupplyRaw as bigint | undefined) ?? BigInt(0),
+    maxSupplySet: Boolean(maxSupplySetRaw),
 
     // Paid claim per tier
     canClaimWithFeesStaker,
