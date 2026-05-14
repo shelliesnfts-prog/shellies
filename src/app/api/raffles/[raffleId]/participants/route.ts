@@ -76,8 +76,19 @@ export async function GET(
       );
     }
 
+    if (participants.length === 0) {
+      console.log(`[Participants] No entries found for raffle ${raffleId}`);
+      return NextResponse.json({
+        success: true,
+        data: [],
+        total: 0
+      });
+    }
+
     // Group entries by wallet address and sum tickets
     const participantMap = new Map<string, ParticipantRow>();
+    
+    console.log(`[Participants] Raw entries count: ${participants?.length || 0}`);
     
     participants?.forEach(entry => {
       const wallet = entry.wallet_address;
@@ -100,6 +111,8 @@ export async function GET(
         });
       }
     });
+
+    console.log(`[Participants] Unique wallets after grouping: ${participantMap.size}`);
 
     // Convert map to array and sort by join date
     const uniqueParticipants = Array.from(participantMap.values())

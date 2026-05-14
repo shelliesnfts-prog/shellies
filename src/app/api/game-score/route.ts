@@ -2,6 +2,28 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, supabase } from '@/lib/supabase';
 import { GameScoreUpdate } from '@/lib/types';
 
+/**
+ * SECURITY: Maximum reasonable score based on game mechanics
+ * 
+ * This value should be set based on your game's actual maximum achievable score.
+ * For a typical endless runner/arcade game:
+ * - Average session: 2-5 minutes
+ * - Max reasonable session: 30 minutes (with exceptional skill)
+ * - Score per second (typical): 10-50 points
+ * - Max score = 30 min * 60 sec * 50 points = 90,000
+ * 
+ * We set to 10,000 as a reasonable max for typical gameplay.
+ * Scores above this are flagged as suspicious.
+ * Configure via environment variable for flexibility.
+ */
+const MAX_REASONABLE_SCORE = parseInt(process.env.MAX_GAME_SCORE || '10000', 10);
+
+/**
+ * SECURITY: Suspicious score threshold for logging
+ * Scores above this but below max are logged for review
+ */
+const SUSPICIOUS_SCORE_THRESHOLD = Math.floor(MAX_REASONABLE_SCORE * 0.7); // 70% of max
+
 // GET /api/game-score?walletAddress=...
 // Retrieve user's best game score
 export async function GET(request: NextRequest) {
@@ -61,6 +83,7 @@ export async function POST(request: NextRequest) {
     const body: GameScoreUpdate = await request.json();
     const { score, walletAddress } = body;
 
+    // SECURITY: Validate required fields
     if (!walletAddress || score === undefined || score === null) {
       return NextResponse.json(
         { success: false, error: 'score and walletAddress are required' },
@@ -68,6 +91,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // SECURITY: Validate score is a number and non-negative
     if (typeof score !== 'number' || score < 0) {
       return NextResponse.json(
         { success: false, error: 'score must be a non-negative number' },
@@ -75,12 +99,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // SECURITY: Validate score is an integer (no decimal manipulation)
+    if (!Number.isInteger(score)) {
+      return NextResponse.json(
+        { success: false, error: 'score must be a whole number' },
+        { status: 400 }
+      );
+    }
+
+    // SECURITY: Log suspicious scores for review
+    if (score > SUSPICIOUS_SCORE_THRESHOLD) {
+      console.warn(`[SECURITY] Suspicious high score: ${score} from ${walletAddress} (threshold: ${SUSPICIOUS_SCORE_THRESHOLD})`);
+    }
+
+    // SECURITY: Validate maximum score to prevent manipulation
+    if (score > MAX_REASONABLE_SCORE) {
+      console.error(`[SECURITY] Score rejected - exceeds maximum: ${score} from ${walletAddress} (max: ${MAX_REASONABLE_SCORE})`);
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: `Score ${score} exceeds maximum allowed score of ${MAX_REASONABLE_SCORE}. Please contact support if you believe this is an error.` 
+        },
+        { status: 400 }
+      );
+    }
+
     const client = supabaseAdmin || supabase;
 
-    // SECURITY: Verify user has an active game session before accepting score
+    // SECURITY: CRITICAL - Verify user has an active game session before accepting score
+    // This prevents users from submitting scores without paying
     const { data: gameSession, error: sessionError } = await client
       .from('shellies_raffle_game_sessions')
-      .select('id, is_active, expires_at')
+      .select('id, is_active, expires_at, transaction_hash')
       .eq('wallet_address', walletAddress.toLowerCase())
       .eq('is_active', true)
       .gte('expires_at', new Date().toISOString())
@@ -88,11 +138,27 @@ export async function POST(request: NextRequest) {
       .limit(1)
       .single();
 
+    // SECURITY: REJECT if no active session found
     if (sessionError || !gameSession) {
+      console.warn(`Score submission rejected - no active session for ${walletAddress}`);
       return NextResponse.json(
         { 
           success: false, 
           error: 'No active game session found. Please pay to play first.' 
+        },
+        { status: 403 }
+      );
+    }
+
+    // SECURITY: Additional validation - ensure session has valid transaction hash
+    if (!gameSession.transaction_hash || 
+        gameSession.transaction_hash.length !== 66 ||
+        !gameSession.transaction_hash.startsWith('0x')) {
+      console.error(`Invalid transaction hash in session for ${walletAddress}: ${gameSession.transaction_hash}`);
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Invalid game session. Please create a new session with valid payment.' 
         },
         { status: 403 }
       );
@@ -105,6 +171,16 @@ export async function POST(request: NextRequest) {
         new_score: score
       });
 
+    // SECURITY FIX: ALWAYS invalidate game session after score submission to prevent reuse
+    // This happens regardless of success/failure to prevent retry attacks
+    await client
+      .from('shellies_raffle_game_sessions')
+      .update({ 
+        is_active: false,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', gameSession.id);
+
     // If function succeeds, return the result
     if (!updateError && updateData) {
       const updatedScore = Array.isArray(updateData) ? updateData[0]?.game_score : updateData.game_score;
@@ -115,7 +191,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // If user doesn't exist, create them
+    // If user doesn't exist, create them (but session is already invalidated above)
     if (updateError) {
       console.log('Update function failed, attempting to create user:', updateError.message);
 

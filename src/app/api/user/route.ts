@@ -30,35 +30,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.address) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-
-    const { action, points, nftCount } = await request.json();
-
-    const walletAddress = session.address as string;
-
-    switch (action) {
-      case 'claim_daily':
-        const success = await UserService.claimDailyPoints(walletAddress, points || 1);
-        if (!success) {
-          return NextResponse.json({ error: 'Failed to claim daily points' }, { status: 500 });
-        }
-        break;
-
-
-      default:
-        return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
-    }
-
-    // Return updated user data
-    const updatedUser = await UserService.getOrCreateUser(walletAddress);
-    return NextResponse.json(updatedUser);
-  } catch (error) {
-    console.error('Error in user POST API:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
+  // SECURITY FIX: This endpoint is deprecated and disabled
+  // All claiming should go through /api/claim, /api/claim-staking, or /api/claim-unified
+  // which properly calculate points server-side based on verified blockchain data
+  return NextResponse.json({ 
+    error: 'This endpoint is deprecated. Please use /api/claim-unified for claiming points.' 
+  }, { status: 410 }); // 410 Gone - endpoint permanently disabled
 }

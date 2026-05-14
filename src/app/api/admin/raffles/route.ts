@@ -251,15 +251,13 @@ export async function POST(request: NextRequest) {
           const { supabaseAdmin, supabase } = await import('@/lib/supabase');
           const client = supabaseAdmin || supabase;
           
-          
-          const { data: entries, error: entriesError } = await client
-            .from('shellies_raffle_entries')
-            .select('wallet_address, ticket_count')
-            .eq('raffle_id', raffleId);
+          // Use the same RPC function as the raffles page for consistency
+          // This ensures we get the same participant count that's displayed on the raffles page
+          const { data: rpcData, error: rpcError } = await client
+            .rpc('get_raffle_participants', { p_raffle_id: raffleId });
 
-
-          if (entriesError) {
-            console.error('❌ Database error fetching participants:', entriesError);
+          if (rpcError) {
+            console.error('❌ RPC error fetching participants:', rpcError);
             return NextResponse.json({ 
               error: 'Failed to fetch participants',
               success: false 
@@ -267,10 +265,9 @@ export async function POST(request: NextRequest) {
           }
 
           // Handle case where no participants joined - create empty arrays
-          const entryData = entries || [];
+          const entryData = rpcData || [];
 
-
-          // Aggregate ticket counts by wallet address
+          // Aggregate ticket counts by wallet address (same logic as raffles page)
           const participantMap = new Map<string, number>();
           entryData.forEach((entry: any) => {
             const current = participantMap.get(entry.wallet_address) || 0;
@@ -280,7 +277,6 @@ export async function POST(request: NextRequest) {
           const participants = Array.from(participantMap.keys());
           const ticketCounts = Array.from(participantMap.values());
           const totalTickets = ticketCounts.reduce((sum, count) => sum + count, 0);
-
 
           return NextResponse.json({ 
             success: true,
