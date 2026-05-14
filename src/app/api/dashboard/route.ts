@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { UserService } from '@/lib/user-service';
-import { NFTService } from '@/lib/nft-service';
 import { StakingService } from '@/lib/staking-service';
 import { createClient } from '@supabase/supabase-js';
+import { ShelliesPointsService } from '@/lib/shellies-points-service';
 
 // Service client for database operations
 const supabaseService = createClient(
@@ -30,12 +30,12 @@ export async function GET(request: NextRequest) {
 
     // Staking service no longer uses caching - always fetches fresh data
 
-    // Fetch user data, staking stats, and period breakdown in parallel
-    // NFT count is now handled client-side for real-time data
-    const [user, stakingStats, stakingBreakdown] = await Promise.all([
+    // Fetch user data, staking stats, period breakdown, and on-chain points in parallel
+    const [user, stakingStats, stakingBreakdown, onChainPoints] = await Promise.all([
       UserService.getOrCreateUser(walletAddress),
       StakingService.getStakingStats(walletAddress),
-      StakingService.getStakingPeriodBreakdown(walletAddress)
+      StakingService.getStakingPeriodBreakdown(walletAddress),
+      ShelliesPointsService.getBalance(walletAddress),
     ]);
     
     if (!user) {
@@ -63,15 +63,23 @@ export async function GET(request: NextRequest) {
     const stakingPoints = StakingService.calculateDailyPointsByPeriod(stakingBreakdown);
 
     // Return combined data (NFT count handled client-side)
+    // Points come from on-chain contract, not Supabase
+    const userWithOnChainPoints = { ...user, points: onChainPoints };
+
     return NextResponse.json({
-      user,
+      user: userWithOnChainPoints,
       claimStatus: {
         canClaim,
         secondsUntilNextClaim,
         stakedNFTCount,
         stakingPoints,
-        currentPoints: user.points,
+        currentPoints: onChainPoints,
         lastClaim: user.last_claim
+      }
+    }, {
+      headers: {
+        'Cache-Control': 'private, max-age=15, stale-while-revalidate=30',
+        'Vary': 'Cookie',
       }
     });
 

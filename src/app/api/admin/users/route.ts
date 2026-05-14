@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { AdminService } from '@/lib/admin-service';
+import { supabaseAdmin, supabase } from '@/lib/supabase';
+import { ShelliesPointsService } from '@/lib/shellies-points-service';
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,8 +28,20 @@ export async function GET(request: NextRequest) {
     const validLimit = Math.min(Math.max(1, limit), 100); // Cap at 100 items per page
 
     const { users, total } = await AdminService.getAllUsers(validPage, validLimit);
-    
-    return NextResponse.json({ users, total, page: validPage });
+
+    // Enrich each user with their current on-chain balance (run in parallel)
+    const usersWithBalance = await Promise.all(
+      users.map(async (user: any) => {
+        try {
+          const onChainBalance = await ShelliesPointsService.getBalance(user.wallet_address);
+          return { ...user, onChainBalance };
+        } catch {
+          return { ...user, onChainBalance: null };
+        }
+      })
+    );
+
+    return NextResponse.json({ users: usersWithBalance, total, page: validPage });
   } catch (error) {
     console.error('Error in admin users API:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -58,7 +72,31 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'update':
-        const updateSuccess = await AdminService.updateUser(userId, { points, status });
+        // If points are being updated, route through on-chain mint/burn
+        if (points !== undefined) {
+          const client = supabaseAdmin || supabase;
+          const { data: userData, error: userFetchError } = await client
+            .from('shellies_raffle_users')
+            .select('wallet_address')
+            .eq('id', userId)
+            .single();
+
+          if (userFetchError || !userData) {
+            return NextResponse.json({ error: 'User not found' }, { status: 404 });
+          }
+
+          const wallet = userData.wallet_address as string;
+          const currentBalance = await ShelliesPointsService.getBalance(wallet);
+          const pointsDelta = points - currentBalance;
+
+          if (pointsDelta > 0) {
+            await ShelliesPointsService.adminMint(wallet, pointsDelta);
+          } else if (pointsDelta < 0) {
+            await ShelliesPointsService.adminBurn(wallet, Math.abs(pointsDelta));
+          }
+        }
+
+        const updateSuccess = await AdminService.updateUser(userId, { status });
         if (!updateSuccess) {
           return NextResponse.json({ error: 'Failed to update user' }, { status: 500 });
         }

@@ -1,0 +1,64 @@
+--- a/src/app/api/user/route.ts
++++ b/src/app/api/user/route.ts
+@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
+       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+     }
+ 
+-    const { action, points, nftCount } = await request.json();
++    const { action } = await request.json();
+ 
+     const walletAddress = session.address as string;
+ 
+     switch (action) {
+       case 'claim_daily':
+-        const success = await UserService.claimDailyPoints(walletAddress, points || 1);
++        // SECURITY FIX: Calculate points server-side based on verified NFT count
++        const nftCount = await NFTService.getNFTCount(walletAddress);
++        const pointsToAdd = NFTService.calculateClaimPoints(nftCount);
++        const success = await UserService.claimDailyPoints(walletAddress, pointsToAdd);
+         if (!success) {
+           return NextResponse.json({ error: 'Failed to claim daily points' }, { status: 500 });
+         }
+
+--- a/src/app/api/game-score/route.ts
++++ b/src/app/api/game-score/route.ts
+@@ -3,6 +3,9 @@ import { supabaseAdmin, supabase } from '@/lib/supabase';
+ import { GameScoreUpdate } from '@/lib/types';
+ 
++// Maximum reasonable score - adjust based on your game mechanics
++const MAX_REASONABLE_SCORE = 100000;
++
+ // POST /api/game-score
+ // Update user's game score (with session verification)
+ export async function POST(request: NextRequest) {
+@@ -42,6 +45,15 @@ export async function POST(request: NextRequest) {
+       );
+     }
+ 
++    // SECURITY FIX: Validate maximum score
++    if (score > MAX_REASONABLE_SCORE) {
++      return NextResponse.json(
++        { success: false, error: `Score ${score} exceeds maximum allowed score of ${MAX_REASONABLE_SCORE}` },
++        { status: 400 }
++      );
++    }
++
+     const client = supabaseAdmin || supabase;
+ 
+     // SECURITY: Verify user has an active game session before accepting score
+@@ -100,6 +112,14 @@ export async function POST(request: NextRequest) {
+           );
+         }
+ 
++        // SECURITY FIX: Invalidate session after score submission
++        await client
++          .from('shellies_raffle_game_sessions')
++          .update({ 
++            is_active: false,
++            updated_at: new Date().toISOString()
++          })
++          .eq('id', gameSession.id);
++
+         return NextResponse.json({
+           success: true,
+           game_score: newScore,

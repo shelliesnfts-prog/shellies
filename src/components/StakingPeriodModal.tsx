@@ -6,6 +6,7 @@ import { X, Lock, Loader2, CheckCircle, AlertTriangle, Clock, Calendar, Calendar
 import { staking_abi } from '@/lib/staking-abi';
 import { LockPeriod, StakingService } from '@/lib/staking-service';
 import { parseContractError } from '@/lib/errors';
+import { useStakingPointRates } from '@/hooks/useStakingPointRates';
 
 interface StakingPeriodModalProps {
   isOpen: boolean;
@@ -34,6 +35,7 @@ export default function StakingPeriodModal({
   const [transactionHash, setTransactionHash] = useState<string>('');
 
   const { writeContractAsync } = useWriteContract();
+  const pointRates = useStakingPointRates();
 
   const lockPeriodOptions = [
     {
@@ -43,7 +45,7 @@ export default function StakingPeriodModal({
       icon: Clock,
       color: 'blue',
       duration: '1 day',
-      points: 7
+      points: pointRates.daily
     },
     {
       period: LockPeriod.WEEK,
@@ -52,7 +54,7 @@ export default function StakingPeriodModal({
       icon: Calendar,
       color: 'purple',
       duration: '7 days',
-      points: 10
+      points: pointRates.weekly
     },
     {
       period: LockPeriod.MONTH,
@@ -61,7 +63,7 @@ export default function StakingPeriodModal({
       icon: CalendarDays,
       color: 'green',
       duration: '30 days',
-      points: 20
+      points: pointRates.monthly
     }
   ];
 
@@ -266,7 +268,7 @@ export default function StakingPeriodModal({
               isDarkMode ? 'text-gray-400' : 'text-gray-600'
             }`}>
               <li>• Your NFTs will be locked for the selected period</li>
-              <li>• Daily points: 1 Day = 7pts, 1 Week = 10pts, 1 Month = 20pts</li>
+              <li>• Daily points: 1 Day = {pointRates.daily}pts, 1 Week = {pointRates.weekly}pts, 1 Month = {pointRates.monthly}pts</li>
               <li>• You cannot unstake until the lock period ends</li>
               <li>• Emergency unstake is only available if enabled by admin</li>
             </ul>

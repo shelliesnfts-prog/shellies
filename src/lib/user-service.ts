@@ -1,4 +1,5 @@
 import { supabase, supabaseAdmin, User } from './supabase';
+import { HIDDEN_LEADERBOARD_WALLETS, isHiddenLeaderboardWallet } from './leaderboard-exclusions';
 
 export class UserService {
   // Get or create user by wallet address (always fresh data)
@@ -130,6 +131,7 @@ export class UserService {
       let query = client
         .from('shellies_raffle_users')
         .select('wallet_address, points, game_score')
+        .not('wallet_address', 'ilike', HIDDEN_LEADERBOARD_WALLETS[0])
         .order('points', { ascending: false })
         .order('wallet_address', { ascending: true }) // Secondary sort for consistency
         .limit(limit);
@@ -198,6 +200,7 @@ export class UserService {
       let query = client
         .from('shellies_raffle_users')
         .select('wallet_address, points, game_score')
+        .not('wallet_address', 'ilike', HIDDEN_LEADERBOARD_WALLETS[0])
         .gt('game_score', 0) // Only include users with game score
         .order('game_score', { ascending: false })
         .order('wallet_address', { ascending: true }) // Secondary sort for consistency
@@ -258,6 +261,10 @@ export class UserService {
     game_score: number;
   } | null> {
     try {
+      if (isHiddenLeaderboardWallet(walletAddress)) {
+        return null;
+      }
+
       const client = supabaseAdmin || supabase;
 
       // Get the user's data first
@@ -276,6 +283,7 @@ export class UserService {
       const { count, error: countError } = await client
         .from('shellies_raffle_users')
         .select('*', { count: 'exact', head: true })
+        .not('wallet_address', 'ilike', HIDDEN_LEADERBOARD_WALLETS[0])
         .gt('points', userData.points);
 
       if (countError) {
@@ -304,6 +312,10 @@ export class UserService {
     game_score: number;
   } | null> {
     try {
+      if (isHiddenLeaderboardWallet(walletAddress)) {
+        return null;
+      }
+
       const client = supabaseAdmin || supabase;
 
       // Get the user's data first
@@ -331,6 +343,7 @@ export class UserService {
       const { count, error: countError } = await client
         .from('shellies_raffle_users')
         .select('*', { count: 'exact', head: true })
+        .not('wallet_address', 'ilike', HIDDEN_LEADERBOARD_WALLETS[0])
         .gt('game_score', userData.game_score);
 
       if (countError) {
@@ -357,6 +370,10 @@ export class UserService {
     wallet_address: string;
   } | null> {
     try {
+      if (isHiddenLeaderboardWallet(walletAddress)) {
+        return null;
+      }
+
       const client = supabaseAdmin || supabase;
 
       // Get the user's data first
@@ -375,11 +392,13 @@ export class UserService {
         client
           .from('shellies_raffle_users')
           .select('*', { count: 'exact', head: true })
+          .not('wallet_address', 'ilike', HIDDEN_LEADERBOARD_WALLETS[0])
           .gt('points', userData.points),
         userData.game_score && userData.game_score > 0
           ? client
               .from('shellies_raffle_users')
               .select('*', { count: 'exact', head: true })
+              .not('wallet_address', 'ilike', HIDDEN_LEADERBOARD_WALLETS[0])
               .gt('game_score', userData.game_score)
           : Promise.resolve({ count: null, error: null })
       ]);
@@ -419,6 +438,7 @@ export class UserService {
       const { data, error } = await client
         .from('shellies_raffle_users')
         .select('game_score')
+        .not('wallet_address', 'ilike', HIDDEN_LEADERBOARD_WALLETS[0])
         .gt('game_score', 0);
 
       if (error) {
@@ -438,6 +458,7 @@ export class UserService {
       const { data: topScoreData, error: topScoreError } = await client
         .from('shellies_raffle_users')
         .select('game_score')
+        .not('wallet_address', 'ilike', HIDDEN_LEADERBOARD_WALLETS[0])
         .gt('game_score', 0)
         .order('game_score', { ascending: false })
         .limit(1)

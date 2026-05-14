@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useSession } from 'next-auth/react';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
 import { RaffleCard } from '@/components/portal/RaffleCard';
 import { RaffleSkeletonGrid } from '@/components/portal/RaffleCardSkeleton';
 import JoinRaffleModal from '@/components/JoinRaffleModal';
+import { ConnectWalletGate } from '@/components/ConnectWalletGate';
 import { Gift, Loader2 } from 'lucide-react';
 import { Raffle } from '@/lib/supabase';
-import { useDashboard } from '@/hooks/useDashboard';
+import { usePoints } from '@/contexts/PointsContext';
 import { useTheme } from '@/contexts/ThemeContext';
 
 export default function RafflesPage() {
@@ -21,8 +23,10 @@ export default function RafflesPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedRaffle, setSelectedRaffle] = useState<Raffle | null>(null);
+  const [isConnectGateOpen, setIsConnectGateOpen] = useState(false);
   const { isDarkMode } = useTheme();
-  const { fetchUser } = useDashboard();
+  const { status } = useSession();
+  const { refreshUserData } = usePoints();
   const fetchingRef = useRef(false);
 
   const fetchRaffles = async (page = 1, isLoadMore = false) => {
@@ -37,7 +41,8 @@ export default function RafflesPage() {
         setRaffles([]);
       }
       
-      const response = await fetch(`/api/raffles?status=${raffleView}&page=${page}&limit=6`);
+      const includeWinners = raffleView === 'active' ? '' : '&includeWinners=true';
+      const response = await fetch(`/api/raffles?status=${raffleView}&page=${page}&limit=6${includeWinners}`);
       if (response.ok) {
         const data = await response.json();
         
@@ -68,6 +73,10 @@ export default function RafflesPage() {
 
 
   const handleJoinRaffle = (raffle: Raffle) => {
+    if (status !== 'authenticated') {
+      setIsConnectGateOpen(true);
+      return;
+    }
     // Find the most up-to-date raffle data from our current list
     const currentRaffle = raffles.find(r => r.id === raffle.id) || raffle;
     setSelectedRaffle(currentRaffle);
@@ -81,7 +90,7 @@ export default function RafflesPage() {
 
   const handleRaffleSuccess = () => {
     // Refresh user data and raffle list to get updated ticket counts
-    fetchUser();
+    refreshUserData();
     fetchRaffles(currentPage, false);
   };
 
@@ -229,6 +238,13 @@ export default function RafflesPage() {
         raffle={selectedRaffle}
         isDarkMode={isDarkMode}
         onSuccess={handleRaffleSuccess}
+      />
+
+      {/* Connect Wallet Gate */}
+      <ConnectWalletGate
+        isOpen={isConnectGateOpen}
+        onClose={() => setIsConnectGateOpen(false)}
+        action="join this raffle"
       />
     </div>
   );

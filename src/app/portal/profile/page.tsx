@@ -4,83 +4,48 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useAccount } from 'wagmi';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
-import { ClaimButtonWithCountdown } from '@/components/ClaimCountdown';
+import { WalletRequired } from '@/components/portal/WalletRequired';
 import { usePoints } from '@/contexts/PointsContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { NFTService, SHELLIES_CONTRACT_ADDRESS } from '@/lib/nft-service';
-import { StakingService } from '@/lib/staking-service';
 import { ProfilePageSkeleton } from '@/components/portal/ProfilePageSkeleton';
+import { useNftAndStaking } from '@/hooks/useNftAndStaking';
 import { useRouter } from 'next/navigation';
 import { usePathname } from 'next/navigation';
-import { Trophy, Coins, Gift, TrendingUp, ArrowRight, Sparkles, Target, Zap, Clock, Calendar, CalendarDays, ExternalLink, Layers } from 'lucide-react';
-import XPBridge from '@/components/XPBridge';
+import { Trophy, ArrowRight, Sparkles, Target, Clock, Calendar, CalendarDays, ExternalLink, Layers } from 'lucide-react';
+
+function formatTimer(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
 
 export default function ProfilePage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [stakingBreakdown, setStakingBreakdown] = useState({
-    day: 0,
-    week: 0,
-    month: 0,
-    total: 0
-  });
-  const [loadingStaking, setLoadingStaking] = useState(false);
-  const [nftCount, setNftCount] = useState(0);
-  const [loadingNftCount, setLoadingNftCount] = useState(false);
-
   const { isDarkMode } = useTheme();
   const { data: session } = useSession();
   const { address } = useAccount();
   const router = useRouter();
   const pathname = usePathname();
-  const { user, claimStatus, loading: userLoading, claiming, executeUnifiedClaim, error: claimError, refreshUserData, refreshWithFreshData } = usePoints();
 
   const walletAddress = address || session?.address || '';
+  const isWalletConnected = !!(address && session?.address && address.toLowerCase() === session.address.toLowerCase());
 
-  // Get tier information for motivational display
-  const tierInfo = NFTService.getUserTierInfo(nftCount);
+  const { user, loading: userLoading, refreshUserData, refreshWithFreshData } = usePoints();
+  const { nftCount, stakingBreakdown, loading: loadingNftAndStaking } = useNftAndStaking();
 
-  // Fetch NFT count directly from blockchain (real-time, no cache)
+  const { claimStatus, claiming, error: claimError } = usePoints();
+
+  const canClaim = claimStatus?.canClaim ?? false;
+  const secondsUntilClaim = claimStatus?.secondsUntilNextClaim ?? 0;
+
   useEffect(() => {
-    const fetchNftCount = async () => {
-      if (!walletAddress) {
-        setNftCount(0);
-        return;
-      }
-
-      try {
-        setLoadingNftCount(true);
-        const count = await NFTService.getNFTCount(walletAddress);
-        setNftCount(count);
-      } catch (error) {
-        console.error('Failed to fetch NFT count:', error);
-        setNftCount(0);
-      } finally {
-        setLoadingNftCount(false);
-      }
-    };
-
-    fetchNftCount();
-  }, [walletAddress]);
-
-  // Refresh user data when user navigates to profile page
-  useEffect(() => {
-    // Only refresh if we're on the profile page and user is connected
     if (pathname === '/portal/profile' && walletAddress) {
       refreshUserData();
     }
-  }, [pathname, walletAddress]); // Runs when pathname changes or wallet connects
-
-  const handleClaimUnified = async () => {
-    await executeUnifiedClaim();
-  };
-
-  const handleConversionComplete = async (newXP: number, newPoints: number) => {
-    // Refresh user data to get updated XP and points from database
-    await refreshWithFreshData();
-  };
+  }, [pathname, walletAddress]);
 
   const handleOpenNFTCollection = () => {
-    // Open Shellies NFT collection in Ink blockchain explorer in a new tab
     const explorerUrl = 'https://www.netprotocol.app/app/bazaar/ink/0x1c9838cdC00fA39d953a54c755b95605Ed5Ea49c?tab=listings&s=09';
     window.open(explorerUrl, '_blank', 'noopener,noreferrer');
   };
@@ -88,32 +53,6 @@ export default function ProfilePage() {
   const handleNavigateToStaking = () => {
     router.push('/portal/staking');
   };
-
-  // Note: Data fetching is handled automatically by PointsContext
-
-  // Fetch staking breakdown when wallet address changes
-  useEffect(() => {
-    const fetchStakingBreakdown = async () => {
-      if (!walletAddress) {
-        setStakingBreakdown({ day: 0, week: 0, month: 0, total: 0 });
-        return;
-      }
-
-      try {
-        setLoadingStaking(true);
-        // Staking service no longer uses caching - always fetches fresh data
-        const breakdown = await StakingService.getStakingPeriodBreakdown(walletAddress);
-        setStakingBreakdown(breakdown);
-      } catch (error) {
-        console.error('Failed to fetch staking breakdown:', error);
-        setStakingBreakdown({ day: 0, week: 0, month: 0, total: 0 });
-      } finally {
-        setLoadingStaking(false);
-      }
-    };
-
-    fetchStakingBreakdown();
-  }, [walletAddress]);
 
 
   return (
@@ -126,7 +65,27 @@ export default function ProfilePage() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col lg:ml-4 min-h-screen">
         <main className="flex-1 p-3 sm:p-4 lg:p-6 mt-16 lg:mt-0 mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 xl:px-16 2xl:px-32">
-          {userLoading ? (
+          {!isWalletConnected ? (
+            <div className="space-y-6">
+              {/* Header Section — always visible */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h1 className={`text-xl sm:text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    Profile Overview
+                  </h1>
+                  <p className={`text-sm mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Track your NFTs, points, and daily rewards
+                  </p>
+                </div>
+              </div>
+              <WalletRequired
+                variant="card"
+                isDarkMode={isDarkMode}
+                title="Connect your wallet"
+                action="connect to view your profile"
+              />
+            </div>
+          ) : userLoading ? (
             <ProfilePageSkeleton isDarkMode={isDarkMode} />
           ) : (
             <div className="space-y-6">
@@ -170,7 +129,7 @@ export default function ProfilePage() {
                       <h3 className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                         NFT Holdings
                       </h3>
-                      {loadingNftCount ? (
+                      {loadingNftAndStaking ? (
                         <div className={`h-8 rounded animate-pulse w-12 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
                       ) : (
                         <p className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -201,7 +160,7 @@ export default function ProfilePage() {
                       <h3 className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                         Day Lock
                       </h3>
-                      {loadingStaking ? (
+                      {loadingNftAndStaking ? (
                         <div className={`h-8 rounded animate-pulse w-16 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
                       ) : (
                         <p className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -234,7 +193,7 @@ export default function ProfilePage() {
                       <h3 className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                         Week Lock
                       </h3>
-                      {loadingStaking ? (
+                      {loadingNftAndStaking ? (
                         <div className={`h-8 rounded animate-pulse w-16 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
                       ) : (
                         <p className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -267,7 +226,7 @@ export default function ProfilePage() {
                       <h3 className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                         Month Lock
                       </h3>
-                      {loadingStaking ? (
+                      {loadingNftAndStaking ? (
                         <div className={`h-8 rounded animate-pulse w-16 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
                       ) : (
                         <p className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -281,113 +240,6 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                {/* Unified Daily Claim Card */}
-                <div className="sm:col-span-2 col-span-1">
-                  <div className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:shadow-lg ${isDarkMode
-                    ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
-                    : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
-                    }`}>
-                    <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-pink-500/5 to-transparent" />
-                    <div className="relative p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
-                          <h3 className={`text-sm font-semibold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                            Daily Rewards
-                          </h3>
-                          <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                            Claim points from NFTs {(claimStatus?.stakedNFTCount ?? 0) > 0 ? 'and staked NFTs' : ''}
-                          </p>
-                        </div>
-                        <div className={`p-2.5 rounded-xl ${isDarkMode ? 'bg-gradient-to-br from-purple-500/20 to-pink-500/20' : 'bg-gradient-to-br from-purple-100 to-pink-100'
-                          }`}>
-                          <Gift className="w-5 h-5 text-purple-600" />
-                        </div>
-                      </div>
-                      <div className="space-y-3">
-                        {userLoading ? (
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                              <div className={`h-3 rounded animate-pulse w-32 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
-                              <div className={`h-3 rounded animate-pulse w-24 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
-                            </div>
-                            <div className={`h-10 rounded-lg animate-pulse w-full ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}></div>
-                          </div>
-                        ) : claimStatus ? (
-                          <>
-                            {/* Points Breakdown */}
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                                  Total: {((nftCount * 5) + (claimStatus?.stakingPoints || 0) || (nftCount === 0 ? 1 : 0)).toFixed(1)} points
-                                </span>
-                                <div className={`flex items-center space-x-1 text-xs ${claimStatus?.canClaim
-                                  ? 'text-green-600'
-                                  : isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                  }`}>
-                                  <div className={`w-1.5 h-1.5 rounded-full mr-2 ${claimStatus?.canClaim ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
-                                    }`} />
-                                  {claimStatus?.canClaim ? 'Available now' : 'Check back later'}
-                                </div>
-                              </div>
-                              {/* Show breakdown based on real-time NFT count */}
-                              <div className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                                {(nftCount + (claimStatus?.stakedNFTCount ?? 0)) > 0 ? (
-                                  <>
-                                    {nftCount > 0 && (
-                                      <span>{nftCount} available NFTs (×5 = {(nftCount * 5).toFixed(1)} pts) </span>
-                                    )}
-                                    {(claimStatus?.stakedNFTCount ?? 0) > 0 && (
-                                      <span>
-                                        {nftCount > 0 && '+ '}
-                                        {stakingBreakdown.day > 0 && `${stakingBreakdown.day} day-staked (×7) `}
-                                        {stakingBreakdown.week > 0 && `${stakingBreakdown.week} week-staked (×10) `}
-                                        {stakingBreakdown.month > 0 && `${stakingBreakdown.month} month-staked (×20) `}
-                                        (= {claimStatus?.stakingPoints?.toFixed(1)} pts)
-                                      </span>
-                                    )}
-                                  </>
-                                ) : (
-                                  'Regular user (1.0 pt)'
-                                )}
-                              </div>
-                            </div>
-                            <ClaimButtonWithCountdown
-                              canClaim={claimStatus.canClaim}
-                              secondsUntilNextClaim={claimStatus.secondsUntilNextClaim}
-                              nftCount={nftCount + (claimStatus?.stakedNFTCount ?? 0)}
-                              potentialPoints={(nftCount * 5) + (claimStatus?.stakingPoints || 0) || (nftCount === 0 ? 1 : 0)}
-                              onClaim={handleClaimUnified}
-                              claiming={claiming}
-                            />
-                          </>
-                        ) : (
-                          <div className={`text-center py-4 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                            Unable to load claim status
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* XP Bridge Card */}
-                <div className="sm:col-span-2 col-span-1 h-full">
-                  {userLoading ? (
-                    <div className={`h-full rounded-2xl animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
-                  ) : user ? (
-                    <div className="h-full">
-                      <XPBridge
-                        currentXP={user.game_score || 0}
-                        currentPoints={user.points || 0}
-                        onConversionComplete={handleConversionComplete}
-                      />
-                    </div>
-                  ) : (
-                    <div className={`h-full flex items-center justify-center rounded-2xl border ${isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-400' : 'bg-white border-gray-200 text-gray-500'}`}>
-                      <p className="text-xs">Unable to load XP Bridge</p>
-                    </div>
-                  )}
-                </div>
               </div>
 
               {/* Navigation Actions */}

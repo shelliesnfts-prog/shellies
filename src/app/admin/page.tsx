@@ -12,10 +12,14 @@ export default function AdminPage() {
   }, [router]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-4"></div>
-        <p className="text-gray-700">Redirecting to admin panel...</p>
+    <div className="min-h-screen flex items-center justify-center bg-[var(--background)]">
+      <div className="flex flex-col items-center gap-6">
+        <div className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-purple-400 animate-[pulse_1.4s_ease-in-out_infinite]" />
+          <span className="h-2 w-2 rounded-full bg-purple-400 animate-[pulse_1.4s_ease-in-out_0.2s_infinite]" />
+          <span className="h-2 w-2 rounded-full bg-purple-400 animate-[pulse_1.4s_ease-in-out_0.4s_infinite]" />
+        </div>
+        <p className="text-sm text-gray-400 tracking-wide">Redirecting</p>
       </div>
     </div>
   );

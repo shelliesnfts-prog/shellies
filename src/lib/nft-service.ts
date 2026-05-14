@@ -422,15 +422,10 @@ export class NFTService {
       // Use our API endpoint instead of direct explorer API call
       const apiUrl = `/api/nft/owned?address=${encodeURIComponent(walletAddress)}`;
       
-      const response = await fetch(apiUrl + `&_t=${Date.now()}&_r=${Math.random()}`, {
+      const response = await fetch(apiUrl, {
         headers: {
           'Accept': 'application/json',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
         },
-        // Disable caching to ensure fresh data
-        cache: 'no-store'
       });
 
       if (!response.ok) {
@@ -438,7 +433,7 @@ export class NFTService {
       }
 
       const data = await response.json();
-      
+
       if (data.error) {
         throw new Error(data.error);
       }
@@ -797,14 +792,10 @@ export class NFTService {
       try {
         const apiUrl = `/api/nft/staked?stakingAddress=${encodeURIComponent(stakingContractAddress)}&tokenIds=${tokenIds.join(',')}`;
 
-        const response = await fetch(apiUrl + `&_t=${Date.now()}&_r=${Math.random()}`, {
+        const response = await fetch(apiUrl, {
           headers: {
             'Accept': 'application/json',
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
           },
-          cache: 'no-store'
         });
 
         if (!response.ok) {
@@ -893,15 +884,11 @@ export class NFTService {
         apiUrl += `&bustCache=true`;
       }
 
-      const response = await fetch(apiUrl + `&_t=${Date.now()}&_r=${Math.random()}`, {
+      const response = await fetch(apiUrl, {
         headers: {
           'Accept': 'application/json',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
         },
-        // Disable caching to ensure fresh data
-        cache: 'no-store'
+        cache: bustCache ? 'no-store' : 'default',
       });
 
       if (!response.ok) {
@@ -909,7 +896,7 @@ export class NFTService {
       }
 
       const data = await response.json();
-      
+
       if (data.error) {
         throw new Error(data.error);
       }

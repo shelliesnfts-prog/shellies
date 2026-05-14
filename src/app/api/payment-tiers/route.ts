@@ -3,6 +3,18 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { supabaseAdmin, supabase } from '@/lib/supabase';
 
+const PUBLIC_PAYMENT_TIERS_CACHE_HEADERS = {
+  'Cache-Control': 'public, max-age=300, s-maxage=300, stale-while-revalidate=600',
+};
+
+const PRIVATE_CACHE_HEADERS = {
+  'Cache-Control': 'private, no-store',
+};
+
+const ERROR_CACHE_HEADERS = {
+  'Cache-Control': 'no-store',
+};
+
 /**
  * GET /api/payment-tiers
  * Fetch all payment tiers (active and inactive for admin)
@@ -30,16 +42,19 @@ export async function GET(request: NextRequest) {
       console.error('Error fetching payment tiers:', error);
       return NextResponse.json(
         { error: 'Failed to fetch payment tiers' },
-        { status: 500 }
+        { status: 500, headers: ERROR_CACHE_HEADERS }
       );
     }
 
-    return NextResponse.json({ tiers: data || [] });
+    return NextResponse.json(
+      { tiers: data || [] },
+      { headers: includeInactive ? PRIVATE_CACHE_HEADERS : PUBLIC_PAYMENT_TIERS_CACHE_HEADERS }
+    );
   } catch (error) {
     console.error('Unexpected error fetching payment tiers:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
-      { status: 500 }
+      { status: 500, headers: ERROR_CACHE_HEADERS }
     );
   }
 }

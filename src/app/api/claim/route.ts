@@ -1,154 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { NFTService } from '@/lib/nft-service';
-import { UserService } from '@/lib/user-service';
-import { supabaseAdmin, supabase } from '@/lib/supabase';
-import { isValidPointsAmount, MAX_REASONABLE_POINTS } from '@/lib/points-constants';
+import { ShelliesPointsService } from '@/lib/shellies-points-service';
 
-export async function POST(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.address) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Not authenticated' 
-      }, { status: 401 });
-    }
-
-    const walletAddress = session.address as string;
-
-    // Step 1: Check NFT count from blockchain
-    const nftCount = await NFTService.getNFTCount(walletAddress);
-
-    // Step 2: Calculate points based on NFT ownership
-    const pointsToAdd = NFTService.calculateClaimPoints(nftCount);
-
-    // SECURITY: Validate points amount is within reasonable limits
-    const validation = isValidPointsAmount(pointsToAdd);
-    if (!validation.isValid) {
-      console.error(`Invalid points amount: ${pointsToAdd} for ${walletAddress}`, {
-        nftCount,
-        reason: validation.reason
-      });
-      return NextResponse.json({
-        success: false,
-        error: `Invalid points calculation. Maximum allowed is ${MAX_REASONABLE_POINTS}. Please contact support.`
-      }, { status: 500 });
-    }
-
-    // Step 3: Use database function to safely process claim
-    const client = supabaseAdmin || supabase;
-    
-    const { data, error } = await client
-      .rpc('process_user_claim', {
-        user_wallet: walletAddress,
-        points_to_add: pointsToAdd
-      });
-
-    if (error) {
-      console.error('Database error during claim:', error);
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Failed to process claim' 
-      }, { status: 500 });
-    }
-
-    // The function returns a single row with success, new_points, message
-    const result = data[0];
-    
-    if (!result.success) {
-      return NextResponse.json({ 
-        success: false, 
-        error: result.message,
-        canClaimAgainIn: null // Frontend should calculate this
-      }, { status: 400 });
-    }
-
-    // Step 4: Return success with updated user data
-    return NextResponse.json({ 
-      success: true,
-      message: result.message,
-      newPoints: result.new_points,
-      pointsAdded: pointsToAdd,
-      nftCount: nftCount,
-      nextClaimIn: 24 * 60 * 60 * 1000 // 24 hours in milliseconds
-    });
-
-  } catch (error) {
-    console.error('Error in claim API:', error);
-    return NextResponse.json({ 
-      success: false, 
-      error: 'Internal server error' 
-    }, { status: 500 });
-  }
-}
-
-// GET endpoint to check claim status without claiming
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.address) {
-      return NextResponse.json({ 
-        canClaim: false, 
-        error: 'Not authenticated' 
-      }, { status: 401 });
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const walletAddress = session.address as string;
-    const client = supabaseAdmin || supabase;
+    const walletAddress = (session.address as string).toLowerCase();
 
-    // Get user's last claim info - always fetch fresh data to avoid stale cache
-    const { data: user, error: userError } = await client
-      .from('shellies_raffle_users')
-      .select('last_claim, points')
-      .eq('wallet_address', walletAddress)
-      .single();
-
-    if (userError && userError.code !== 'PGRST116') {
-      console.error('Error fetching user:', userError);
-      return NextResponse.json({ 
-        canClaim: false, 
-        error: 'Failed to check claim status' 
-      }, { status: 500 });
-    }
-
-    // Calculate time until next claim
-    let canClaim = true;
-    let secondsUntilNextClaim = 0;
-
-    if (user?.last_claim) {
-      const lastClaimTime = new Date(user.last_claim).getTime();
-      const now = Date.now();
-      const timeSinceLastClaim = now - lastClaimTime;
-      const twentyFourHours = 24 * 60 * 60 * 1000;
-
-      if (timeSinceLastClaim < twentyFourHours) {
-        canClaim = false;
-        secondsUntilNextClaim = Math.ceil((twentyFourHours - timeSinceLastClaim) / 1000);
-      }
-    }
-
-    // Get NFT count for display
-    const nftCount = await NFTService.getNFTCount(walletAddress);
-    const potentialPoints = NFTService.calculateClaimPoints(nftCount);
+    const [claimStatus, claimWithFeesStatus] = await Promise.all([
+      ShelliesPointsService.getClaimStatus(walletAddress),
+      ShelliesPointsService.getClaimWithFeesStatus(walletAddress),
+    ]);
 
     return NextResponse.json({
-      canClaim,
-      secondsUntilNextClaim,
-      nftCount,
-      potentialPoints,
-      currentPoints: user?.points || 0,
-      lastClaim: user?.last_claim || null
+      claim: claimStatus,
+      claimWithFees: claimWithFeesStatus,
     });
-
   } catch (error) {
     console.error('Error in claim status API:', error);
-    return NextResponse.json({ 
-      canClaim: false, 
-      error: 'Internal server error' 
-    }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

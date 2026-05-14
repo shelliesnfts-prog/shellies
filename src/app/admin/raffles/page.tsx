@@ -16,7 +16,9 @@ import {
   Eye,
   EyeOff,
   Plus,
-  ExternalLink
+  ExternalLink,
+  Settings,
+  Shield
 } from 'lucide-react';
 import { formatDate, isRaffleActive, localDateTimeInputToUTC } from '@/lib/dateUtils';
 import { parseTokenAmount, formatTokenDisplay, isValidTokenAmount } from '@/lib/token-utils';
@@ -493,20 +495,29 @@ export default function AdminRafflesPage() {
                   <span className="font-medium text-sm">Withdrawals</span>
                 </button>
               </li>
-              
-              {/* XP Settings */}
               <li>
                 <button
-                  onClick={() => router.push('/admin/xp-settings')}
+                  onClick={() => router.push('/admin/points-config')}
                   className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
                     isDarkMode ? 'text-gray-400 hover:bg-gray-700 hover:text-gray-300' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                   }`}
                 >
-                  <Square className="w-5 h-5 mr-3" />
-                  <span className="font-medium text-sm">XP Settings</span>
+                  <Settings className="w-5 h-5 mr-3" />
+                  <span className="font-medium text-sm">Points Config</span>
                 </button>
               </li>
-              
+              <li>
+                <button
+                  onClick={() => router.push('/admin/contract-admins')}
+                  className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
+                    isDarkMode ? 'text-gray-400 hover:bg-gray-700 hover:text-gray-300' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                  }`}
+                >
+                  <Shield className="w-5 h-5 mr-3" />
+                  <span className="font-medium text-sm">Contract Admins</span>
+                </button>
+              </li>
+
               {/* Portal Link */}
               <li>
                 <a
@@ -596,9 +607,13 @@ export default function AdminRafflesPage() {
             )}
             
             {loading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-4"></div>
-                <p className={`${isDarkMode ? 'text-white' : 'text-gray-700'}`}>Loading raffles...</p>
+              <div className="flex flex-col items-center gap-4 py-8">
+                <div className="flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-[pulse_1.4s_ease-in-out_infinite]" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-[pulse_1.4s_ease-in-out_0.2s_infinite]" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-[pulse_1.4s_ease-in-out_0.4s_infinite]" />
+                </div>
+                <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-700'}`}>Loading raffles...</p>
               </div>
             ) : (
               <>
@@ -797,14 +812,21 @@ export default function AdminRafflesPage() {
                 <input
                   type="url"
                   value={raffleForm.image_url}
-                  onChange={(e) => setRaffleForm({...raffleForm, image_url: e.target.value})}
+                  onChange={(e) => {
+                    const url = e.target.value;
+                    if (url.startsWith('blob:')) return;
+                    setRaffleForm({...raffleForm, image_url: url});
+                  }}
                   className={`w-full px-3 py-2 rounded-lg border text-sm ${
-                    isDarkMode 
-                      ? 'bg-gray-700 border-gray-600 text-white' 
+                    isDarkMode
+                      ? 'bg-gray-700 border-gray-600 text-white'
                       : 'bg-white border-gray-300 text-gray-900'
                   }`}
                   placeholder="https://example.com/image.jpg (optional)"
                 />
+                {raffleForm.image_url.startsWith('blob:') && (
+                  <p className="text-red-500 text-xs mt-1">Blob URLs cannot be used. Please provide a direct https:// URL.</p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

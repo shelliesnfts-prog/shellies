@@ -56,6 +56,64 @@ export function ClaimCountdown({ secondsRemaining, onCountdownComplete }: ClaimC
   );
 }
 
+function formatCooldown(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours} hour${hours !== 1 ? 's' : ''}`;
+  if (minutes > 0) return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+  return `${seconds} seconds`;
+}
+
+function InlineCountdownButton({
+  secondsRemaining,
+  onCountdownComplete,
+  isDarkMode,
+}: {
+  secondsRemaining: number;
+  onCountdownComplete: () => void;
+  isDarkMode?: boolean;
+}) {
+  const [timeLeft, setTimeLeft] = useState(secondsRemaining);
+
+  useEffect(() => {
+    setTimeLeft(secondsRemaining);
+  }, [secondsRemaining]);
+
+  useEffect(() => {
+    if (timeLeft <= 0) {
+      onCountdownComplete();
+      return;
+    }
+    const timer = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) { onCountdownComplete(); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [timeLeft, onCountdownComplete]);
+
+  const h = Math.floor(timeLeft / 3600);
+  const m = Math.floor((timeLeft % 3600) / 60);
+  const s = timeLeft % 60;
+  const formatted = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+
+  return (
+    <button
+      disabled
+      className={`w-full px-4 py-3 rounded-xl font-medium cursor-not-allowed flex items-center justify-between ${
+        isDarkMode ? 'bg-gray-700/50 text-gray-400' : 'bg-gray-100 text-gray-500'
+      }`}
+    >
+      <span className="text-xs">Available in</span>
+      <span className={`font-mono text-sm font-semibold tracking-wide ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>
+        {formatted}
+      </span>
+    </button>
+  );
+}
+
 interface ClaimButtonWithCountdownProps {
   canClaim: boolean;
   secondsUntilNextClaim: number;
@@ -63,6 +121,9 @@ interface ClaimButtonWithCountdownProps {
   potentialPoints: number;
   onClaim: () => Promise<void>;
   claiming: boolean;
+  claimCooldownSeconds?: number;
+  isDarkMode?: boolean;
+  isLoading?: boolean;
 }
 
 export function ClaimButtonWithCountdown({
@@ -71,15 +132,20 @@ export function ClaimButtonWithCountdown({
   nftCount,
   potentialPoints,
   onClaim,
-  claiming
+  claiming,
+  claimCooldownSeconds,
+  isDarkMode,
+  isLoading,
 }: ClaimButtonWithCountdownProps) {
   const [localCanClaim, setLocalCanClaim] = useState(canClaim);
   const [localSecondsRemaining, setLocalSecondsRemaining] = useState(secondsUntilNextClaim);
 
   useEffect(() => {
+    // Don't update local state while the chain data is still loading (wallet switch in progress)
+    if (isLoading) return;
     setLocalCanClaim(canClaim);
     setLocalSecondsRemaining(secondsUntilNextClaim);
-  }, [canClaim, secondsUntilNextClaim]);
+  }, [canClaim, secondsUntilNextClaim, isLoading]);
 
   const handleCountdownComplete = () => {
     setLocalCanClaim(true);
@@ -87,50 +153,53 @@ export function ClaimButtonWithCountdown({
   };
 
   const formatPoints = (points: number): string => {
-    // Always show 1 decimal place for consistency (e.g., "0.1", "1.0", "5.0")
     return points.toFixed(1);
   };
 
   return (
-    <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 max-w-[30rem] mx-auto">
-      {/* Claim Button or Countdown */}
-      {localCanClaim ? (
+    <div className="space-y-2">
+      {isLoading ? (
+        <button
+          disabled
+          className={`w-full px-4 py-3 rounded-xl font-medium cursor-not-allowed flex items-center justify-center gap-2 ${
+            isDarkMode ? 'bg-gray-700/50 text-gray-500' : 'bg-gray-100 text-gray-400'
+          }`}
+        >
+          <div className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent" />
+          <span className="text-sm">Loading...</span>
+        </button>
+      ) : localCanClaim ? (
         <button
           onClick={onClaim}
           disabled={claiming}
-          className={`w-full px-4 py-3 rounded-lg font-medium transition-all duration-200 transform ${
+          className={`w-full px-4 py-3 rounded-xl font-medium transition-all duration-200 ${
             claiming
-              ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
-              : 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white hover:scale-105 shadow-lg'
+              ? `cursor-not-allowed ${isDarkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-400'}`
+              : 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white shadow-sm hover:shadow-md hover:shadow-green-500/20'
           }`}
         >
           {claiming ? (
-            <div className="flex items-center justify-center">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-              Claiming...
+            <div className="flex items-center justify-center gap-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent" />
+              <span className="text-sm">Claiming...</span>
             </div>
           ) : (
-            `Claim ${formatPoints(potentialPoints)} Points`
+            <span className="text-sm font-semibold">Claim {formatPoints(potentialPoints)} Points</span>
           )}
         </button>
       ) : (
-        <div>
-          <ClaimCountdown 
-            secondsRemaining={localSecondsRemaining}
-            onCountdownComplete={handleCountdownComplete}
-          />
-          <button
-            disabled={true}
-            className="w-full mt-3 bg-gray-600 text-gray-300 px-4 py-3 rounded-lg font-medium cursor-not-allowed"
-          >
-            Claim {formatPoints(potentialPoints)} Points
-          </button>
-        </div>
+        <InlineCountdownButton
+          secondsRemaining={localSecondsRemaining}
+          onCountdownComplete={handleCountdownComplete}
+          isDarkMode={isDarkMode}
+        />
       )}
-      
-      <div className="text-xs text-gray-400 mt-3 text-center">
-        Claims are available once every 24 hours
-      </div>
+
+      <p className={`text-[11px] text-center ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+        {claimCooldownSeconds != null
+          ? `Refreshes every ${formatCooldown(claimCooldownSeconds)}`
+          : 'Refreshes every 24 hours'}
+      </p>
     </div>
   );
 }

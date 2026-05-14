@@ -384,7 +384,7 @@ export class RaffleContractService {
         args: [BigInt(raffleId)],
       });
 
-      const [prizeToken, prizeTokenId, state, isNFT, winner] = result as [
+      const [prizeToken, prizeTokenId, state, isNFT, winner] = result as unknown as [
         string, bigint, number, boolean, string
       ];
 
@@ -422,7 +422,7 @@ export class RaffleContractService {
         args: [BigInt(raffleId)],
       });
 
-      const [prizeToken, prizeTokenId, state, isNFT, winner] = result as [
+      const [prizeToken, prizeTokenId, state, isNFT, winner] = result as unknown as [
         string, bigint, number, boolean, string
       ];
 
@@ -635,14 +635,13 @@ export class RaffleContractService {
     raffleId: number,
     prizeTokenAddress: string,
     tokenId: string,
+    pointsPerTicket: number,
     writeContract: any // wagmi writeContract function
   ): Promise<{ success: boolean; txHash?: string; error?: string }> {
     try {
       if (!this.contractAddress) {
         return { success: false, error: 'Raffle contract address not configured' };
       }
-
-
 
       // Call the contract method directly (admin wallet will be prompted to sign)
       // Use createAndActivateNFTRaffle since it combines create + activate in one transaction
@@ -653,7 +652,8 @@ export class RaffleContractService {
         args: [
           BigInt(raffleId),
           prizeTokenAddress as `0x${string}`,
-          BigInt(tokenId)
+          BigInt(tokenId),
+          BigInt(pointsPerTicket),
         ],
       });
 
@@ -675,6 +675,7 @@ export class RaffleContractService {
     raffleId: number,
     prizeTokenAddress: string,
     amount: string,
+    pointsPerTicket: number,
     writeContract: any // wagmi writeContract function
   ): Promise<{ success: boolean; txHash?: string; error?: string }> {
     try {
@@ -725,7 +726,8 @@ export class RaffleContractService {
         args: [
           BigInt(raffleId),
           prizeTokenAddress as `0x${string}`,
-          amountBigInt
+          amountBigInt,
+          BigInt(pointsPerTicket),
         ],
         // Add explicit gas limit to prevent estimation issues
         gas: BigInt(500000),

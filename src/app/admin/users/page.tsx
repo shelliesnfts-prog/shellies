@@ -17,7 +17,9 @@ import {
   Copy,
   Edit,
   ExternalLink,
-  Clock
+  Clock,
+  Settings,
+  Shield
 } from 'lucide-react';
 
 export default function AdminUsersPage() {
@@ -93,7 +95,11 @@ export default function AdminUsersPage() {
   // Open update modal
   const openUpdateModal = (user: any) => {
     setSelectedUser(user);
-    setUpdatePoints(user.points.toString());
+    // Prefer on-chain balance as the authoritative starting point for edits
+    const balance = user.onChainBalance !== null && user.onChainBalance !== undefined
+      ? user.onChainBalance
+      : Math.max(0, user.points); // fallback: clamp Supabase value to ≥0
+    setUpdatePoints(balance.toString());
     setUpdateStatus(user.points < 0 ? 'blocked' : 'active');
     setShowUpdateModal(true);
   };
@@ -312,20 +318,29 @@ export default function AdminUsersPage() {
                   <span className="font-medium text-sm">Withdrawals</span>
                 </button>
               </li>
-              
-              {/* XP Settings */}
               <li>
                 <button
-                  onClick={() => router.push('/admin/xp-settings')}
+                  onClick={() => router.push('/admin/points-config')}
                   className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
                     isDarkMode ? 'text-gray-400 hover:bg-gray-700 hover:text-gray-300' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                   }`}
                 >
-                  <Square className="w-5 h-5 mr-3" />
-                  <span className="font-medium text-sm">XP Settings</span>
+                  <Settings className="w-5 h-5 mr-3" />
+                  <span className="font-medium text-sm">Points Config</span>
                 </button>
               </li>
-              
+              <li>
+                <button
+                  onClick={() => router.push('/admin/contract-admins')}
+                  className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
+                    isDarkMode ? 'text-gray-400 hover:bg-gray-700 hover:text-gray-300' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                  }`}
+                >
+                  <Shield className="w-5 h-5 mr-3" />
+                  <span className="font-medium text-sm">Contract Admins</span>
+                </button>
+              </li>
+
               {/* Portal Link */}
               <li>
                 <a
@@ -375,9 +390,13 @@ export default function AdminUsersPage() {
             </div>
             
             {loading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-4"></div>
-                <p className={`${isDarkMode ? 'text-white' : 'text-gray-700'}`}>Loading users...</p>
+              <div className="flex flex-col items-center gap-4 py-8">
+                <div className="flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-[pulse_1.4s_ease-in-out_infinite]" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-[pulse_1.4s_ease-in-out_0.2s_infinite]" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-[pulse_1.4s_ease-in-out_0.4s_infinite]" />
+                </div>
+                <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-700'}`}>Loading users...</p>
               </div>
             ) : (
               <div className={`rounded-2xl shadow-sm border overflow-hidden ${
@@ -390,7 +409,7 @@ export default function AdminUsersPage() {
                     <thead>
                       <tr className={`border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                         <th className={`text-left py-3 px-4 font-medium text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Wallet Address</th>
-                        <th className={`text-left py-3 px-4 font-medium text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Points</th>
+                        <th className={`text-left py-3 px-4 font-medium text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Points (on-chain)</th>
                         <th className={`text-left py-3 px-4 font-medium text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Created</th>
                         <th className={`text-left py-3 px-4 font-medium text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Status</th>
                         <th className={`text-left py-3 px-4 font-medium text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Actions</th>
@@ -413,7 +432,12 @@ export default function AdminUsersPage() {
                               </button>
                             </div>
                           </td>
-                          <td className="py-3 px-4 text-purple-600 font-medium">{user.points.toFixed(1)}</td>
+                          <td className="py-3 px-4 font-medium">
+                            {user.onChainBalance !== null && user.onChainBalance !== undefined
+                              ? <span className="text-purple-600">{user.onChainBalance.toLocaleString()}</span>
+                              : <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>—</span>
+                            }
+                          </td>
                           <td className={`py-3 px-4 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                             {new Date(user.created_at).toLocaleDateString()}
                           </td>

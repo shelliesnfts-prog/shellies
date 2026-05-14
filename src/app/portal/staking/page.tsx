@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSession } from 'next-auth/react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { useQueryClient } from '@tanstack/react-query';
 import { PortalSidebar } from '@/components/portal/PortalSidebar';
+import { StakingPublicPreview } from '@/components/portal/StakingPublicPreview';
 import { Trophy, Star, TrendingUp, Loader2, CheckCircle, AlertTriangle, Coins, Lock, Unlock, Shield } from 'lucide-react';
 import { NFTService } from '@/lib/nft-service';
 import { StakingService, LockPeriod } from '@/lib/staking-service';
@@ -11,9 +13,9 @@ import { ImageUtils } from '@/lib/image-utils';
 import { staking_abi } from '@/lib/staking-abi';
 import { erc721Abi } from 'viem';
 import { parseContractError } from '@/lib/errors';
-import { useDashboard } from '@/hooks/useDashboard';
 import { usePoints } from '@/contexts/PointsContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useStakingPointRates } from '@/hooks/useStakingPointRates';
 import { StakingPageSkeleton } from '@/components/portal/StakingPageSkeleton';
 import ApprovalStakeModal from '@/components/ApprovalStakeModal';
 import StakingPeriodModal from '@/components/StakingPeriodModal';
@@ -165,9 +167,14 @@ export default function StakingPage() {
 
   // Get global points context early
   const { user, claimStatus, loading: dashboardLoading } = usePoints();
+  const pointRates = useStakingPointRates();
+  const maxPointRate = Math.max(pointRates.daily, pointRates.weekly, pointRates.monthly);
 
 
   const { address, isConnected } = useAccount();
+  const { data: session } = useSession();
+
+  const isWalletConnected = !!(address && session?.address && address.toLowerCase() === session.address.toLowerCase());
   const { writeContractAsync } = useWriteContract();
   const queryClient = useQueryClient();
   const { data: txReceipt, isLoading: isTxLoading, error: txError } = useWaitForTransactionReceipt({
@@ -713,7 +720,7 @@ export default function StakingPage() {
     return ownedNFTs.filter(nft => viewMode === 'owned' ? !nft.isStaked : nft.isStaked);
   };
 
-  if (!isConnected) {
+  if (!isWalletConnected) {
     return (
       <div className={`min-h-screen flex transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <PortalSidebar
@@ -722,14 +729,7 @@ export default function StakingPage() {
         />
         <div className="flex-1 flex flex-col lg:ml-4 min-h-screen">
           <main className="flex-1 p-3 sm:p-4 lg:p-6 mt-16 lg:mt-0 mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 xl:px-16 2xl:px-32">
-            <div className="flex items-center justify-center h-64">
-              <div className={`text-center ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                <h2 className="text-xl font-semibold mb-2">Connect Your Wallet</h2>
-                <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Please connect your wallet to view and manage your NFT staking
-                </p>
-              </div>
-            </div>
+            <StakingPublicPreview isDarkMode={isDarkMode} />
           </main>
         </div>
       </div>
@@ -757,7 +757,7 @@ export default function StakingPage() {
                   NFT Staking
                 </h1>
                 <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Stake your Shellies NFTs to earn <span className="font-semibold text-blue-600">10 points per day</span> for each staked NFT
+                  Stake your Shellies NFTs to earn up to <span className="font-semibold text-blue-600">{maxPointRate} points per day</span> for each staked NFT
                 </p>
               </div>
               <div className={`px-4 py-2 rounded-xl border ${

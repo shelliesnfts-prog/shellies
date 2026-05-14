@@ -33,20 +33,17 @@ export function AuthGuard({ children }: AuthGuardProps) {
     }
   }, [status, session, isConnected, address, isConnecting]);
 
-  // Redirect unauthenticated users
-  useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/');
-    }
-  }, [status, router]);
-
   // Loading state
   if (status === 'loading' || isConnecting) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center">
-        <div className="bg-white/10 backdrop-blur-md rounded-xl p-8 border border-white/20 text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400 mx-auto mb-4"></div>
-          <p className="text-white">Loading...</p>
+      <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-6">
+          <div className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-purple-400 animate-[pulse_1.4s_ease-in-out_infinite]" />
+            <span className="h-2 w-2 rounded-full bg-purple-400 animate-[pulse_1.4s_ease-in-out_0.2s_infinite]" />
+            <span className="h-2 w-2 rounded-full bg-purple-400 animate-[pulse_1.4s_ease-in-out_0.4s_infinite]" />
+          </div>
+          <p className="text-sm text-gray-400 tracking-wide">Loading</p>
         </div>
       </div>
     );
@@ -55,19 +52,26 @@ export function AuthGuard({ children }: AuthGuardProps) {
   // Unauthenticated state
   if (status === 'unauthenticated') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center">
-        <div className="bg-white/10 backdrop-blur-md rounded-xl p-8 border border-white/20 text-center max-w-md">
-          <h2 className="text-3xl font-bold text-white mb-6">Access Denied</h2>
-          <p className="text-gray-300 mb-8">
-            You need to connect your wallet to access the portal.
-          </p>
-          <div className="space-y-4">
-            <div className="w-full">
+      <div className="min-h-screen bg-[var(--background)] flex items-center justify-center px-4">
+        <div className="w-full max-w-sm text-center space-y-6">
+          <div className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center mx-auto">
+            <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+            </svg>
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-white mb-2">Wallet Required</h2>
+            <p className="text-sm text-gray-400">
+              Connect your wallet to access the portal.
+            </p>
+          </div>
+          <div className="space-y-3">
+            <div className="w-full flex justify-center">
               <ConnectButton />
             </div>
             <button
               onClick={() => router.push('/')}
-              className="w-full border-2 border-purple-400 text-purple-400 hover:bg-purple-400 hover:text-white px-8 py-4 rounded-lg font-bold text-lg transition-all duration-200"
+              className="w-full text-sm text-gray-500 hover:text-gray-300 py-2 transition-colors"
             >
               Back to Home
             </button>
@@ -80,27 +84,29 @@ export function AuthGuard({ children }: AuthGuardProps) {
   // Wallet disconnected warning
   if (showWalletWarning) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center">
-        <div className="bg-white/10 backdrop-blur-md rounded-xl p-8 border border-white/20 text-center max-w-md">
-          <div className="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <svg className="w-8 h-8 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      <div className="min-h-screen bg-[var(--background)] flex items-center justify-center px-4">
+        <div className="w-full max-w-sm text-center space-y-6">
+          <div className="w-10 h-10 rounded-full border border-yellow-500/30 flex items-center justify-center mx-auto">
+            <svg className="w-5 h-5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
             </svg>
           </div>
-          <h2 className="text-3xl font-bold text-white mb-4">Wallet Not Connected</h2>
-          <p className="text-gray-300 mb-6">
-            Your session is active, but your wallet is not connected. Please reconnect your wallet to continue.
-          </p>
+          <div>
+            <h2 className="text-lg font-semibold text-white mb-2">Wallet Not Connected</h2>
+            <p className="text-sm text-gray-400">
+              Your session is active but your wallet is disconnected. Reconnect to continue.
+            </p>
+          </div>
           {address && session?.address && address.toLowerCase() !== session.address.toLowerCase() && (
-            <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 mb-6">
-              <p className="text-red-300 text-sm">
-                <strong>Address Mismatch:</strong><br />
+            <div className="rounded-lg border border-red-500/20 bg-red-500/5 px-4 py-3">
+              <p className="text-xs text-red-400">
+                <span className="font-medium">Address mismatch</span><br />
                 Session: {session.address.slice(0, 6)}...{session.address.slice(-4)}<br />
                 Wallet: {address.slice(0, 6)}...{address.slice(-4)}
               </p>
             </div>
           )}
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="w-full flex justify-center">
               <ConnectButton />
             </div>
@@ -109,7 +115,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
                 await signOut({ redirect: false });
                 router.push('/');
               }}
-              className="w-full border-2 border-purple-400 text-purple-400 hover:bg-purple-400 hover:text-white px-8 py-4 rounded-lg font-bold text-lg transition-all duration-200"
+              className="w-full text-sm text-gray-500 hover:text-gray-300 py-2 transition-colors"
             >
               Sign Out & Go Home
             </button>

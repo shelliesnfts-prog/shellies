@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 
-// Force dynamic rendering and disable caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+export const revalidate = 300;
+
+const CACHE_HEADERS = {
+  'Cache-Control': 'public, max-age=300, s-maxage=300, stale-while-revalidate=600',
+};
+
+const ERROR_CACHE_HEADERS = {
+  'Cache-Control': 'no-store',
+};
 
 const SHELLIES_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_SHELLIES_CONTRACT_ADDRESS?.toLowerCase();
 
@@ -22,12 +26,6 @@ function isValidAddress(address: string): boolean {
  */
 export async function GET(request: NextRequest) {
   try {
-    // Get session to verify user is authenticated
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { searchParams } = new URL(request.url);
     const walletAddress = searchParams.get('address');
     const bustCache = searchParams.get('bustCache') === 'true';
@@ -82,8 +80,7 @@ export async function GET(request: NextRequest) {
 
         response = await fetch(currentApiUrl, {
           headers,
-          cache: 'no-store',
-          next: { revalidate: 0 }
+          next: { revalidate: 300 }
         });
 
         if (response.ok) {
@@ -130,7 +127,7 @@ export async function GET(request: NextRequest) {
     const data = await response!.json();
     
     if (!data.items || !Array.isArray(data.items)) {
-      return NextResponse.json({ nfts: [] });
+      return NextResponse.json({ total: 0, tokenHoldersCount: 0 }, { headers: CACHE_HEADERS });
     }
 
     // Find our Shellies collection and extract all data
@@ -151,10 +148,8 @@ export async function GET(request: NextRequest) {
         headers: {
           'Accept': 'application/json',
           'User-Agent': 'Shellies-App/1.0',
-          'Cache-Control': 'no-cache'
         },
-        cache: 'no-store',
-        next: { revalidate: 0 }
+        next: { revalidate: 300 }
       });
 
       if (countersResponse.ok) {
@@ -169,7 +164,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       total: totalNFTs,
       tokenHoldersCount: tokenHoldersCount
-    });
+    }, { headers: CACHE_HEADERS });
     
   } catch (error) {
     console.error('Error fetching total nfts:', error);
@@ -178,7 +173,7 @@ export async function GET(request: NextRequest) {
     // This allows the UI to still function, just with empty available NFTs
     if (error instanceof Error && error.message.includes('422')) {
       console.log('Returning 0 as total nfts due to API 422 error');
-      return NextResponse.json({ total: 0, tokenHoldersCount: 0 });
+      return NextResponse.json({ total: 0, tokenHoldersCount: 0 }, { headers: ERROR_CACHE_HEADERS });
     }
 
     return NextResponse.json(

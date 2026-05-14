@@ -43,9 +43,10 @@ export default function RaffleDeploymentModal({
         prizeTokenType: raffle.prize_token_type,
         prizeTokenId: raffle.prize_token_id,
         // Convert human-readable amount to wei for ERC20 contract interaction
-        prizeAmount: raffle.prize_token_type === 'ERC20' && raffle.prize_amount 
-          ? parseTokenAmount(raffle.prize_amount, 18) 
-          : raffle.prize_amount
+        prizeAmount: raffle.prize_token_type === 'ERC20' && raffle.prize_amount
+          ? parseTokenAmount(raffle.prize_amount, 18)
+          : raffle.prize_amount,
+        pointsPerTicket: raffle.points_per_ticket,
       };
       
       setDeploymentData(data);

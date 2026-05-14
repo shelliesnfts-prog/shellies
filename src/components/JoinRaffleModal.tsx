@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useWriteContract, useAccount } from 'wagmi';
+import { waitForTransactionReceipt } from '@wagmi/core';
 import { X, Calendar, Target, Users, Clock, ImageOff, Plus, Minus, Loader2, CheckCircle, AlertCircle, Crown, Trophy } from 'lucide-react';
 import { Raffle } from '@/lib/supabase';
 import { getTimeRemaining, isRaffleActive } from '@/lib/dateUtils';
 import { RaffleContractService } from '@/lib/raffle-contract';
 import { raffle_abi } from '@/lib/raffle-abi';
+import { getConfig } from '@/lib/wagmi';
 import { parseContractError } from '@/lib/errors';
 import { formatTokenDisplay, formatNumberWithSpaces } from '@/lib/token-utils';
 import { usePoints } from '@/contexts/PointsContext';
@@ -34,6 +36,13 @@ interface Participant {
   join_tx_hash?: string;
 }
 
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+const normalizeAddress = (walletAddress?: string | null) => walletAddress?.toLowerCase() || '';
+const isSameAddress = (first?: string | null, second?: string | null) =>
+  Boolean(first && second && normalizeAddress(first) === normalizeAddress(second));
+const hasUsableWinnerAddress = (walletAddress?: string | null) =>
+  Boolean(walletAddress && normalizeAddress(walletAddress) !== ZERO_ADDRESS);
+
 export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = false, onSuccess }: JoinRaffleModalProps) {
   const [imageError, setImageError] = useState(false);
   const [ticketCount, setTicketCount] = useState(1);
@@ -43,6 +52,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
   const [loadingEntry, setLoadingEntry] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loadingParticipants, setLoadingParticipants] = useState(false);
+  const [resolvedWinner, setResolvedWinner] = useState<string | null>(null);
 
   // Wagmi hooks for contract interaction
   const { address, isConnected } = useAccount();
@@ -57,24 +67,90 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  // Reset modal state when opened
+  const winnerAddress = useMemo(() => {
+    if (hasUsableWinnerAddress(resolvedWinner)) return resolvedWinner;
+    if (hasUsableWinnerAddress(raffle?.winner)) return raffle?.winner || null;
+    return null;
+  }, [raffle?.winner, resolvedWinner]);
+
+  const sortedParticipants = useMemo(() => {
+    return [...participants].sort((a, b) => {
+      if (raffle?.status === 'COMPLETED' && winnerAddress) {
+        if (isSameAddress(a.wallet_address, winnerAddress)) return -1;
+        if (isSameAddress(b.wallet_address, winnerAddress)) return 1;
+      }
+
+      if (isSameAddress(a.wallet_address, address)) return -1;
+      if (isSameAddress(b.wallet_address, address)) return 1;
+
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    });
+  }, [address, participants, raffle?.status, winnerAddress]);
+
+  useEffect(() => {
+    if (!raffle) {
+      setResolvedWinner(null);
+      return;
+    }
+
+    setResolvedWinner(hasUsableWinnerAddress(raffle.winner) ? raffle.winner! : null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [raffle?.id, raffle?.winner]);
+
+  useEffect(() => {
+    if (!isOpen || !raffle || raffle.status !== 'COMPLETED' || winnerAddress) return;
+
+    let cancelled = false;
+
+    const loadWinner = async () => {
+      try {
+        const raffleInfo = raffle.id >= 98 && raffle.id <= 108
+          ? await RaffleContractService.getRafflePrizeInfoFromOldContract(raffle.id.toString())
+          : await RaffleContractService.getRafflePrizeInfo(raffle.id.toString());
+
+        const contractWinner = raffleInfo?.winner || null;
+        if (!cancelled && hasUsableWinnerAddress(contractWinner)) {
+          setResolvedWinner(contractWinner);
+        }
+      } catch (error) {
+        console.error('Error fetching raffle winner:', error);
+      }
+    };
+
+    loadWinner();
+
+    return () => {
+      cancelled = true;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, raffle?.id, raffle?.status, winnerAddress]);
+
+  // Reset modal state when opened — depend only on isOpen + raffle.id to avoid
+  // re-running every time the parent re-renders with a new raffle object reference
   useEffect(() => {
     if (isOpen && raffle) {
-      // Reset ticket count to 1 or 0 if no remaining tickets
+      // Use prop as initial estimate; will be corrected when userEntry loads
       const currentTickets = raffle.user_ticket_count || 0;
       const remainingTickets = raffle.max_tickets_per_user - currentTickets;
       setTicketCount(remainingTickets > 0 ? Math.min(1, remainingTickets) : 0);
       setMessage(null);
       setImageError(false);
-      fetchParticipants(true); // Initial load with loading indicator
-      // Only fetch detailed entry info if we need points_spent details
-      if (raffle.user_ticket_count && raffle.user_ticket_count > 0) {
-        fetchUserEntry();
-      } else {
-        setUserEntry(null);
-      }
+      setUserEntry(null);
+      fetchParticipants(true);
+      fetchUserEntry();
     }
-  }, [isOpen, raffle]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, raffle?.id]);
+
+  // Re-initialize ticketCount once we have accurate user entry data
+  useEffect(() => {
+    if (!raffle) return;
+    if (userEntry) {
+      const remaining = Math.max(0, raffle.max_tickets_per_user - userEntry.ticket_count);
+      setTicketCount(remaining > 0 ? 1 : 0);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userEntry]);
 
   // Polling mechanism for participants updates
   useEffect(() => {
@@ -85,13 +161,17 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
 
     if (!isRaffleStillActive) return;
 
-    // Set up polling interval (every 8 seconds)
+    // Poll occasionally while the modal is visible. This keeps live counts useful
+    // without creating a steady stream of API requests for idle tabs.
     const pollInterval = setInterval(() => {
-      // Only poll if raffle is still active
-      if (raffle.status === 'ACTIVE' && isRaffleActive(raffle.end_date)) {
+      if (
+        document.visibilityState === 'visible' &&
+        raffle.status === 'ACTIVE' &&
+        isRaffleActive(raffle.end_date)
+      ) {
         fetchParticipants(false); // Poll without loading indicator
       }
-    }, 8000);
+    }, 90000);
 
     // Cleanup interval on component unmount or when dependencies change
     return () => {
@@ -132,26 +212,12 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
       const data = await response.json();
 
       if (data.success && data.data) {
-        // Sort participants: winner first (for completed raffles), then connected user, then by join date
-        const sortedParticipants = [...data.data].sort((a, b) => {
-          // Winner always goes first for completed raffles
-          if (raffle?.status === 'COMPLETED' && raffle?.winner) {
-            if (a.wallet_address === raffle.winner) return -1;
-            if (b.wallet_address === raffle.winner) return 1;
-          }
-
-          // Then connected user
-          if (a.wallet_address === address) return -1;
-          if (b.wallet_address === address) return 1;
-
-          // Finally by join date
-          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-        });
-        setParticipants(sortedParticipants);
+        const fetchedParticipants = data.data as Participant[];
+        setParticipants(fetchedParticipants);
 
         // Update raffle participant count based on actual data
         if (raffle) {
-          raffle.current_participants = sortedParticipants.length;
+          raffle.current_participants = fetchedParticipants.length;
         }
       } else {
         setParticipants([]);
@@ -310,10 +376,45 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
 
       setMessage({
         type: 'success',
-        text: 'Transaction signed! Processing your entry...'
+        text: 'Transaction submitted. Waiting for confirmation...'
       });
 
-      // Step 2: If contract interaction succeeds, proceed with API call
+      try {
+        const receipt = await waitForTransactionReceipt(getConfig(), {
+          hash: txHash,
+          confirmations: 1,
+          timeout: 60000,
+        });
+
+        if (receipt.status !== 'success') {
+          throw new Error('Transaction failed on-chain');
+        }
+
+        setMessage({
+          type: 'success',
+          text: 'Transaction confirmed. Recording your entry...'
+        });
+      } catch (confirmationError) {
+        const confirmationMessage = confirmationError instanceof Error
+          ? confirmationError.message.toLowerCase()
+          : '';
+
+        if (
+          !confirmationMessage.includes('timeout') &&
+          !confirmationMessage.includes('not found') &&
+          !confirmationMessage.includes('network') &&
+          !confirmationMessage.includes('fetch')
+        ) {
+          throw confirmationError;
+        }
+
+        setMessage({
+          type: 'success',
+          text: 'Transaction submitted. Verifying your entry...'
+        });
+      }
+
+      // Step 2: If contract interaction succeeds, proceed with API verification
       const response = await fetch('/api/raffle-entries/enter', {
         method: 'POST',
         headers: {
@@ -337,7 +438,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
         // Update raffle ticket count locally for immediate UI feedback
         if (raffle) {
           // Get current user tickets using same logic as main calculation
-          const userParticipant = participants.find(p => p.wallet_address === address);
+          const userParticipant = participants.find(p => isSameAddress(p.wallet_address, address));
           const oldUserTicketCount = raffle.user_ticket_count || userParticipant?.ticket_count || 0;
 
           // Update the raffle object to reflect new total
@@ -351,7 +452,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
         }
 
         // Reset ticket count based on remaining tickets after successful purchase
-        const userParticipant = participants.find(p => p.wallet_address === address);
+        const userParticipant = participants.find(p => isSameAddress(p.wallet_address, address));
         const updatedUserTickets = raffle.user_ticket_count || userParticipant?.ticket_count || 0;
         const newRemainingTickets = raffle.max_tickets_per_user - updatedUserTickets;
         const newTicketCount = Math.min(1, newRemainingTickets);
@@ -415,20 +516,16 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
     if (!raffle) {
       return;
     }
-    if (newCount < 1) {
-      return;
-    }
 
     // Use the same logic as the main calculation to get current user tickets
-    const userParticipant = participants.find(p => p.wallet_address === address);
-    const currentTickets = raffle.user_ticket_count || userParticipant?.ticket_count || 0;
+    const userParticipant = participants.find(p => isSameAddress(p.wallet_address, address));
+    const currentTickets = userEntry?.ticket_count ?? userParticipant?.ticket_count ?? raffle.user_ticket_count ?? 0;
     const remainingTickets = raffle.max_tickets_per_user - currentTickets;
 
+    // Clamp value to valid range instead of silently ignoring
+    const clamped = Math.min(Math.max(1, newCount), remainingTickets);
 
-    if (newCount > remainingTickets) {
-      return;
-    }
-    if (newCount > raffle.max_tickets_per_user) {
+    if (isNaN(clamped) || remainingTickets <= 0) {
       return;
     }
 
@@ -437,14 +534,14 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
       setMessage(null);
     }
 
-    setTicketCount(newCount);
+    setTicketCount(clamped);
   };
 
   // Calculate remaining tickets dynamically based on current state
-  // First try to get user tickets from raffle.user_ticket_count, then fallback to participants data
-  const userParticipant = participants.find(p => p.wallet_address === address);
-  const currentUserTickets = raffle.user_ticket_count || userParticipant?.ticket_count || 0;
-  const remainingTickets = raffle.max_tickets_per_user - currentUserTickets;
+  // Priority: userEntry (fetched specifically for this user+raffle) > participants list > raffle prop
+  const userParticipant = participants.find(p => isSameAddress(p.wallet_address, address));
+  const currentUserTickets = userEntry?.ticket_count ?? userParticipant?.ticket_count ?? raffle.user_ticket_count ?? 0;
+  const remainingTickets = Math.max(0, raffle.max_tickets_per_user - currentUserTickets);
 
 
   return (
@@ -477,7 +574,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                     <Trophy className={`w-3 h-3 ${raffle.status === 'COMPLETED' ? 'text-yellow-600' : 'text-green-600'
                       }`} />
                     <span>
-                      Win {formatNumberWithSpaces(raffle.prize_amount || 0)} Tokens{raffle.status === 'COMPLETED' && raffle.winner ? ' 🎊' : '!'}
+                      Win {formatNumberWithSpaces(raffle.prize_amount || 0)} Tokens{raffle.status === 'COMPLETED' && winnerAddress ? ' 🎊' : '!'}
                     </span>
                   </div>
 
@@ -493,7 +590,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                     <Trophy className={`w-3 h-3 ${raffle.status === 'COMPLETED' ? 'text-yellow-600' : 'text-purple-600'
                       }`} />
                     <span>
-                      Win NFT #{formatNumberWithSpaces(raffle.prize_token_id || 0)}{raffle.status === 'COMPLETED' && raffle.winner ? ' 🎊' : '!'}
+                      Win NFT #{formatNumberWithSpaces(raffle.prize_token_id || 0)}{raffle.status === 'COMPLETED' && winnerAddress ? ' 🎊' : '!'}
                     </span>
                   </div>
 
@@ -580,9 +677,9 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                       </div>
                     ) : participants.length > 0 ? (
                       // Show actual participants
-                      participants.map((participant, index) => {
-                        const isWinner = raffle?.status === 'COMPLETED' && raffle?.winner && participant.wallet_address === raffle.winner;
-                        const isCurrentUser = participant.wallet_address === address;
+                      sortedParticipants.map((participant, index) => {
+                        const isWinner = raffle?.status === 'COMPLETED' && isSameAddress(participant.wallet_address, winnerAddress);
+                        const isCurrentUser = isSameAddress(participant.wallet_address, address);
 
                         return (
                           <div
@@ -845,7 +942,10 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                             min="1"
                             max={remainingTickets}
                             value={ticketCount}
-                            onChange={(e) => handleTicketChange(parseInt(e.target.value) || 1)}
+                            onChange={(e) => {
+                              const parsed = parseInt(e.target.value);
+                              handleTicketChange(isNaN(parsed) ? 1 : parsed);
+                            }}
                             disabled={isLoading}
                             className={`w-14 h-8 text-center border rounded-full font-medium text-sm ${isDarkMode
                               ? 'bg-gray-700 border-gray-500 text-white focus:border-purple-400'

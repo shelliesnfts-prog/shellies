@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { AdminService } from '@/lib/admin-service';
 import { AppSettingsService } from '@/lib/services/app-settings-service';
+import { ShelliesPointsService } from '@/lib/shellies-points-service';
 
 /**
  * GET /api/admin/xp-settings
@@ -126,13 +127,55 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Sync on-chain: call contract setters for the two fields that exist on-chain.
+    // Run both in parallel; capture any failure without blocking the response.
+    const contractResults: { minXpTx?: string; rateTx?: string; contractError?: string } = {};
+    const contractCalls: Promise<void>[] = [];
+
+    if (minXp !== undefined) {
+      const min = parseInt(minXp);
+      if (!isNaN(min)) {
+        contractCalls.push(
+          ShelliesPointsService.setMinXpToConvert(min)
+            .then(hash => { contractResults.minXpTx = hash; })
+            .catch(err => {
+              console.error('Contract setMinXpToConvert failed:', err);
+              contractResults.contractError =
+                (contractResults.contractError ? contractResults.contractError + '; ' : '') +
+                `setMinXpToConvert: ${err instanceof Error ? err.message : String(err)}`;
+            })
+        );
+      }
+    }
+
+    if (conversionRate !== undefined) {
+      const rate = parseInt(conversionRate);
+      if (!isNaN(rate)) {
+        contractCalls.push(
+          ShelliesPointsService.setXpConversionRate(rate)
+            .then(hash => { contractResults.rateTx = hash; })
+            .catch(err => {
+              console.error('Contract setXpConversionRate failed:', err);
+              contractResults.contractError =
+                (contractResults.contractError ? contractResults.contractError + '; ' : '') +
+                `setXpConversionRate: ${err instanceof Error ? err.message : String(err)}`;
+            })
+        );
+      }
+    }
+
+    await Promise.all(contractCalls);
+
     // Fetch updated settings
     const updatedSettings = await AppSettingsService.getXPConversionSettings();
 
     return NextResponse.json({
       success: true,
       message: 'Settings updated successfully',
-      settings: updatedSettings
+      settings: updatedSettings,
+      ...(contractResults.minXpTx && { minXpTx: contractResults.minXpTx }),
+      ...(contractResults.rateTx && { rateTx: contractResults.rateTx }),
+      ...(contractResults.contractError && { contractError: contractResults.contractError }),
     });
   } catch (error) {
     console.error('Error updating XP settings:', error);

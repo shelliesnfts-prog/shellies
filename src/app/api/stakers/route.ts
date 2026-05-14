@@ -3,8 +3,8 @@ import { StakingService } from '@/lib/staking-service';
 
 /**
  * GET /api/stakers
- * Returns a CSV file with all stakers and their staked NFT counts
- * Format: wallet_address,staked_nft_count
+ * Returns a CSV file with all staker wallet addresses
+ * Format: wallet_address
  */
 export async function GET(request: NextRequest) {
   try {
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     const stakers = await StakingService.getAllStakers();
 
     if (!stakers || stakers.length === 0) {
-      return new NextResponse('wallet_address,staked_nft_count\n', {
+      return new NextResponse('wallet_address\n', {
         status: 200,
         headers: {
           'Content-Type': 'text/csv',
@@ -21,21 +21,10 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Fetch staked NFT counts for each staker in parallel
-    const stakersWithCounts = await Promise.all(
-      stakers.map(async (address) => {
-        const stakedTokenIds = await StakingService.getStakedTokenIds(address);
-        return {
-          address,
-          count: stakedTokenIds.length,
-        };
-      })
-    );
-
-    // Generate CSV content
-    let csvContent = 'wallet_address,staked_nft_count\n';
-    stakersWithCounts.forEach(({ address, count }) => {
-      csvContent += `${address},${count}\n`;
+    // Generate CSV content with just wallet addresses
+    let csvContent = 'wallet_address\n';
+    stakers.forEach((address) => {
+      csvContent += `${address}\n`;
     });
 
     // Return CSV file
@@ -50,7 +39,10 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error generating stakers CSV:', error);
     return NextResponse.json(
-      { error: 'Failed to generate stakers CSV' },
+      { 
+        error: 'Failed to generate stakers CSV',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }

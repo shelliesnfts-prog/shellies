@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
-// Force dynamic rendering and disable caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+export const revalidate = 60;
+
+const CACHE_HEADERS = {
+  'Cache-Control': 'private, max-age=30, s-maxage=60, stale-while-revalidate=300',
+};
 
 const SHELLIES_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_SHELLIES_CONTRACT_ADDRESS?.toLowerCase();
 
@@ -87,14 +89,8 @@ export async function GET(request: NextRequest) {
             headers: {
               'Accept': 'application/json',
               'User-Agent': 'Shellies-App/1.0',
-              'Cache-Control': 'no-cache, no-store, must-revalidate, proxy-revalidate, max-age=0',
-              'Pragma': 'no-cache',
-              'Expires': '0',
-              'If-Modified-Since': 'Thu, 01 Jan 1970 00:00:00 GMT',
-              'If-None-Match': '*'
             },
-            cache: 'no-store',
-            next: { revalidate: 0 }
+            next: { revalidate: 60 }
           });
 
           if (response.ok) {
@@ -148,7 +144,7 @@ export async function GET(request: NextRequest) {
 
     // Sort by token ID and return
     const sortedNfts = nfts.sort((a, b) => a.tokenId - b.tokenId);
-    return NextResponse.json({ nfts: sortedNfts });
+    return NextResponse.json({ nfts: sortedNfts }, { headers: CACHE_HEADERS });
     
   } catch (error) {
     console.error('Error fetching staked NFTs:', error);

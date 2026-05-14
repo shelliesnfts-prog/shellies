@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { Gamepad2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Trophy, X } from 'lucide-react';
+import { Gamepad2, Trophy, X, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 import { useGameScore } from '@/hooks/useGameScore';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useGamePayment } from '@/hooks/useGamePayment';
@@ -11,8 +11,7 @@ import { useNFTAnalytics } from '@/hooks/useNFTAnalytics';
 import { useWriteContract, useAccount, useSwitchChain } from 'wagmi';
 import { formatEther } from 'viem';
 import { GamePaymentService } from '@/lib/contracts';
-import { Shield, Coins, Info } from 'lucide-react';
-import GameWalletPrompt from './GameWalletPrompt';
+import { WalletRequired } from '@/components/portal/WalletRequired';
 import PaymentLoadingOverlay from './PaymentLoadingOverlay';
 import { inkChain } from '@/lib/wagmi';
 
@@ -470,47 +469,26 @@ export default function MarioGameConsoleV2() {
   // CONDITIONAL RENDERING AFTER ALL HOOKS
   // If not connected, show wallet prompt
   if (!session?.address) {
-    return <GameWalletPrompt />;
+    return <WalletRequired variant="card" isDarkMode={isDarkMode}
+            title="Connect your wallet"
+            action="connect to play the Shellies game and earn XP" />;
   }
+
+  // Collapsible FAQ state
+  const [faqOpen, setFaqOpen] = useState(true);
 
   // Show skeleton loader while loading score
   if (scoreLoading) {
     return (
-      <div className="space-y-6">
-        {/* Header Skeleton */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 m-auto mb-2">
-          <div>
-            <div className={`h-8 w-48 rounded animate-pulse mb-2 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
-            <div className={`h-4 w-64 rounded animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
-          </div>
-          <div className={`h-10 w-32 rounded-full animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className={`h-7 w-40 rounded animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
+          <div className={`h-9 w-28 rounded-lg animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
         </div>
-
-        {/* Payment Information Banner Skeleton */}
-        <div className={`rounded-xl border p-6 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-          <div className="flex items-start gap-4">
-            <div className={`w-12 h-12 rounded-xl animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
-            <div className="flex-1 space-y-3">
-              <div className={`h-6 w-40 rounded animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
-              <div className={`h-4 w-full rounded animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
-              <div className={`h-4 w-3/4 rounded animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
-              <div className={`h-10 w-full rounded animate-pulse mt-4 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
-            </div>
-          </div>
-        </div>
-
-        {/* Game Container Skeleton */}
-        <div className={`rounded-2xl border overflow-hidden ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-          <div className="relative w-full bg-black flex items-center justify-center overflow-hidden">
-            <div className={`animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} style={{ width: '1282px', height: '532px', maxWidth: '100%' }} />
-          </div>
-          <div className="p-6 space-y-4">
-            <div className={`h-12 w-full rounded-xl animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className={`h-16 rounded-xl animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
-              ))}
-            </div>
+        <div className={`rounded-xl border overflow-hidden ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+          <div className={`animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} style={{ width: '100%', aspectRatio: '1282/532' }} />
+          <div className="p-4">
+            <div className={`h-10 w-full rounded-lg animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
           </div>
         </div>
       </div>
@@ -518,253 +496,162 @@ export default function MarioGameConsoleV2() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 m-auto mb-2">
-        <div>
-          <div className="flex items-center space-x-3 mb-2">
-            <div className={`p-2 rounded-xl ${isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'}`}>
-              <Gamepad2 className="w-6 h-6 text-purple-600" />
-            </div>
-            <h1 className={`text-2xl sm:text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-              Shellies Game
-            </h1>
-          </div>
-          <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-            Play the Mario-inspired platformer and compete on the leaderboard
-          </p>
+    <div className="space-y-4">
+      {/* Header row */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2.5">
+          <Gamepad2 className={`w-5 h-5 ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`} />
+          <h1 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+            Shellies Game
+          </h1>
         </div>
-        <div className={`flex items-center space-x-2 px-4 py-2 rounded-xl border ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-          }`}>
-          <Trophy className="w-5 h-5 text-yellow-500" />
-          <div>
-            <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Your Best XP</p>
-            <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{bestScore}</p>
-          </div>
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm ${isDarkMode ? 'bg-gray-800 text-gray-300' : 'bg-white text-gray-700 shadow-sm'}`}>
+          <Trophy className="w-4 h-4 text-yellow-500" />
+          <span className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{bestScore}</span>
+          <span className={isDarkMode ? 'text-gray-500' : 'text-gray-400'}>XP</span>
         </div>
       </div>
 
-      {/* Payment Information Banner */}
-      {showPaymentInfo && (
-        <div className={`rounded-xl border p-6 relative ${isDarkMode
-          ? 'bg-gradient-to-br from-purple-900/20 to-pink-900/20 border-purple-700/50'
-          : 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200'
-          }`}>
-          {/* Close Button */}
+      {/* Wrong Network Warning */}
+      {isWrongNetwork && (
+        <div className={`rounded-lg border px-4 py-3 flex items-center gap-3 flex-wrap ${isDarkMode ? 'bg-red-950/40 border-red-800/60 text-red-300' : 'bg-red-50 border-red-200 text-red-700'}`}>
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+          <p className="text-sm flex-1">
+            Connected to <span className="font-medium">{actualChainName}</span>. Switch to Ink Chain to play.
+          </p>
           <button
-            onClick={() => {
-              setShowPaymentInfo(false);
-              // Save to localStorage so banner stays hidden
-              if (typeof window !== 'undefined') {
-                localStorage.setItem('hidePaymentInfoBanner', 'true');
-              }
-            }}
-            className={`absolute top-4 right-4 p-2 rounded-lg transition-colors duration-200 ${isDarkMode
-              ? 'hover:bg-gray-700/50 text-gray-400 hover:text-white'
-              : 'hover:bg-gray-200/50 text-gray-500 hover:text-gray-900'
-              }`}
-            aria-label="Close payment information"
+            onClick={() => switchChain?.({ chainId: inkChain.id })}
+            className="px-3 py-1.5 text-sm font-medium rounded-md bg-red-600 hover:bg-red-700 text-white transition-colors"
           >
-            <X className="w-5 h-5" />
+            Switch Network
           </button>
+        </div>
+      )}
 
-          <div className="flex items-start gap-4 pr-8">
-            <div className={`p-3 rounded-xl flex-shrink-0 ${isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
-              }`}>
-              <Info className="w-6 h-6 text-purple-600" />
-            </div>
-            <div className="flex-1 space-y-4">
-              <h3 className={`text-3xl font-black bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent`}>
-                Shellies Mario Game — Q&A About the New Play Fee System
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <p className={`text-base font-bold ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
-                    Q: Why did we add a small payment fee to play Shellies Mario Game?
-                  </p>
-                  <p className={`text-base ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                    A: This system helps us make sure only real players join the game, not bots. It keeps the gameplay fair and fun for everyone in the community.
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <p className={`text-base font-bold ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
-                    Q: Will Shellies holders have to pay the same fee as everyone else?
-                  </p>
-                  <p className={`text-base ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                    A: No! Shellies holders will pay a much lower fee, and stakers will pay even less. The goal is to reward our loyal holders and stakers.
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <p className={`text-base font-bold ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
-                    Q: What about public players?
-                  </p>
-                  <p className={`text-base ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                    A: Public players will pay the regular play fee — but it's still small. This fee keeps the game's economy strong and fair.
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <p className={`text-base font-bold ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
-                    Q: What will we do with the collected fees?
-                  </p>
-                  <p className={`text-base ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                    A: The fees will be used to: Run multiple raffles for the community • Add to our project's liquidity for the upcoming token • Encourage more on-chain activity and transactions on InkChain
-                  </p>
-                </div>
-              </div>
-
-              <div className={`mt-4 p-4 rounded-lg border ${isDarkMode ? 'bg-purple-900/20 border-purple-700/50' : 'bg-purple-50 border-purple-200'}`}>
-                <p className={`text-base font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                  This system isn't just about payments — it's about building a real, active community around Shellies and InkChain.
-                </p>
-                <p className={`text-base font-bold mt-2 ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
-                  Real players. Real rewards. Real growth.
-                </p>
-              </div>
-
-              {/* NFT Holder Pricing Tiers */}
-              <div className={`mt-6 p-5 rounded-xl border backdrop-blur-sm ${isDarkMode
-                ? 'bg-gray-800/40 border-gray-700/50'
-                : 'bg-white/60 border-gray-200'
+      {/* Pricing + Info banner */}
+      {showPaymentInfo && (
+        <div className={`rounded-lg border ${isDarkMode ? 'bg-gray-800/60 border-gray-700' : 'bg-white border-gray-200 shadow-sm'}`}>
+          {/* Top bar: your price + tier badge + dismiss */}
+          <div className="px-4 py-3 flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Cost per game:</span>
+              {ethPrice && requiredEth > BigInt(0) ? (
+                <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  ${GamePaymentService.convertEthToUsd(requiredEth, ethPrice).toFixed(4)}
+                  <span className={`font-normal ml-1.5 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                    ({parseFloat(formatEther(requiredEth)).toFixed(6)} ETH)
+                  </span>
+                </span>
+              ) : (
+                <span className={`text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>Loading...</span>
+              )}
+              {(paymentTier === 'staker' || paymentTier === 'nft_holder') && (
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${paymentTier === 'staker'
+                  ? isDarkMode ? 'bg-purple-900/60 text-purple-300' : 'bg-purple-100 text-purple-700'
+                  : isDarkMode ? 'bg-blue-900/60 text-blue-300' : 'bg-blue-100 text-blue-700'
                 }`}>
-                <div className="mb-4">
-                  <h4 className={`text-lg font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                    Payment Categories
-                  </h4>
-                </div>
+                  {paymentTier === 'staker' ? 'Staker' : 'Holder'} — {paymentTier === 'staker' ? '80' : '50'}% off
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setFaqOpen(!faqOpen)}
+                className={`p-1.5 rounded-md text-xs flex items-center gap-1 transition-colors ${isDarkMode ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
+              >
+                {faqOpen ? 'Less' : 'More'}
+                {faqOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+              <button
+                onClick={() => {
+                  setShowPaymentInfo(false);
+                  if (typeof window !== 'undefined') {
+                    localStorage.setItem('hidePaymentInfoBanner', 'true');
+                  }
+                }}
+                className={`p-1.5 rounded-md transition-colors ${isDarkMode ? 'text-gray-500 hover:text-gray-300 hover:bg-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+                aria-label="Close payment information"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
 
+          {/* Expanded: tiers + FAQ */}
+          {faqOpen && (
+            <div className={`border-t px-4 py-4 space-y-4 ${isDarkMode ? 'border-gray-700' : 'border-gray-100'}`}>
+              {/* Tier cards */}
+              <div>
+                <h4 className={`text-sm font-medium mb-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Pricing tiers</h4>
                 {tiersLoading ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    {[1, 2, 3, 4].map((i) => (
-                      <div key={i} className={`p-4 rounded-lg h-32 animate-pulse ${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-200'}`} />
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className={`h-20 rounded-lg animate-pulse ${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-100'}`} />
                     ))}
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     {paymentTiers.map((tier) => {
                       const tierName = tier.tier_name;
-                      const minNfts = tier.min_nfts ?? 0;
-                      const maxNfts = tier.max_nfts;
-                      const ethAmount = parseFloat(formatEther(BigInt(tier.payment_amount_wei))).toFixed(8);
-
-                      // Calculate discount percentage
+                      const ethAmount = parseFloat(formatEther(BigInt(tier.payment_amount_wei)));
                       const regularTier = paymentTiers.find(t => t.tier_name === 'regular');
                       const discountPercent = regularTier
                         ? Math.round((1 - parseFloat(tier.payment_amount_wei) / parseFloat(regularTier.payment_amount_wei)) * 100)
                         : 0;
-
-                      // Determine if this card should show the Play button
-                      // Priority: Staker > NFT Holder > Regular
-                      const shouldShowPlayButton =
+                      const isActive =
                         (tierName === 'staker' && userStakedCount > 0) ||
                         (tierName === 'nft_holder' && userNftCount > 0 && userStakedCount === 0) ||
                         (tierName === 'regular' && userNftCount === 0 && userStakedCount === 0);
 
-                      // Uniform styling for all cards
-                      const baseStyles = {
-                        bgGradient: isDarkMode ? 'from-gray-800 to-gray-900' : 'from-white to-gray-50',
-                        borderColor: isDarkMode ? 'border-gray-700' : 'border-gray-200',
-                        accentColor: isDarkMode ? 'bg-purple-600' : 'bg-purple-500',
-                        textColor: isDarkMode ? 'text-gray-300' : 'text-gray-700',
-                        priceColor: isDarkMode ? 'text-white' : 'text-gray-900',
-                        labelColor: isDarkMode ? 'text-gray-500' : 'text-gray-600',
-                        badgeColor: isDarkMode ? 'bg-purple-600/20 text-purple-300 border-purple-500/30' : 'bg-purple-100 text-purple-700 border-purple-300',
-                      };
-
-                      // Active card gets special background
-                      const activeStyles = shouldShowPlayButton ? {
-                        bgGradient: isDarkMode
-                          ? 'from-purple-900/40 to-pink-900/40'
-                          : 'from-purple-50 to-pink-50',
-                        borderColor: isDarkMode ? 'border-purple-600/50' : 'border-purple-300',
-                      } : {};
-
-                      const styles = { ...baseStyles, ...activeStyles };
-
                       return (
                         <div
                           key={tier.id}
-                          className={`relative p-4 rounded-lg border bg-gradient-to-br ${styles.bgGradient} ${styles.borderColor} transition-all duration-200 hover:shadow-lg hover:scale-[1.02] overflow-hidden`}
+                          className={`rounded-lg border px-3 py-2.5 ${isActive
+                            ? isDarkMode ? 'border-purple-600/60 bg-purple-950/30' : 'border-purple-300 bg-purple-50/60'
+                            : isDarkMode ? 'border-gray-700 bg-gray-800/40' : 'border-gray-200 bg-gray-50'
+                          }`}
                         >
-                          {/* Accent bar */}
-                          <div className={`absolute top-0 left-0 right-0 h-1 rounded-t-lg ${styles.accentColor}`} />
-
-                          {/* Tier name */}
-                          <div className="relative flex items-center justify-between mb-3 mt-1">
-                            <h5 className={`text-sm font-bold uppercase tracking-wide ${shouldShowPlayButton ? (isDarkMode ? 'text-purple-300' : 'text-purple-700') : styles.textColor}`}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className={`text-xs font-semibold uppercase tracking-wide ${isActive
+                              ? isDarkMode ? 'text-purple-300' : 'text-purple-700'
+                              : isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                            }`}>
                               {tierName.replace('_', ' ')}
-                            </h5>
+                            </span>
                             {discountPercent > 0 && (
-                              <span className={`px-2 py-0.5 rounded-md text-xs font-semibold border ${styles.badgeColor}`}>
+                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${isDarkMode ? 'bg-green-900/40 text-green-400' : 'bg-green-100 text-green-700'}`}>
                                 -{discountPercent}%
                               </span>
                             )}
-                          </div>
-
-                          {/* User's NFT/Staked count - Only show for holder and staker */}
-                          {tierName === 'nft_holder' && (
-                            <div className="relative mb-3">
-                              <p className={`text-xs font-medium uppercase tracking-wider ${styles.labelColor}`}>
-                                Your NFTs
-                              </p>
-                              <p className={`text-lg font-bold ${shouldShowPlayButton ? (isDarkMode ? 'text-purple-200' : 'text-purple-800') : styles.textColor}`}>
-                                {userNftCount} NFT{userNftCount !== 1 ? 's' : ''}
-                              </p>
-                            </div>
-                          )}
-                          {tierName === 'staker' && (
-                            <div className="relative mb-3">
-                              <p className={`text-xs font-medium uppercase tracking-wider ${styles.labelColor}`}>
-                                Your Staked NFTs
-                              </p>
-                              <p className={`text-lg font-bold ${shouldShowPlayButton ? (isDarkMode ? 'text-purple-200' : 'text-purple-800') : styles.textColor}`}>
-                                {userStakedCount} NFT{userStakedCount !== 1 ? 's' : ''}
-                              </p>
-                            </div>
-                          )}
-
-                          {/* Price in USD */}
-                          <div className="relative mb-3">
-                            <p className={`text-xs font-medium uppercase tracking-wider ${styles.labelColor}`}>
-                              Price per Game
-                            </p>
-                            {ethPrice ? (
-                              <>
-                                <p className={`text-xl font-bold ${shouldShowPlayButton ? (isDarkMode ? 'text-purple-200' : 'text-purple-800') : styles.priceColor}`}>
-                                  ${GamePaymentService.convertEthToUsd(BigInt(tier.payment_amount_wei), ethPrice).toFixed(4)}
-                                </p>
-                                <p className={`text-xs ${styles.labelColor}`}>
-                                  ({parseFloat(ethAmount).toFixed(6)} ETH)
-                                </p>
-                              </>
-                            ) : (
-                              <p className={`text-sm ${styles.labelColor}`}>
-                                Loading price...
-                              </p>
+                            {isActive && (
+                              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${isDarkMode ? 'bg-purple-800/50 text-purple-300' : 'bg-purple-100 text-purple-600'}`}>
+                                Your tier
+                              </span>
                             )}
                           </div>
-
-                          {/* Play Button - Shows on active tier */}
-                          {shouldShowPlayButton && (
-                            <button
-                              onClick={() => {
-                                // Scroll to game console instead of hiding description
-                                const gameConsole = document.querySelector('.rounded-2xl.border.overflow-hidden');
-                                if (gameConsole) {
-                                  gameConsole.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                }
-                              }}
-                              className={`relative w-full mt-2 py-2 px-4 rounded-lg font-bold text-white transition-all duration-200 hover:scale-105 shadow-lg ${tierName === 'staker'
-                                ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
-                                : tierName === 'nft_holder'
-                                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'
-                                  : 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800'
-                                }`}
-                            >
-                              🎮 Play Now
-                            </button>
+                          <div className="flex items-baseline gap-1.5">
+                            {ethPrice ? (
+                              <>
+                                <span className={`text-base font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                  ${GamePaymentService.convertEthToUsd(BigInt(tier.payment_amount_wei), ethPrice).toFixed(4)}
+                                </span>
+                                <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                  {ethAmount.toFixed(6)} ETH
+                                </span>
+                              </>
+                            ) : (
+                              <span className={`text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>Loading...</span>
+                            )}
+                          </div>
+                          {tierName === 'nft_holder' && userNftCount > 0 && (
+                            <p className={`text-[11px] mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                              You hold {userNftCount} NFT{userNftCount !== 1 ? 's' : ''}
+                            </p>
+                          )}
+                          {tierName === 'staker' && userStakedCount > 0 && (
+                            <p className={`text-[11px] mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                              You have {userStakedCount} staked
+                            </p>
                           )}
                         </div>
                       );
@@ -772,113 +659,23 @@ export default function MarioGameConsoleV2() {
                   </div>
                 )}
               </div>
-              {/* Tier Discount Badge */}
-              {(paymentTier === 'staker' || paymentTier === 'nft_holder') && (
-                <div className={`mt-4 p-3 rounded-lg border ${paymentTier === 'staker'
-                  ? isDarkMode
-                    ? 'bg-gradient-to-r from-purple-900/30 to-pink-900/30 border-purple-700/50'
-                    : 'bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200'
-                  : isDarkMode
-                    ? 'bg-gradient-to-r from-blue-900/30 to-indigo-900/30 border-blue-700/50'
-                    : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200'
-                  }`}>
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">
-                      {paymentTier === 'staker' ? '🔒' : '🎨'}
-                    </span>
-                    <div className="flex-1">
-                      <p className={`text-sm font-bold capitalize ${paymentTier === 'staker'
-                        ? isDarkMode ? 'text-purple-300' : 'text-purple-700'
-                        : isDarkMode ? 'text-blue-300' : 'text-blue-700'
-                        }`}>
-                        {paymentTier === 'staker' ? 'Staker' : 'NFT Holder'} Tier Active!
-                      </p>
-                      <p className={`text-xs ${paymentTier === 'staker'
-                        ? isDarkMode ? 'text-purple-400' : 'text-purple-600'
-                        : isDarkMode ? 'text-blue-400' : 'text-blue-600'
-                        }`}>
-                        {paymentTier === 'staker'
-                          ? 'You have staked NFTs - Enjoy maximum discount! 🎉'
-                          : `You own ${nftCount} Shellies NFT${nftCount > 1 ? 's' : ''} - Enjoy your discount! 🎉`
-                        }
-                      </p>
-                    </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${paymentTier === 'staker'
-                      ? isDarkMode ? 'bg-purple-700 text-purple-100' : 'bg-purple-500 text-white'
-                      : isDarkMode ? 'bg-blue-700 text-blue-100' : 'bg-blue-500 text-white'
-                      }`}>
-                      {paymentTier === 'staker' ? '80%' : '50%'} OFF
-                    </span>
-                  </div>
-                </div>
-              )}
 
-              {/* Payment Amount Display */}
-              <div className={`mt-4 pt-4 border-t flex items-center justify-between flex-wrap gap-3 ${isDarkMode ? 'border-purple-700/50' : 'border-purple-200'
-                }`}>
-                <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Cost per game:
-                </span>
-                <div className="flex items-center gap-3">
-                  {ethPrice && requiredEth > BigInt(0) ? (
-                    <>
-                      <span className={`text-lg font-bold ${isNFTHolder
-                        ? isDarkMode ? 'text-green-300' : 'text-green-600'
-                        : isDarkMode ? 'text-white' : 'text-gray-900'
-                        }`}>
-                        ${GamePaymentService.convertEthToUsd(requiredEth, ethPrice).toFixed(4)} USD
-                      </span>
-                      <span className={`text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                        ({parseFloat(formatEther(requiredEth)).toFixed(8)} ETH)
-                      </span>
-                    </>
-                  ) : (
-                    <span className={`text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                      Loading price...
-                    </span>
-                  )}
+              {/* FAQ */}
+              <div>
+                <h4 className={`text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>FAQ</h4>
+                <div className={`text-sm space-y-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  <p><span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>Why is there a play fee?</span> It prevents bots and keeps gameplay fair for real players.</p>
+                  <p><span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>Do holders pay less?</span> Yes — NFT holders get 50% off and stakers get 80% off.</p>
+                  <p><span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>Where do fees go?</span> Community raffles, project liquidity, and on-chain activity on InkChain.</p>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Wrong Network Warning */}
-      {isWrongNetwork && (
-        <div className={`rounded-xl border p-6 ${isDarkMode
-          ? 'bg-red-900/20 border-red-700/50'
-          : 'bg-red-50 border-red-200'
-          }`}>
-          <div className="flex items-start gap-4">
-            <div className={`p-3 rounded-xl flex-shrink-0 ${isDarkMode ? 'bg-red-500/20' : 'bg-red-100'
-              }`}>
-              <Shield className="w-6 h-6 text-red-600" />
-            </div>
-            <div className="flex-1">
-              <h3 className={`text-lg font-bold mb-2 ${isDarkMode ? 'text-red-300' : 'text-red-700'}`}>
-                Wrong Network Detected
-              </h3>
-              <p className={`text-sm mb-4 ${isDarkMode ? 'text-red-200' : 'text-red-600'}`}>
-                You are currently on <span className="font-semibold">{actualChainName}</span>. 
-                Please switch to the <span className="font-semibold">Ink Chain</span> network to play the game and make payments.
-              </p>
-              <button
-                onClick={() => switchChain?.({ chainId: inkChain.id })}
-                className="px-6 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
-              >
-                Switch to Ink Chain
-              </button>
-            </div>
-          </div>
+          )}
         </div>
       )}
 
       {/* Game Console */}
-      <div className={`rounded-2xl border overflow-hidden transition-all duration-300 relative ${isDarkMode
-        ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700'
-        : 'bg-gradient-to-br from-white to-gray-50 border-gray-200'
-        }`}>
+      <div className={`rounded-xl border overflow-hidden ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200 shadow-sm'}`}>
         {/* Game Iframe */}
         <div className="relative w-full bg-black flex items-center justify-center overflow-hidden">
           <div className="relative" style={{ width: '1282px', height: '532px', maxWidth: '100%' }}>
@@ -899,12 +696,12 @@ export default function MarioGameConsoleV2() {
           paymentStatus={paymentStatus === 'idle' ? 'signing' : paymentStatus}
           currentStep={currentStep}
           transactionHash={hash || null}
-          errorMessage={isWrongNetwork 
+          errorMessage={isWrongNetwork
             ? `Wrong network detected. You are on ${chain?.name || 'Unknown Network'}. Please switch to Ink Chain to continue.`
             : paymentError
           }
           canRetry={isWrongNetwork || canRetryPayment}
-          onRetry={isWrongNetwork 
+          onRetry={isWrongNetwork
             ? () => switchChain?.({ chainId: inkChain.id })
             : handleRetryPayment
           }
@@ -917,62 +714,21 @@ export default function MarioGameConsoleV2() {
           }}
         />
 
-        {/* Game Controls */}
-        <div className="p-6">
-          <div className={`border rounded-xl p-6 ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'
-            }`}>
-            <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-gray-900'
-              }`}>
-              <Gamepad2 className="w-5 h-5 text-purple-600" />
-              Game Controls
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className={`flex items-center gap-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
-                  }`}>
-                  <ArrowDown className="w-5 h-5 text-purple-600 -ml-5" />
-                  <ArrowLeft className="w-5 h-5 text-purple-600 -ml-5" />
-                  <ArrowRight className="w-5 h-5 text-purple-600 -ml-5" />
-                </div>
-                <div>
-                  <div className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Arrow Keys</div>
-                  <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Move</div>
-                </div>
+        {/* Controls bar */}
+        <div className={`px-4 py-3 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-100'}`}>
+          <div className="flex items-center gap-4 flex-wrap">
+            <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>Controls:</span>
+            {[
+              { key: 'Arrows', action: 'Move' },
+              { key: 'Space', action: 'Jump' },
+              { key: 'Shift', action: 'Run' },
+              { key: 'Ctrl', action: 'Fire' },
+            ].map(({ key, action }) => (
+              <div key={key} className="flex items-center gap-1.5">
+                <kbd className={`text-[11px] font-mono px-1.5 py-0.5 rounded ${isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>{key}</kbd>
+                <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{action}</span>
               </div>
-
-              <div className={`flex items-center gap-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
-                  }`}>
-                  <span className="text-purple-600 font-bold">␣</span>
-                </div>
-                <div>
-                  <div className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Space</div>
-                  <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Jump</div>
-                </div>
-              </div>
-
-              <div className={`flex items-center gap-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
-                  }`}>
-                  <span className="text-purple-600 font-bold text-xs">Shift</span>
-                </div>
-                <div>
-                  <div className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Shift</div>
-                  <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Run</div>
-                </div>
-              </div>
-
-              <div className={`flex items-center gap-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
-                  }`}>
-                  <span className="text-purple-600 font-bold text-xs">Ctrl</span>
-                </div>
-                <div>
-                  <div className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Ctrl</div>
-                  <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Fire</div>
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </div>

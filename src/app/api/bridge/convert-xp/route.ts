@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';
-import { ValidationError, NotFoundError, createErrorResponse, createSuccessResponse, ERROR_CODES } from '@/lib/errors';
+import { ValidationError, NotFoundError, createErrorResponse, ERROR_CODES } from '@/lib/errors';
 import { verifyConversionPayment } from '@/lib/services/transaction-verification';
 import { AppSettingsService } from '@/lib/services/app-settings-service';
+import { ShelliesPointsService } from '@/lib/shellies-points-service';
 
 // Create a service role client for atomic operations
 const supabaseService = createClient(
@@ -18,16 +19,10 @@ const supabaseService = createClient(
   }
 );
 
-// Request and response interfaces
+// Request interface
 interface ConvertXPRequest {
   xpAmount: number;
   txHash: string;
-}
-
-interface ConvertXPResponse {
-  newXP: number;
-  newPoints: number;
-  pointsAdded: number;
 }
 
 // Payment amount tolerance (20% to handle ETH price fluctuations)
@@ -157,7 +152,7 @@ export async function POST(request: NextRequest) {
     // STEP 7: Get user data
     const { data: user, error: fetchError } = await supabaseService
       .from('shellies_raffle_users')
-      .select('wallet_address, game_score, points, last_convert')
+      .select('wallet_address, game_score, last_convert')
       .eq('wallet_address', authenticatedWallet)
       .single();
 
@@ -189,18 +184,10 @@ export async function POST(request: NextRequest) {
     }
 
     // STEP 10: Check timestamp (prevent replay attacks)
-    // NOTE: 7-day cooldown is REMOVED - users can convert anytime if they pay
     if (user.last_convert) {
-      // IMPORTANT: Timezone-safe comparison
-      // - Blockchain timestamp: Unix seconds (UTC)
-      // - Database TIMESTAMPTZ: Stored as UTC internally
-      // - .getTime(): Returns UTC milliseconds since epoch
-      // - Both converted to UTC milliseconds for safe comparison
+      const lastConvertTime = new Date(user.last_convert).getTime();
+      const txTime = txData.timestamp * 1000;
 
-      const lastConvertTime = new Date(user.last_convert).getTime(); // UTC milliseconds
-      const txTime = txData.timestamp * 1000; // Convert blockchain seconds to milliseconds
-
-      // Only check if transaction is NEWER than last conversion (prevent replay)
       if (txTime <= lastConvertTime) {
         throw new ValidationError(
           'This transaction is older than your last conversion. Payment already used.',
@@ -208,60 +195,56 @@ export async function POST(request: NextRequest) {
           400
         );
       }
-      // NO 7-day cooldown check - payment is the rate limiter
     }
 
-    // STEP 11: Calculate points using dynamic conversion rate
-    const pointsAdded = xpAmount / conversionRate;
+    // STEP 11: Generate nonce and expiry
+    const nonce = Date.now() + Math.floor(Math.random() * 1000000);
+    const expiry = Math.floor(Date.now() / 1000) + 600; // 10 minutes
 
-    // STEP 12: Execute conversion (atomic operation)
-    const txTimestamp = new Date(txData.timestamp * 1000).toISOString();
-    const now = new Date().toISOString();
+    // STEP 12: Atomically deduct XP and record nonce
+    const { error: rpcError } = await supabaseService.rpc('deduct_xp_and_record_nonce', {
+      p_wallet: authenticatedWallet,
+      p_xp_amount: xpAmount,
+      p_nonce: nonce,
+      p_expiry_ts: new Date(expiry * 1000).toISOString(),
+    });
 
-    const { data: updatedUser, error: updateError } = await supabaseService
-      .from('shellies_raffle_users')
-      .update({
-        game_score: currentXP - xpAmount,
-        points: (user.points || 0) + pointsAdded,
-        last_convert: txTimestamp, // Use blockchain timestamp (for replay prevention)
-        updated_at: now
-      })
-      .eq('wallet_address', authenticatedWallet)
-      .select('game_score, points')
-      .single();
-
-    if (updateError || !updatedUser) {
-      console.error('Database error during conversion:', updateError);
+    if (rpcError) {
+      console.error('Database error during XP deduction:', rpcError);
       throw new ValidationError(
-        'Failed to complete XP conversion',
+        'Failed to deduct XP. Please try again.',
         ERROR_CODES.DATABASE_ERROR,
         500
       );
     }
 
-    // STEP 13: Update the pre-inserted transaction record with actual values
-    // (Transaction was already claimed atomically in STEP 4)
+    // STEP 13: Update the pre-inserted transaction record
     await supabaseService
       .from('shellies_used_transactions')
       .update({
         amount_usd: txData.amountInUSD,
         xp_converted: xpAmount,
-        points_gained: pointsAdded
+        points_gained: 0
       })
       .eq('tx_hash', txHash)
       .eq('wallet_address', authenticatedWallet);
 
-    // STEP 14: Return success
-    return NextResponse.json(
-      createSuccessResponse(
-        `Successfully converted ${xpAmount} XP to ${pointsAdded} points!`,
-        {
-          newXP: updatedUser.game_score || 0,
-          newPoints: updatedUser.points || 0,
-          pointsAdded
-        }
-      )
+    // STEP 14: Sign the voucher for on-chain conversion
+    const signature = await ShelliesPointsService.signConvertXpVoucher(
+      authenticatedWallet,
+      xpAmount,
+      nonce,
+      expiry
     );
+
+    // STEP 15: Return voucher to frontend — user submits the on-chain tx themselves
+    return NextResponse.json({
+      success: true,
+      xpAmount,
+      nonce,
+      expiry,
+      signature,
+    });
 
   } catch (error) {
     console.error('Error in XP conversion:', error);
