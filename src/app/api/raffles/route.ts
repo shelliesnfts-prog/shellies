@@ -208,6 +208,9 @@ export async function GET(request: NextRequest) {
     // Always exclude blockchain failed raffles from portal display.
     raffleQuery = raffleQuery.or('status.neq.CANCELLED,and(status.eq.CANCELLED,blockchain_error.is.null)');
 
+    // Always exclude hidden raffles from portal display
+    raffleQuery = raffleQuery.or('is_hidden.is.null,is_hidden.eq.false');
+
     if (status === 'active') {
       raffleQuery = raffleQuery.eq('status', 'ACTIVE');
     } else if (status === 'finished') {
