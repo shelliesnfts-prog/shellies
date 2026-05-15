@@ -502,6 +502,22 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
     }
   };
 
+  // Calculate remaining tickets dynamically based on current state
+  // Priority: userEntry (fetched specifically for this user+raffle) > participants list > raffle prop
+  const userParticipant = participants.find(p => isSameAddress(p.wallet_address, address));
+  const currentUserTickets = userEntry?.ticket_count ?? userParticipant?.ticket_count ?? raffle?.user_ticket_count ?? 0;
+  const maxPerUser = Number.isFinite(Number(raffle?.max_tickets_per_user)) ? Number(raffle?.max_tickets_per_user) : 0;
+  const remainingTickets = Math.max(0, maxPerUser - currentUserTickets);
+
+  // Safety net: enforce cap if ticketCount drifts above remainingTickets for any reason
+  useEffect(() => {
+    if (ticketCount > remainingTickets && remainingTickets > 0) {
+      setTicketCount(remainingTickets);
+    } else if (remainingTickets <= 0 && ticketCount !== 0) {
+      setTicketCount(0);
+    }
+  }, [ticketCount, remainingTickets]);
+
   if (!isOpen || !raffle) return null;
 
 
@@ -512,36 +528,23 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
   };
 
   const handleTicketChange = (newCount: number) => {
-
     if (!raffle) {
       return;
     }
 
-    // Use the same logic as the main calculation to get current user tickets
-    const userParticipant = participants.find(p => isSameAddress(p.wallet_address, address));
-    const currentTickets = userEntry?.ticket_count ?? userParticipant?.ticket_count ?? raffle.user_ticket_count ?? 0;
-    const remainingTickets = raffle.max_tickets_per_user - currentTickets;
-
-    // Clamp value to valid range instead of silently ignoring
-    const clamped = Math.min(Math.max(1, newCount), remainingTickets);
-
-    if (isNaN(clamped) || remainingTickets <= 0) {
+    if (remainingTickets <= 0) {
       return;
     }
 
-    // Clear any existing validation error when user changes tickets
+    const safeNewCount = Number.isFinite(newCount) ? Math.floor(newCount) : 1;
+    const clamped = Math.min(Math.max(1, safeNewCount), remainingTickets);
+
     if (message?.type === 'error') {
       setMessage(null);
     }
 
     setTicketCount(clamped);
   };
-
-  // Calculate remaining tickets dynamically based on current state
-  // Priority: userEntry (fetched specifically for this user+raffle) > participants list > raffle prop
-  const userParticipant = participants.find(p => isSameAddress(p.wallet_address, address));
-  const currentUserTickets = userEntry?.ticket_count ?? userParticipant?.ticket_count ?? raffle.user_ticket_count ?? 0;
-  const remainingTickets = Math.max(0, raffle.max_tickets_per_user - currentUserTickets);
 
 
   return (
@@ -941,9 +944,14 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                             type="number"
                             min="1"
                             max={remainingTickets}
+                            step="1"
                             value={ticketCount}
                             onChange={(e) => {
-                              const parsed = parseInt(e.target.value);
+                              const parsed = parseInt(e.target.value, 10);
+                              handleTicketChange(isNaN(parsed) ? 1 : parsed);
+                            }}
+                            onBlur={(e) => {
+                              const parsed = parseInt(e.target.value, 10);
                               handleTicketChange(isNaN(parsed) ? 1 : parsed);
                             }}
                             disabled={isLoading}
@@ -956,7 +964,7 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
                           <button
                             type="button"
                             onClick={() => {
-                              handleTicketChange(ticketCount + 1);
+                              handleTicketChange(Math.min(ticketCount + 1, remainingTickets));
                             }}
                             disabled={ticketCount >= remainingTickets || remainingTickets <= 0 || isLoading}
                             className={`w-8 h-8 rounded-full border flex items-center justify-center transition-colors duration-200 ${ticketCount >= remainingTickets || remainingTickets <= 0 || isLoading
