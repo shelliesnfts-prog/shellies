@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { X, CheckCircle, AlertCircle, Loader2, Clock, ArrowRight } from 'lucide-react';
 import { useAdminRaffleDeployment, type DeploymentStep, type RaffleDeploymentData } from '@/hooks/useAdminRaffleDeployment';
 import { RaffleContractService } from '@/lib/raffle-contract';
-import { parseTokenAmount } from '@/lib/token-utils';
 
 interface RaffleDeploymentModalProps {
   isOpen: boolean;
@@ -14,41 +13,38 @@ interface RaffleDeploymentModalProps {
   onSuccess?: () => void;
 }
 
-export default function RaffleDeploymentModal({ 
-  isOpen, 
-  onClose, 
-  raffle, 
-  isDarkMode = false, 
-  onSuccess 
+export default function RaffleDeploymentModal({
+  isOpen,
+  onClose,
+  raffle,
+  isDarkMode = false,
+  onSuccess
 }: RaffleDeploymentModalProps) {
   const [deploymentData, setDeploymentData] = useState<RaffleDeploymentData | null>(null);
-  
+
   const {
     steps,
     currentStep,
     isDeploying,
     deploymentComplete,
     deploymentError,
+    nftHeld,
+    nftCurrentOwner,
     initializeSteps,
     deployRaffleToBlockchain,
     resetDeployment
   } = useAdminRaffleDeployment();
 
-  // Initialize deployment data when modal opens
+  // Initialize deployment data when modal opens (held-NFT flow only)
   useEffect(() => {
     if (isOpen && raffle) {
       const data: RaffleDeploymentData = {
         raffleId: RaffleContractService.generateRaffleId(raffle.id),
         prizeTokenAddress: raffle.prize_token_address,
-        prizeTokenType: raffle.prize_token_type,
         prizeTokenId: raffle.prize_token_id,
-        // Convert human-readable amount to wei for ERC20 contract interaction
-        prizeAmount: raffle.prize_token_type === 'ERC20' && raffle.prize_amount
-          ? parseTokenAmount(raffle.prize_amount, 18)
-          : raffle.prize_amount,
         pointsPerTicket: raffle.points_per_ticket,
       };
-      
+
       setDeploymentData(data);
       initializeSteps(data);
     }
@@ -127,12 +123,27 @@ export default function RaffleDeploymentModal({
               </p>
               <div className="flex items-center gap-2 mt-2">
                 <span className={`text-xs px-2 py-1 rounded-full ${
-                  isDarkMode 
+                  isDarkMode
                     ? 'bg-purple-900/50 text-purple-300 border border-purple-800'
                     : 'bg-purple-100 text-purple-700 border border-purple-200'
                 }`}>
-                  Prize: {raffle.prize_token_type} • ID: {raffle.id}
+                  Prize: NFT #{raffle.prize_token_id} • Raffle ID: {raffle.id}
                 </span>
+                {nftHeld !== null && (
+                  <span className={`text-xs px-2 py-1 rounded-full ${
+                    nftHeld
+                      ? isDarkMode
+                        ? 'bg-green-900/50 text-green-300 border border-green-800'
+                        : 'bg-green-100 text-green-700 border border-green-200'
+                      : isDarkMode
+                        ? 'bg-amber-900/50 text-amber-300 border border-amber-800'
+                        : 'bg-amber-100 text-amber-700 border border-amber-200'
+                  }`}>
+                    {nftHeld
+                      ? 'NFT held by raffle contract ✓'
+                      : `NFT not held — current owner: ${nftCurrentOwner ? `${nftCurrentOwner.substring(0, 6)}…${nftCurrentOwner.substring(38)}` : 'unknown'}`}
+                  </span>
+                )}
               </div>
             </div>
             <button

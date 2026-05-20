@@ -56,6 +56,9 @@ export interface Raffle {
   blockchain_failed_at?: string;
   // Visibility field for hiding raffles from portal
   is_hidden?: boolean;
+  // Multi-contract routing: which raffle contract this raffle was deployed to.
+  // NULL for not-yet-deployed rows — resolver falls back to current env address.
+  contract_address?: string;
 }
 
 export interface RaffleEntry {

@@ -12,6 +12,7 @@
     "compile:abis": "node scripts/compile-abis.js",
     "deploy:shellies-points": "npx hardhat run scripts/deploy-shellies-points.js",
     "deploy:shellies-raffles": "npx hardhat run scripts/deploy-shellies-raffles.js",
+    "deploy:new-raffle": "npx hardhat run scripts/deploy-new-raffle.js",
     "verify:shellies-points": "npx hardhat verify --network ink"
   },
   "dependencies": {

@@ -21,7 +21,6 @@ import {
   Shield
 } from 'lucide-react';
 import { formatDate, isRaffleActive, localDateTimeInputToUTC } from '@/lib/dateUtils';
-import { parseTokenAmount, formatTokenDisplay, isValidTokenAmount } from '@/lib/token-utils';
 import RaffleDeploymentModal from '@/components/RaffleDeploymentModal';
 import RaffleEndingModal from '@/components/RaffleEndingModal';
 
@@ -42,7 +41,7 @@ export default function AdminRafflesPage() {
   
   const [endRaffleMessage, setEndRaffleMessage] = useState<{ type: 'success' | 'error'; text: string; txHash?: string } | null>(null);
   
-  // Create Raffle Modal State
+  // Create Raffle Modal State — held-NFT flow only on the new contract
   const [raffleForm, setRaffleForm] = useState({
     title: '',
     description: '',
@@ -51,16 +50,12 @@ export default function AdminRafflesPage() {
     max_tickets_per_user: '',
     max_participants: '',
     end_date: '',
-    // Prize fields
-    prize_type: 'NFT', // 'NFT' or 'ERC20'
     prize_token_address: '',
-    prize_token_id: '', // For NFT
-    prize_amount: '', // For ERC20
+    prize_token_id: '',
   });
   const [creatingRaffle, setCreatingRaffle] = useState(false);
   const [prizeInfo, setPrizeInfo] = useState<any>(null);
   const [validatingPrize, setValidatingPrize] = useState(false);
-  const [tokenDecimals, setTokenDecimals] = useState<number>(18); // Store token decimals for conversion
 
   const [showDeploymentModal, setShowDeploymentModal] = useState(false);
   const [pendingRaffle, setPendingRaffle] = useState<any>(null);
@@ -71,6 +66,11 @@ export default function AdminRafflesPage() {
 
   // Get wallet address
   const walletAddress = address || session?.address || '';
+  const prizeOwnedByCurrentWallet = Boolean(
+    walletAddress &&
+    prizeInfo?.currentOwner &&
+    prizeInfo.currentOwner.toLowerCase() === walletAddress.toLowerCase()
+  );
 
   // Fetch raffles with pagination
   const fetchRaffles = async (page = 1) => {
@@ -91,9 +91,12 @@ export default function AdminRafflesPage() {
     }
   };
 
-  // Validate prize token
+  // Validate prize NFT (held-flow): confirm the NFT exists + report current owner.
+  // Ownership by the admin is NOT required — the contract will require the NFT to be
+  // in its custody at createRaffle time. The deployment modal handles the transfer
+  // step if the admin wallet still holds it.
   const validatePrize = async () => {
-    if (!raffleForm.prize_token_address || !walletAddress) {
+    if (!raffleForm.prize_token_address) {
       setPrizeInfo(null);
       return;
     }
@@ -103,77 +106,40 @@ export default function AdminRafflesPage() {
       return;
     }
 
+    if (!raffleForm.prize_token_id) {
+      setPrizeInfo({ error: 'Token ID is required' });
+      return;
+    }
+
     try {
       setValidatingPrize(true);
 
-      if (raffleForm.prize_type === 'NFT') {
-        if (!raffleForm.prize_token_id) {
-          setPrizeInfo({ error: 'Token ID is required for NFTs' });
-          return;
-        }
-
-        const [ownsNFT, tokenURI] = await Promise.all([
-          RaffleContractService.checkNFTOwnership(
-            walletAddress,
-            raffleForm.prize_token_address,
-            raffleForm.prize_token_id
-          ),
-          RaffleContractService.getNFTTokenURI(
-            raffleForm.prize_token_address,
-            raffleForm.prize_token_id
-          )
-        ]);
-
-        if (!ownsNFT) {
-          setPrizeInfo({ error: 'You do not own this NFT' });
-          return;
-        }
-
-        setPrizeInfo({
-          type: 'NFT',
-          tokenId: raffleForm.prize_token_id,
-          tokenURI,
-          owned: true
-        });
-      } else {
-        if (!raffleForm.prize_amount) {
-          setPrizeInfo({ error: 'Amount is required for ERC20 tokens' });
-          return;
-        }
-
-        const tokenInfo = await RaffleContractService.getERC20Info(raffleForm.prize_token_address);
-        if (!tokenInfo) {
-          setPrizeInfo({ error: 'Failed to fetch token information' });
-          return;
-        }
-
-        // Store token decimals for conversion
-        setTokenDecimals(tokenInfo.decimals);
-
-        // Convert human-readable amount to wei for balance check only
-        const weiAmount = parseTokenAmount(raffleForm.prize_amount, tokenInfo.decimals);
-        const hasBalance = await RaffleContractService.checkERC20Balance(
-          walletAddress,
+      const [tokenURI, heldCheck] = await Promise.all([
+        RaffleContractService.getNFTTokenURI(
           raffleForm.prize_token_address,
-          weiAmount
-        );
+          raffleForm.prize_token_id
+        ),
+        RaffleContractService.checkNFTHeldByContract(
+          raffleForm.prize_token_address,
+          raffleForm.prize_token_id
+        ),
+      ]);
 
-        if (!hasBalance) {
-          setPrizeInfo({ error: 'Insufficient token balance' });
-          return;
-        }
-
-        setPrizeInfo({
-          type: 'ERC20',
-          amount: raffleForm.prize_amount,
-          weiAmount: weiAmount,
-          ...tokenInfo,
-          hasBalance: true
-        });
+      if (heldCheck.error && !heldCheck.currentOwner) {
+        setPrizeInfo({ error: heldCheck.error });
+        return;
       }
+
+      setPrizeInfo({
+        type: 'NFT',
+        tokenId: raffleForm.prize_token_id,
+        tokenURI,
+        heldByContract: heldCheck.held,
+        currentOwner: heldCheck.currentOwner,
+      });
     } catch (error) {
       console.error('Error validating prize:', error);
-      setPrizeInfo({ error: 'Error validating prize token' });
+      setPrizeInfo({ error: 'Error validating prize NFT' });
     } finally {
       setValidatingPrize(false);
     }
@@ -196,22 +162,17 @@ export default function AdminRafflesPage() {
     }
 
     if (!raffleForm.prize_token_address) {
-      alert('Please specify a prize token');
+      alert('Please specify a prize NFT contract address');
       return;
     }
 
-    if (raffleForm.prize_type === 'NFT' && !raffleForm.prize_token_id) {
+    if (!raffleForm.prize_token_id) {
       alert('Please specify the NFT token ID');
       return;
     }
 
-    if (raffleForm.prize_type === 'ERC20' && (!raffleForm.prize_amount || !isValidTokenAmount(raffleForm.prize_amount))) {
-      alert('Please specify a valid token amount');
-      return;
-    }
-
     if (!prizeInfo || prizeInfo.error) {
-      alert('Please validate the prize token first');
+      alert('Please validate the prize NFT first');
       return;
     }
 
@@ -235,9 +196,9 @@ export default function AdminRafflesPage() {
             max_participants: raffleForm.max_participants ? parseInt(raffleForm.max_participants) : null,
             end_date: utcDateTime,
             prize_token_address: raffleForm.prize_token_address,
-            prize_token_type: raffleForm.prize_type,
-            prize_token_id: raffleForm.prize_type === 'NFT' ? raffleForm.prize_token_id : null,
-            prize_amount: raffleForm.prize_type === 'ERC20' ? raffleForm.prize_amount : null,
+            prize_token_type: 'NFT',
+            prize_token_id: raffleForm.prize_token_id,
+            prize_amount: null,
           }
         })
       });
@@ -262,10 +223,8 @@ export default function AdminRafflesPage() {
             max_tickets_per_user: '',
             max_participants: '',
             end_date: '',
-            prize_type: 'NFT',
             prize_token_address: '',
             prize_token_id: '',
-            prize_amount: '',
           });
           setPrizeInfo(null);
           
@@ -893,31 +852,16 @@ export default function AdminRafflesPage() {
                 />
               </div>
 
-              {/* Prize Configuration Section */}
+              {/* Prize Configuration Section — held-NFT flow only */}
               <div className={`border-t pt-4 ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
-                <h4 className={`text-md font-semibold mb-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Prize Configuration</h4>
-                
-                <div>
-                  <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Prize Type *</label>
-                  <select
-                    value={raffleForm.prize_type}
-                    onChange={(e) => {
-                      setRaffleForm({...raffleForm, prize_type: e.target.value as 'NFT' | 'ERC20'});
-                      setPrizeInfo(null);
-                    }}
-                    className={`w-full px-3 py-2 rounded-lg border text-sm ${
-                      isDarkMode 
-                        ? 'bg-gray-700 border-gray-600 text-white' 
-                        : 'bg-white border-gray-300 text-gray-900'
-                    }`}
-                  >
-                    <option value="NFT">NFT (ERC721)</option>
-                    <option value="ERC20">Token (ERC20)</option>
-                  </select>
-                </div>
+                <h4 className={`text-md font-semibold mb-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Prize Configuration (NFT)</h4>
+
+                <p className={`text-xs mb-3 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Check whether the connected admin wallet currently holds this NFT.
+                </p>
 
                 <div className="mt-3">
-                  <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Token Contract Address *</label>
+                  <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>NFT Contract Address *</label>
                   <input
                     type="text"
                     value={raffleForm.prize_token_address}
@@ -926,59 +870,32 @@ export default function AdminRafflesPage() {
                       setPrizeInfo(null);
                     }}
                     className={`w-full px-3 py-2 rounded-lg border text-sm ${
-                      isDarkMode 
-                        ? 'bg-gray-700 border-gray-600 text-white' 
+                      isDarkMode
+                        ? 'bg-gray-700 border-gray-600 text-white'
                         : 'bg-white border-gray-300 text-gray-900'
                     }`}
                     placeholder="0x..."
                   />
                 </div>
 
-                {raffleForm.prize_type === 'NFT' && (
-                  <div className="mt-3">
-                    <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Token ID *</label>
-                    <input
-                      type="number"
-                      value={raffleForm.prize_token_id}
-                      onChange={(e) => {
-                        setRaffleForm({...raffleForm, prize_token_id: e.target.value});
-                        setPrizeInfo(null);
-                      }}
-                      className={`w-full px-3 py-2 rounded-lg border text-sm ${
-                        isDarkMode 
-                          ? 'bg-gray-700 border-gray-600 text-white' 
-                          : 'bg-white border-gray-300 text-gray-900'
-                      }`}
-                      placeholder="1"
-                      min="0"
-                    />
-                  </div>
-                )}
-
-                {raffleForm.prize_type === 'ERC20' && (
-                  <div className="mt-3">
-                    <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Token Amount *
-                    </label>
-                    <input
-                      type="text"
-                      value={raffleForm.prize_amount}
-                      onChange={(e) => {
-                        setRaffleForm({...raffleForm, prize_amount: e.target.value});
-                        setPrizeInfo(null);
-                      }}
-                      className={`w-full px-3 py-2 rounded-lg border text-sm ${
-                        isDarkMode 
-                          ? 'bg-gray-700 border-gray-600 text-white' 
-                          : 'bg-white border-gray-300 text-gray-900'
-                      }`}
-                      placeholder="143 (human-readable format)"
-                    />
-                    <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      Enter the amount in tokens (e.g., 143), not in wei. The system will automatically convert it.
-                    </p>
-                  </div>
-                )}
+                <div className="mt-3">
+                  <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Token ID *</label>
+                  <input
+                    type="number"
+                    value={raffleForm.prize_token_id}
+                    onChange={(e) => {
+                      setRaffleForm({...raffleForm, prize_token_id: e.target.value});
+                      setPrizeInfo(null);
+                    }}
+                    className={`w-full px-3 py-2 rounded-lg border text-sm ${
+                      isDarkMode
+                        ? 'bg-gray-700 border-gray-600 text-white'
+                        : 'bg-white border-gray-300 text-gray-900'
+                    }`}
+                    placeholder="1"
+                    min="0"
+                  />
+                </div>
 
                 <div className="mt-3">
                   <button
@@ -987,39 +904,32 @@ export default function AdminRafflesPage() {
                     disabled={!raffleForm.prize_token_address || validatingPrize}
                     className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
                   >
-                    {validatingPrize ? 'Validating...' : 'Validate Prize'}
+                    {validatingPrize ? 'Checking...' : 'Check NFT ownership'}
                   </button>
                 </div>
 
                 {prizeInfo && (
                   <div className={`mt-3 p-3 rounded-lg border ${
-                    prizeInfo.error 
+                    prizeInfo.error
                       ? isDarkMode ? 'bg-red-900/20 border-red-700 text-red-300' : 'bg-red-50 border-red-200 text-red-700'
-                      : isDarkMode ? 'bg-green-900/20 border-green-700 text-green-300' : 'bg-green-50 border-green-200 text-green-700'
+                      : prizeOwnedByCurrentWallet
+                        ? isDarkMode ? 'bg-green-900/20 border-green-700 text-green-300' : 'bg-green-50 border-green-200 text-green-700'
+                        : isDarkMode ? 'bg-amber-900/20 border-amber-700 text-amber-300' : 'bg-amber-50 border-amber-200 text-amber-700'
                   }`}>
                     {prizeInfo.error ? (
                       <p className="text-sm">{prizeInfo.error}</p>
                     ) : (
                       <div className="text-sm space-y-1">
-                        <p><strong>Type:</strong> {prizeInfo.type}</p>
-                        {prizeInfo.type === 'NFT' ? (
-                          <>
-                            <p><strong>Token ID:</strong> {prizeInfo.tokenId}</p>
-                            <p><strong>Owned:</strong> ✓ Yes</p>
-                            {prizeInfo.tokenURI && (
-                              <p><strong>Token URI:</strong> {prizeInfo.tokenURI.substring(0, 50)}...</p>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <p><strong>Amount:</strong> {prizeInfo.amount} {prizeInfo.symbol}</p>
-                            <p><strong>Wei Amount:</strong> {prizeInfo.weiAmount}</p>
-                            <p><strong>Balance:</strong> ✓ Sufficient</p>
-                            {prizeInfo.name && <p><strong>Token:</strong> {prizeInfo.name}</p>}
-                            <p className="text-xs opacity-75">
-                              ✓ Amount will be converted to {prizeInfo.weiAmount} wei for blockchain storage
-                            </p>
-                          </>
+                        <p><strong>Token ID:</strong> {prizeInfo.tokenId}</p>
+                        <p>
+                          <strong>Connected admin wallet:</strong>{' '}
+                          {prizeOwnedByCurrentWallet ? 'Holds this NFT' : 'Does not hold this NFT'}
+                        </p>
+                        <p className="break-all">
+                          <strong>Current owner:</strong> {prizeInfo.currentOwner || 'unknown'}
+                        </p>
+                        {prizeInfo.tokenURI && (
+                          <p className="break-all"><strong>Token URI:</strong> {prizeInfo.tokenURI.substring(0, 50)}...</p>
                         )}
                       </div>
                     )}

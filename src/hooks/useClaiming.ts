@@ -184,8 +184,8 @@ export function useClaiming() {
 
   // ── Derived free-claim state ───────────────────────────────────────────
 
-  const claimCooldown = claimCooldownRaw ? Number(claimCooldownRaw as bigint) : 86400;
-  const lastClaimOnChain = lastClaimRaw ? Number(lastClaimRaw as bigint) : 0;
+  const claimCooldown = claimCooldownRaw !== undefined ? Number(claimCooldownRaw as bigint) : 86400;
+  const lastClaimOnChain = lastClaimRaw !== undefined ? Number(lastClaimRaw as bigint) : 0;
   // Use the optimistic timestamp until the refetch returns a fresher value.
   const lastClaim = optimisticLastClaim !== null
     ? Math.max(optimisticLastClaim, lastClaimOnChain)
@@ -200,13 +200,13 @@ export function useClaiming() {
   const holderTierCost = (holderTierCostRaw as bigint | undefined) ?? BigInt(0);
   const regularTierCost = (regularTierCostRaw as bigint | undefined) ?? BigInt(0);
 
-  const stakerTierCooldown = stakerTierCooldownRaw ? Number(stakerTierCooldownRaw as bigint) : 0;
-  const holderTierCooldown = holderTierCooldownRaw ? Number(holderTierCooldownRaw as bigint) : 0;
-  const regularTierCooldown = regularTierCooldownRaw ? Number(regularTierCooldownRaw as bigint) : 0;
+  const stakerTierCooldown = stakerTierCooldownRaw !== undefined ? Number(stakerTierCooldownRaw as bigint) : 0;
+  const holderTierCooldown = holderTierCooldownRaw !== undefined ? Number(holderTierCooldownRaw as bigint) : 0;
+  const regularTierCooldown = regularTierCooldownRaw !== undefined ? Number(regularTierCooldownRaw as bigint) : 0;
 
-  const lastClaimStakerOnChain = lastClaimStakerTierRaw ? Number(lastClaimStakerTierRaw as bigint) : 0;
-  const lastClaimHolderOnChain = lastClaimHolderTierRaw ? Number(lastClaimHolderTierRaw as bigint) : 0;
-  const lastClaimRegularOnChain = lastClaimRegularTierRaw ? Number(lastClaimRegularTierRaw as bigint) : 0;
+  const lastClaimStakerOnChain = lastClaimStakerTierRaw !== undefined ? Number(lastClaimStakerTierRaw as bigint) : 0;
+  const lastClaimHolderOnChain = lastClaimHolderTierRaw !== undefined ? Number(lastClaimHolderTierRaw as bigint) : 0;
+  const lastClaimRegularOnChain = lastClaimRegularTierRaw !== undefined ? Number(lastClaimRegularTierRaw as bigint) : 0;
 
   const lastClaimStaker = optimisticLastClaimStaker !== null
     ? Math.max(optimisticLastClaimStaker, lastClaimStakerOnChain)

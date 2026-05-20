@@ -104,9 +104,14 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'ERC20 amount required' }, { status: 400 });
         }
         
-        // Create raffle in database with status 'CREATED' (not yet on blockchain)
+        // Create raffle in database with status 'CREATED' (not yet on blockchain).
+        // Persist the contract_address it will be deployed against so end/refund/payout
+        // route to the correct contract even if the env address is later flipped to a
+        // newer deployment.
+        const currentRaffleContractAddress = process.env.NEXT_PUBLIC_RAFFLE_CONTRACT_ADDRESS || undefined;
         const adminRaffle = await AdminService.createRaffle({
           ...raffleData,
+          contract_address: currentRaffleContractAddress,
           status: 'CREATED' // Will be updated to ACTIVE after successful blockchain deployment
         });
         
@@ -250,18 +255,31 @@ export async function POST(request: NextRequest) {
           // Use the admin client to ensure we can read all data (bypass RLS)
           const { supabaseAdmin, supabase } = await import('@/lib/supabase');
           const client = supabaseAdmin || supabase;
-          
-          // Use the same RPC function as the raffles page for consistency
-          // This ensures we get the same participant count that's displayed on the raffles page
-          const { data: rpcData, error: rpcError } = await client
-            .rpc('get_raffle_participants', { p_raffle_id: raffleId });
+
+          // Fetch raffle row in parallel with participants so we can return the
+          // contract_address — client routes endRaffle to that contract.
+          const [{ data: rpcData, error: rpcError }, { data: raffleRow, error: raffleRowError }] = await Promise.all([
+            client.rpc('get_raffle_participants', { p_raffle_id: raffleId }),
+            client
+              .from('shellies_raffle_raffles')
+              .select('contract_address')
+              .eq('id', raffleId)
+              .single(),
+          ]);
 
           if (rpcError) {
             console.error('❌ RPC error fetching participants:', rpcError);
-            return NextResponse.json({ 
+            return NextResponse.json({
               error: 'Failed to fetch participants',
-              success: false 
+              success: false
             }, { status: 500 });
+          }
+
+          if (raffleRowError || !raffleRow) {
+            return NextResponse.json({
+              error: 'Raffle not found',
+              success: false
+            }, { status: 404 });
           }
 
           // Handle case where no participants joined - create empty arrays
@@ -278,13 +296,14 @@ export async function POST(request: NextRequest) {
           const ticketCounts = Array.from(participantMap.values());
           const totalTickets = ticketCounts.reduce((sum, count) => sum + count, 0);
 
-          return NextResponse.json({ 
+          return NextResponse.json({
             success: true,
             participants,
             ticketCounts,
             totalParticipants: participants.length,
             totalTickets,
-            raffleId: RaffleContractService.generateRaffleId(raffleId)
+            raffleId: RaffleContractService.generateRaffleId(raffleId),
+            contractAddress: (raffleRow as any).contract_address || process.env.NEXT_PUBLIC_RAFFLE_CONTRACT_ADDRESS || null,
           });
         } catch (error) {
           console.error('Error preparing admin end:', error);

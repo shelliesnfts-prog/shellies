@@ -212,6 +212,8 @@ export class AdminService {
     prize_token_type?: 'NFT' | 'ERC20';
     prize_token_id?: string;
     prize_amount?: string;
+    contract_address?: string;
+    status?: 'CREATED' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED' | 'BLOCKCHAIN_FAILED';
   }): Promise<Raffle | null> {
     try {
       const client = supabaseAdmin || supabase;

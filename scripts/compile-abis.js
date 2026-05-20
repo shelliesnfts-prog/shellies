@@ -58,7 +58,7 @@ function writeTs(filePath, content) {
   console.log(`Updated: ${path.relative(ROOT, filePath)}`);
 }
 
-// ── Step 2: Raffle ABI ─────────────────────────────────────────────────────
+// ── Step 2: Raffle ABI (legacy / deployed-old contract) ───────────────────
 
 const raffleAbi = readAbi("RaffleContract", "ShelliesRaffleContract");
 const raffleAbiJson = JSON.stringify(raffleAbi, null, 2);
@@ -67,6 +67,17 @@ writeTs(
   path.join(SRC_LIB, "raffle-abi.ts"),
   `// AUTO-GENERATED — do not edit manually. Run: npm run compile:abis\n` +
   `export const raffle_abi = ${raffleAbiJson} as const;\n`
+);
+
+// ── Step 2b: New Raffle ABI (held-NFT only) ───────────────────────────────
+
+const newRaffleAbi = readAbi("NewRaffleContract", "NewShelliesRaffleContract");
+const newRaffleAbiJson = JSON.stringify(newRaffleAbi, null, 2);
+
+writeTs(
+  path.join(SRC_LIB, "newRaffle_contract_abi.ts"),
+  `// AUTO-GENERATED — do not edit manually. Run: npm run compile:abis\n` +
+  `export const new_raffle_abi = ${newRaffleAbiJson} as const;\n`
 );
 
 // ── Step 3: ShelliesPoints ABI ─────────────────────────────────────────────
@@ -101,6 +112,7 @@ writeTs(path.join(SRC_LIB, "shellies-points-contract.ts"), contractConfig);
 
 console.log("\nDone! ABI files updated:");
 console.log("  src/lib/raffle-abi.ts");
+console.log("  src/lib/newRaffle_contract_abi.ts");
 console.log("  src/lib/shellies-points-abi.ts");
 console.log("  src/lib/shellies-points-contract.ts");
 console.log("\nNext step: deploy the contract with:");

@@ -2,6 +2,8 @@ import { createPublicClient, createWalletClient, http, erc20Abi, erc721Abi, pars
 import { defineChain } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { raffle_abi } from './raffle-abi';
+import { new_raffle_abi } from './newRaffle_contract_abi';
+import type { Raffle } from './supabase';
 
 // Ink chain configuration (mainnet)
 const inkChain = defineChain({
@@ -95,12 +97,24 @@ export interface RaffleData {
 
 export class RaffleContractService {
   private static contractAddress: string = process.env.NEXT_PUBLIC_RAFFLE_CONTRACT_ADDRESS || '';
-  
+
   // Create public client for reading transaction receipts
   private static publicClient = createPublicClient({
     chain: inkChain,
     transport: http()
   });
+
+  /**
+   * Resolve which raffle contract address to use for a given raffle row.
+   *
+   * After the new (held-NFT-only) contract is deployed, NEXT_PUBLIC_RAFFLE_CONTRACT_ADDRESS
+   * points to the NEW address. Old raffles still have their prizes escrowed in the
+   * previous deployment — those rows carry the previous address in `contract_address`
+   * (backfilled by migration 032). Always route end/refund/getInfo through this helper.
+   */
+  static getContractAddressForRaffle(raffle: Pick<Raffle, 'contract_address'> | { contract_address?: string | null }): string {
+    return (raffle?.contract_address as string | undefined) || this.contractAddress;
+  }
 
   /**
    * Wait for transaction receipt and verify success
@@ -190,6 +204,10 @@ export class RaffleContractService {
         error: error instanceof Error ? error.message : 'Transaction verification failed' 
       };
     }
+  }
+
+  private static sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**
@@ -362,9 +380,16 @@ export class RaffleContractService {
   }
 
   /**
-   * Get raffle prize info from contract
+   * Get raffle prize info from contract.
+   * @param raffleId   On-chain raffle id (same as DB id).
+   * @param contractAddress  Optional override — if provided, reads from that contract
+   *                          (used for raffles escrowed on the previous deployment).
+   *                          Defaults to current env contract address.
    */
-  static async getRafflePrizeInfo(raffleId: string): Promise<{
+  static async getRafflePrizeInfo(
+    raffleId: string,
+    contractAddress?: string
+  ): Promise<{
     prizeToken: string;
     prizeTokenId: string;
     isNFT: boolean;
@@ -372,13 +397,14 @@ export class RaffleContractService {
     winner: string;
   } | null> {
     try {
-      if (!this.contractAddress) {
+      const targetAddress = contractAddress || this.contractAddress;
+      if (!targetAddress) {
         console.error('Raffle contract address not configured');
         return null;
       }
 
       const result = await publicClient.readContract({
-        address: this.contractAddress as `0x${string}`,
+        address: targetAddress as `0x${string}`,
         abi: raffleContractAbi,
         functionName: 'getRaffleInfo',
         args: [BigInt(raffleId)],
@@ -536,26 +562,40 @@ export class RaffleContractService {
   // Phase 3: Removed duplicate serverCreateAndActivateRaffle method
 
   /**
-   * SERVER ONLY: End a raffle (picks winner and distributes prize)
+   * SERVER ONLY: End a raffle (picks winner and distributes prize).
+   * Resolves contract address per-raffle so prizes escrowed on the previous
+   * deployment can still be ended after the new contract takes over the env var.
    */
   static async serverEndRaffle(
     databaseId: string | number
   ): Promise<{ success: boolean; txHash?: string; error?: string }> {
     try {
-      if (!this.contractAddress) {
-        return { success: false, error: 'Raffle contract address not configured' };
-      }
-
       const raffleId = this.generateRaffleId(databaseId);
-      
-      // Fetch participants and their ticket counts from database
+
+      // Fetch participants AND the raffle row (for contract_address routing)
       const { supabaseAdmin, supabase } = await import('./supabase');
       const client = supabaseAdmin || supabase;
-      
-      const { data: entries, error: entriesError } = await client
-        .from('shellies_raffle_entries')
-        .select('wallet_address, ticket_count')
-        .eq('raffle_id', databaseId);
+
+      const [{ data: entries, error: entriesError }, { data: raffleRow, error: raffleRowError }] = await Promise.all([
+        client
+          .from('shellies_raffle_entries')
+          .select('wallet_address, ticket_count')
+          .eq('raffle_id', databaseId),
+        client
+          .from('shellies_raffle_raffles')
+          .select('contract_address')
+          .eq('id', databaseId)
+          .single(),
+      ]);
+
+      if (raffleRowError || !raffleRow) {
+        return { success: false, error: 'Raffle not found in database' };
+      }
+
+      const targetAddress = this.getContractAddressForRaffle(raffleRow as { contract_address?: string });
+      if (!targetAddress) {
+        return { success: false, error: 'Raffle contract address not configured' };
+      }
 
       if (entriesError || !entries || entries.length === 0) {
         return { success: false, error: 'No participants found for this raffle' };
@@ -571,15 +611,15 @@ export class RaffleContractService {
       // Convert to arrays for the smart contract
       const participants = Array.from(participantMap.keys()) as `0x${string}`[];
       const ticketCounts = Array.from(participantMap.values()).map(count => BigInt(count));
-      
+
       // Generate a random seed for winner selection
       const randomSeed = BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER));
-      
+
       const serverWalletClient = createServerWalletClient();
-      
-      // Call endRaffle on the smart contract with all required parameters
+
+      // endRaffle signature is identical on both old and new contracts — raffle_abi covers both
       const txHash = await serverWalletClient.writeContract({
-        address: this.contractAddress as `0x${string}`,
+        address: targetAddress as `0x${string}`,
         abi: raffle_abi,
         functionName: 'endRaffle',
         args: [BigInt(raffleId), participants, ticketCounts, randomSeed],
@@ -959,21 +999,25 @@ export class RaffleContractService {
   }
 
   /**
-   * ADMIN WALLET: Refund NFT prize (for completed raffles with no winner) - client-side
+   * ADMIN WALLET: Refund NFT prize (for completed raffles with no winner) - client-side.
+   * @param contractAddress Optional contract address override — pass raffle.contract_address
+   *                        so refunds for raffles on the previous deployment route correctly.
    */
   static async adminRefundNFT(
     raffleId: number,
     recipient: string,
-    writeContract: any // wagmi writeContract function
+    writeContract: any, // wagmi writeContract function
+    contractAddress?: string
   ): Promise<{ success: boolean; txHash?: string; error?: string }> {
     try {
-      if (!this.contractAddress) {
+      const targetAddress = contractAddress || this.contractAddress;
+      if (!targetAddress) {
         return { success: false, error: 'Raffle contract address not configured' };
       }
 
 
       const txHash = await writeContract({
-        address: this.contractAddress as `0x${string}`,
+        address: targetAddress as `0x${string}`,
         abi: raffleContractAbi,
         functionName: 'refundNFT',
         args: [BigInt(raffleId), recipient as `0x${string}`],
@@ -990,21 +1034,25 @@ export class RaffleContractService {
   }
 
   /**
-   * ADMIN WALLET: Refund ERC20 tokens (for completed raffles with no winner) - client-side
+   * ADMIN WALLET: Refund ERC20 tokens (for completed raffles with no winner) - client-side.
+   * Only the old contract has refundToken — the new contract is NFT-only. Always pass
+   * the raffle's stored contract_address to ensure this routes to the old contract.
    */
   static async adminRefundToken(
     raffleId: number,
     recipient: string,
-    writeContract: any // wagmi writeContract function
+    writeContract: any, // wagmi writeContract function
+    contractAddress?: string
   ): Promise<{ success: boolean; txHash?: string; error?: string }> {
     try {
-      if (!this.contractAddress) {
+      const targetAddress = contractAddress || this.contractAddress;
+      if (!targetAddress) {
         return { success: false, error: 'Raffle contract address not configured' };
       }
 
 
       const txHash = await writeContract({
-        address: this.contractAddress as `0x${string}`,
+        address: targetAddress as `0x${string}`,
         abi: raffleContractAbi,
         functionName: 'refundToken',
         args: [BigInt(raffleId), recipient as `0x${string}`],
@@ -1027,16 +1075,15 @@ export class RaffleContractService {
    */
   static async adminEndRaffle(
     databaseId: string | number,
-    writeContract: any // wagmi writeContract function
+    writeContract: any, // wagmi writeContract function
+    contractAddress?: string
   ): Promise<{ success: boolean; txHash?: string; error?: string; participants?: any[] }> {
     try {
-      if (!this.contractAddress) {
-        return { success: false, error: 'Raffle contract address not configured' };
-      }
-
       const raffleId = this.generateRaffleId(databaseId);
-      
-      // Fetch participants via API (client-side cannot access supabaseAdmin directly)
+
+      // Fetch participants via API (client-side cannot access supabaseAdmin directly).
+      // The API response also includes the raffle's contract_address so we route to
+      // the correct contract for raffles escrowed on the previous deployment.
       const response = await fetch('/api/admin/raffles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1052,19 +1099,23 @@ export class RaffleContractService {
       }
 
       const participantsData = await response.json();
-      
+
       if (!participantsData.success) {
         return { success: false, error: participantsData.error || 'API returned unsuccessful result' };
       }
 
+      const targetAddress = contractAddress || participantsData.contractAddress || this.contractAddress;
+      if (!targetAddress) {
+        return { success: false, error: 'Raffle contract address not configured' };
+      }
 
       // Use data from API response
       const participants = (participantsData.participants || []) as `0x${string}`[];
       const ticketCounts = (participantsData.ticketCounts || []).map((count: number) => BigInt(count));
-      
+
       // Generate a random seed for winner selection
       const randomSeed = BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER));
-      
+
 
       // Validate that we have the correct data
       if (participantsData.totalParticipants > 0 && participants.length === 0) {
@@ -1075,10 +1126,9 @@ export class RaffleContractService {
         });
       }
 
-      // Call endRaffle on the smart contract with all required parameters
-      // Contract will handle the case where participants array is empty
+      // endRaffle signature identical on both contracts — raffle_abi works for either
       const txHash = await writeContract({
-        address: this.contractAddress as `0x${string}`,
+        address: targetAddress as `0x${string}`,
         abi: raffle_abi,
         functionName: 'endRaffle',
         args: [BigInt(raffleId), participants, ticketCounts, randomSeed],
@@ -1118,10 +1168,267 @@ export class RaffleContractService {
       }
     } catch (error) {
       console.error('Error in admin end raffle:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown blockchain error' 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown blockchain error'
       };
+    }
+  }
+
+  // ============ NEW CONTRACT (HELD-NFT) METHODS ============
+
+  /**
+   * Read the current owner of an NFT and check whether it is the new raffle contract.
+   * Used as a preflight before calling createRaffle on the new contract — the contract
+   * itself reverts with "NFT not held by contract" otherwise, but checking client-side
+   * lets the UI show a clear "Please transfer the NFT first" message.
+   */
+  static async checkNFTHeldByContract(
+    tokenAddress: string,
+    tokenId: string
+  ): Promise<{ held: boolean; currentOwner?: string; error?: string }> {
+    try {
+      if (!this.contractAddress) {
+        return { held: false, error: 'Raffle contract address not configured' };
+      }
+      const owner = await publicClient.readContract({
+        address: tokenAddress as `0x${string}`,
+        abi: erc721Abi,
+        functionName: 'ownerOf',
+        args: [BigInt(tokenId)],
+      });
+      const currentOwner = (owner as string).toLowerCase();
+      const held = currentOwner === this.contractAddress.toLowerCase();
+      return { held, currentOwner };
+    } catch (error) {
+      console.error('Error checking NFT ownership:', error);
+      return {
+        held: false,
+        error: error instanceof Error ? error.message : 'Failed to read NFT owner'
+      };
+    }
+  }
+
+  static async waitForNFTHeldByContract(
+    tokenAddress: string,
+    tokenId: string,
+    timeoutMs = 60000,
+    intervalMs = 2500
+  ): Promise<{ held: boolean; currentOwner?: string; error?: string }> {
+    const deadline = Date.now() + timeoutMs;
+    let lastCheck: { held: boolean; currentOwner?: string; error?: string } = {
+      held: false,
+      error: 'NFT ownership confirmation timed out'
+    };
+
+    while (Date.now() <= deadline) {
+      lastCheck = await this.checkNFTHeldByContract(tokenAddress, tokenId);
+      if (lastCheck.held) {
+        return lastCheck;
+      }
+      await this.sleep(intervalMs);
+    }
+
+    return {
+      ...lastCheck,
+      held: false,
+      error: `NFT #${tokenId} is not held by the raffle contract yet (current owner: ${lastCheck.currentOwner || 'unknown'}). Wait a moment and try again.`
+    };
+  }
+
+  /**
+   * ADMIN WALLET: Transfer an NFT from the admin wallet into the new raffle contract
+   * so it can be used as a prize via createRaffle (held-NFT flow).
+   *
+   * The admin can alternatively send the NFT directly from any wallet (e.g. cold
+   * wallet, OpenSea, etherscan) — this helper just exposes the same operation in
+   * the admin UI for convenience.
+   */
+  static async adminTransferNFTToRaffle(
+    tokenAddress: string,
+    tokenId: string,
+    fromAddress: string,
+    writeContract: any // wagmi writeContract function
+  ): Promise<{ success: boolean; txHash?: string; error?: string }> {
+    try {
+      if (!this.contractAddress) {
+        return { success: false, error: 'Raffle contract address not configured' };
+      }
+
+      const txHash = await writeContract({
+        address: tokenAddress as `0x${string}`,
+        abi: erc721Abi,
+        functionName: 'safeTransferFrom',
+        args: [
+          fromAddress as `0x${string}`,
+          this.contractAddress as `0x${string}`,
+          BigInt(tokenId),
+        ],
+      });
+
+      const receiptResult = await this.waitForTransactionReceipt(txHash);
+      if (!receiptResult.success) {
+        return {
+          success: false,
+          error: `NFT transfer to raffle contract failed: ${receiptResult.error}`
+        };
+      }
+
+      const ownership = await this.waitForNFTHeldByContract(tokenAddress, tokenId);
+      if (!ownership.held) {
+        return {
+          success: false,
+          error: ownership.error || `NFT #${tokenId} transfer confirmed, but ownership has not updated yet. Try deployment again in a moment.`
+        };
+      }
+
+      return { success: true, txHash };
+    } catch (error) {
+      console.error('Error transferring NFT to raffle contract:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown blockchain error'
+      };
+    }
+  }
+
+  /**
+   * ADMIN WALLET: Rescue an NFT that was transferred into the raffle contract
+   * but was never assigned to an on-chain raffle.
+   */
+  static async adminRescueUnassignedNFT(
+    prizeTokenAddress: string,
+    tokenId: string,
+    recipient: string,
+    writeContract: any // wagmi writeContract function
+  ): Promise<{ success: boolean; txHash?: string; error?: string }> {
+    try {
+      if (!this.contractAddress) {
+        return { success: false, error: 'Raffle contract address not configured' };
+      }
+
+      const txHash = await writeContract({
+        address: this.contractAddress as `0x${string}`,
+        abi: new_raffle_abi,
+        functionName: 'rescueUnassignedNFT',
+        args: [
+          prizeTokenAddress as `0x${string}`,
+          BigInt(tokenId),
+          recipient as `0x${string}`,
+        ],
+        gas: BigInt(250000),
+      });
+
+      const receiptResult = await this.waitForTransactionReceipt(txHash);
+      if (!receiptResult.success) {
+        return {
+          success: false,
+          error: `NFT rescue transaction failed: ${receiptResult.error}`
+        };
+      }
+
+      return { success: true, txHash };
+    } catch (error: any) {
+      console.error('Error rescuing unassigned NFT:', error);
+      let errorMessage = 'Unknown blockchain error';
+      if (error?.message) {
+        if (error.message.includes('NFT assigned to raffle')) {
+          errorMessage = 'This NFT is assigned to a raffle. Use emergency withdraw or refund for that raffle instead.';
+        } else if (error.message.includes('NFT not held by contract')) {
+          errorMessage = 'The raffle contract does not currently hold this NFT.';
+        } else if (error.message.includes('Admin only') || error.message.includes('AccessControlUnauthorizedAccount')) {
+          errorMessage = 'Admin permission required. Ensure your wallet has admin role on the raffle contract.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  /**
+   * ADMIN WALLET: Create + activate a raffle on the new contract using an NFT
+   * that has already been deposited into the contract.
+   *
+   * Preconditions:
+   *   - NEW raffle contract is deployed and NEXT_PUBLIC_RAFFLE_CONTRACT_ADDRESS points to it.
+   *   - The NFT (tokenAddress, tokenId) is currently owned by the contract.
+   *   - msg.sender has ADMIN_ROLE on the contract.
+   */
+  static async adminCreateRaffleWithHeldNFT(
+    raffleId: number,
+    prizeTokenAddress: string,
+    tokenId: string,
+    pointsPerTicket: number,
+    writeContract: any // wagmi writeContract function
+  ): Promise<{ success: boolean; txHash?: string; error?: string }> {
+    try {
+      if (!this.contractAddress) {
+        return { success: false, error: 'Raffle contract address not configured' };
+      }
+
+      // Preflight: confirm contract still owns the NFT before paying gas
+      const ownership = await this.waitForNFTHeldByContract(prizeTokenAddress, tokenId, 20000, 2000);
+      if (!ownership.held) {
+        return {
+          success: false,
+          error: `NFT #${tokenId} is not held by the raffle contract (current owner: ${ownership.currentOwner || 'unknown'}). Transfer it first.`
+        };
+      }
+
+      // Preflight: confirm the raffle id is free on-chain
+      try {
+        const existing = await this.publicClient.readContract({
+          address: this.contractAddress as `0x${string}`,
+          abi: new_raffle_abi,
+          functionName: 'getRaffleInfo',
+          args: [BigInt(raffleId)],
+        });
+        if (existing && (existing as any)[0] !== '0x0000000000000000000000000000000000000000') {
+          return { success: false, error: `Raffle ID ${raffleId} already exists on the blockchain` };
+        }
+      } catch (preflightError) {
+        // getRaffleInfo on a non-existent raffle returns zero struct, not revert — surface other errors only
+        console.error('Pre-flight read failed:', preflightError);
+      }
+
+      const txHash = await writeContract({
+        address: this.contractAddress as `0x${string}`,
+        abi: new_raffle_abi,
+        functionName: 'createRaffle',
+        args: [
+          BigInt(raffleId),
+          prizeTokenAddress as `0x${string}`,
+          BigInt(tokenId),
+          BigInt(pointsPerTicket),
+        ],
+        gas: BigInt(500000),
+      });
+
+      const receiptResult = await this.waitForTransactionReceipt(txHash);
+      if (!receiptResult.success) {
+        return {
+          success: false,
+          error: `Raffle creation transaction failed: ${receiptResult.error}`
+        };
+      }
+
+      return { success: true, txHash };
+    } catch (error: any) {
+      console.error('Error in held-NFT raffle creation:', error);
+      let errorMessage = 'Unknown blockchain error';
+      if (error?.message) {
+        if (error.message.includes('NFT not held by contract')) {
+          errorMessage = 'NFT is not currently held by the raffle contract. Transfer it in first.';
+        } else if (error.message.includes('Raffle already exists')) {
+          errorMessage = 'This raffle ID already exists on the blockchain. Refresh and try again.';
+        } else if (error.message.includes('Admin only') || error.message.includes('AccessControlUnauthorizedAccount')) {
+          errorMessage = 'Admin permission required. Ensure your wallet has admin role on the new raffle contract.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      return { success: false, error: errorMessage };
     }
   }
 }
