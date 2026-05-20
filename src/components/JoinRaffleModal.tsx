@@ -37,6 +37,7 @@ interface Participant {
 }
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+const TARGETED_LEGACY_WINNER_RAFFLE_ID = 156;
 const normalizeAddress = (walletAddress?: string | null) => walletAddress?.toLowerCase() || '';
 const isSameAddress = (first?: string | null, second?: string | null) =>
   Boolean(first && second && normalizeAddress(first) === normalizeAddress(second));
@@ -104,7 +105,9 @@ export default function JoinRaffleModal({ isOpen, onClose, raffle, isDarkMode = 
 
     const loadWinner = async () => {
       try {
-        const raffleInfo = raffle.id >= 98 && raffle.id <= 108
+        const raffleInfo = raffle.id === TARGETED_LEGACY_WINNER_RAFFLE_ID && raffle.contract_address
+          ? await RaffleContractService.getRafflePrizeInfo(raffle.id.toString(), raffle.contract_address)
+          : raffle.id >= 98 && raffle.id <= 108
           ? await RaffleContractService.getRafflePrizeInfoFromOldContract(raffle.id.toString())
           : await RaffleContractService.getRafflePrizeInfo(raffle.id.toString());
 
