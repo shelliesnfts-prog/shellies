@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { useSession } from 'next-auth/react';
 import { useAccount } from 'wagmi';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
@@ -12,8 +12,18 @@ import { useNftAndStaking } from '@/hooks/useNftAndStaking';
 import { useInkEthPrice } from '@/hooks/useInkEthPrice';
 import XPBridge from '@/components/XPBridge';
 import { ClaimPageSkeleton } from '@/components/portal/ClaimPageSkeleton';
+import { SHELLIES_POINTS_ADDRESS } from '@/lib/shellies-points-contract';
 import { formatEther } from 'viem';
 import { Gift, Zap, Target } from 'lucide-react';
+
+const EXPLORER_BASE_URL = 'https://explorer.inkonchain.com';
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+const BURNED_POINTS_CACHE_PREFIX = 'shellies:burned-points:';
+const BURNED_POINTS_FRESH_MS = 60 * 60 * 1000;
+const BURNED_POINTS_MAX_CACHE_MS = 24 * 60 * 60 * 1000;
+const BURNED_POINTS_FETCH_TIMEOUT_MS = 45_000;
+const BURNED_POINTS_PAGE_SIZE = 10000;
+const BURNED_POINTS_MAX_PAGES = 25;
 
 function formatTimer(seconds: number): string {
   const d = Math.floor(seconds / 86400);
@@ -44,6 +54,107 @@ function formatPointSupply(value: bigint): string {
   return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
+function parsePointSupply(value: unknown): bigint | null {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return BigInt(Math.trunc(value));
+  if (typeof value === 'string' && /^\d+$/.test(value)) return BigInt(value);
+  return null;
+}
+
+type BurnedPointsCache = {
+  updatedAt: number;
+  value: string;
+};
+
+type TokenTransfer = {
+  contractAddress?: string;
+  to?: string;
+  value?: string;
+};
+
+type TokenTransfersResponse = {
+  result?: TokenTransfer[];
+};
+
+function getBurnedPointsCacheKey(contractAddress: string): string {
+  return `${BURNED_POINTS_CACHE_PREFIX}${contractAddress.toLowerCase()}`;
+}
+
+function readCachedBurnedPoints(contractAddress: string): { updatedAt: number; value: bigint } | null {
+  try {
+    const raw = window.localStorage.getItem(getBurnedPointsCacheKey(contractAddress));
+    if (!raw) return null;
+
+    const cached = JSON.parse(raw) as Partial<BurnedPointsCache>;
+    const value = parsePointSupply(cached.value);
+    const updatedAt = Number(cached.updatedAt);
+
+    if (value == null || !Number.isFinite(updatedAt)) return null;
+    if (Date.now() - updatedAt > BURNED_POINTS_MAX_CACHE_MS) return null;
+
+    return { updatedAt, value };
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedBurnedPoints(contractAddress: string, value: bigint) {
+  try {
+    const cached: BurnedPointsCache = {
+      updatedAt: Date.now(),
+      value: value.toString(),
+    };
+    window.localStorage.setItem(getBurnedPointsCacheKey(contractAddress), JSON.stringify(cached));
+  } catch {
+    // Storage can be unavailable in private browsing or strict browser settings.
+  }
+}
+
+async function fetchTotalBurnedFromExplorer(contractAddress: string, signal: AbortSignal): Promise<bigint> {
+  let totalBurned = BigInt(0);
+  const normalizedContract = contractAddress.toLowerCase();
+
+  for (let page = 1; page <= BURNED_POINTS_MAX_PAGES; page += 1) {
+    const url = new URL('/api', EXPLORER_BASE_URL);
+    url.searchParams.set('module', 'account');
+    url.searchParams.set('action', 'tokentx');
+    url.searchParams.set('address', ZERO_ADDRESS);
+    url.searchParams.set('contractaddress', contractAddress);
+    url.searchParams.set('page', String(page));
+    url.searchParams.set('offset', String(BURNED_POINTS_PAGE_SIZE));
+    url.searchParams.set('sort', 'asc');
+
+    const response = await fetch(url.toString(), { signal });
+
+    if (!response.ok) {
+      throw new Error(`Explorer token transfers request failed: ${response.status} ${response.statusText}`);
+    }
+
+    const data = (await response.json()) as TokenTransfersResponse;
+    const transfers = Array.isArray(data.result) ? data.result : [];
+
+    for (const transfer of transfers) {
+      const isBurn =
+        transfer.to?.toLowerCase() === ZERO_ADDRESS &&
+        transfer.contractAddress?.toLowerCase() === normalizedContract;
+
+      if (!isBurn) continue;
+
+      try {
+        totalBurned += BigInt(transfer.value ?? '0');
+      } catch {
+        // Ignore malformed explorer rows and keep summing valid burn transfers.
+      }
+    }
+
+    if (transfers.length < BURNED_POINTS_PAGE_SIZE) {
+      break;
+    }
+  }
+
+  return totalBurned;
+}
+
 function getSupplyPercent(totalSupply: bigint, maxSupply: bigint): number {
   if (maxSupply <= BigInt(0)) return 0;
   const cappedTotal = totalSupply > maxSupply ? maxSupply : totalSupply;
@@ -55,17 +166,37 @@ function SupplyProgressCard({
   maxSupply,
   maxSupplySet,
   holdersCount,
+  totalBurned,
+  totalBurnedLoading,
   isDarkMode,
 }: {
   totalSupply: bigint;
   maxSupply: bigint;
   maxSupplySet: boolean;
   holdersCount: number | null;
+  totalBurned: bigint | null;
+  totalBurnedLoading: boolean;
   isDarkMode: boolean;
 }) {
   const percent = maxSupplySet ? getSupplyPercent(totalSupply, maxSupply) : 0;
   const displayPercent = maxSupplySet ? `${percent.toFixed(percent >= 10 ? 1 : 2)}%` : 'Uncapped';
   const progressWidth = maxSupplySet ? `${Math.min(100, percent)}%` : '0%';
+  const burnedValue =
+    totalBurnedLoading && totalBurned == null ? (
+      <span className="inline-flex h-5 items-center" aria-label="Loading burned points">
+        <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+      </span>
+    ) : totalBurned == null ? (
+      '—'
+    ) : (
+      formatPointSupply(totalBurned)
+    );
+  const supplyStats: { label: string; value: ReactNode }[] = [
+    { label: 'Claimed', value: formatPointSupply(totalSupply) },
+    { label: 'Max Supply', value: maxSupplySet ? formatPointSupply(maxSupply) : 'Not set' },
+    { label: 'Burned', value: burnedValue },
+    { label: 'Unique Holders', value: holdersCount == null ? '—' : holdersCount.toLocaleString() },
+  ];
 
   return (
     <section
@@ -115,31 +246,20 @@ function SupplyProgressCard({
             />
           </div>
 
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className={`rounded-xl border p-3 ${isDarkMode ? 'border-gray-700 bg-gray-900/40' : 'border-gray-200 bg-gray-50'}`}>
-              <div className={`text-[10px] font-semibold uppercase tracking-wider ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                Claimed
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {supplyStats.map(({ label, value }) => (
+              <div
+                key={label}
+                className={`rounded-xl border p-3 ${isDarkMode ? 'border-gray-700 bg-gray-900/40' : 'border-gray-200 bg-gray-50'}`}
+              >
+                <div className={`text-[10px] font-semibold uppercase tracking-wider ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                  {label}
+                </div>
+                <div className={`mt-1 text-lg font-bold tabular-nums leading-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {value}
+                </div>
               </div>
-              <div className={`mt-1 text-lg font-bold tabular-nums leading-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                {formatPointSupply(totalSupply)}
-              </div>
-            </div>
-            <div className={`rounded-xl border p-3 ${isDarkMode ? 'border-gray-700 bg-gray-900/40' : 'border-gray-200 bg-gray-50'}`}>
-              <div className={`text-[10px] font-semibold uppercase tracking-wider ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                Max Supply
-              </div>
-              <div className={`mt-1 text-lg font-bold tabular-nums leading-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                {maxSupplySet ? formatPointSupply(maxSupply) : 'Not set'}
-              </div>
-            </div>
-            <div className={`rounded-xl border p-3 ${isDarkMode ? 'border-gray-700 bg-gray-900/40' : 'border-gray-200 bg-gray-50'}`}>
-              <div className={`text-[10px] font-semibold uppercase tracking-wider ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                Unique Holders
-              </div>
-              <div className={`mt-1 text-lg font-bold tabular-nums leading-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                {holdersCount == null ? '—' : holdersCount.toLocaleString()}
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </div>
@@ -362,6 +482,8 @@ export default function ClaimPage() {
 
   const [liveCountdown, setLiveCountdown] = useState<number>(activeTierSecs);
   const [holdersCount, setHoldersCount] = useState<number | null>(null);
+  const [totalBurned, setTotalBurned] = useState<bigint | null>(null);
+  const [totalBurnedLoading, setTotalBurnedLoading] = useState(false);
 
   useEffect(() => {
     setLiveCountdown(activeTierSecs);
@@ -405,6 +527,59 @@ export default function ClaimPage() {
 
     return () => {
       alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!SHELLIES_POINTS_ADDRESS || SHELLIES_POINTS_ADDRESS === '0x') return;
+
+    let alive = true;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), BURNED_POINTS_FETCH_TIMEOUT_MS);
+    const cached = readCachedBurnedPoints(SHELLIES_POINTS_ADDRESS);
+
+    if (cached) {
+      setTotalBurned(cached.value);
+    }
+
+    if (cached && Date.now() - cached.updatedAt < BURNED_POINTS_FRESH_MS) {
+      clearTimeout(timeoutId);
+      return () => {
+        alive = false;
+        controller.abort();
+      };
+    }
+
+    setTotalBurnedLoading(!cached);
+
+    const loadTotalBurned = async () => {
+      try {
+        const nextTotalBurned = await fetchTotalBurnedFromExplorer(
+          SHELLIES_POINTS_ADDRESS,
+          controller.signal
+        );
+
+        if (!alive) return;
+
+        writeCachedBurnedPoints(SHELLIES_POINTS_ADDRESS, nextTotalBurned);
+        setTotalBurned(nextTotalBurned);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        console.warn('Unable to load ShelliesPoints burned total:', error);
+      } finally {
+        clearTimeout(timeoutId);
+        if (alive) {
+          setTotalBurnedLoading(false);
+        }
+      }
+    };
+
+    loadTotalBurned();
+
+    return () => {
+      alive = false;
+      clearTimeout(timeoutId);
+      controller.abort();
     };
   }, []);
 
@@ -529,6 +704,8 @@ export default function ClaimPage() {
               maxSupply={maxSupply}
               maxSupplySet={maxSupplySet}
               holdersCount={holdersCount}
+              totalBurned={totalBurned}
+              totalBurnedLoading={totalBurnedLoading}
               isDarkMode={isDarkMode}
             />
 
