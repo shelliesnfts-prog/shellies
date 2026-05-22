@@ -57,6 +57,36 @@ function emptySummary(): EntrySummary {
 // across warm Lambda invocations. Cold start drops the cache, which is fine.
 const winnerCache = new Map<number, string>();
 const TARGETED_LEGACY_WINNER_RAFFLE_ID = 156;
+const OLD_RAFFLE_WINNER_CONTRACT_ADDRESSES = [
+  '0x5B8Ab35F6894130253bE7199F9eA66F5Dc63D956',
+  '0x47a27a42525ffF2b7264b342F74216E37A831332',
+];
+const OLD_RAFFLE_IDS = new Set([
+  98, 99, 100, 101, 102, 103, 104, 105,
+  106, 107, 108, 109, 110, 111, 112, 113,
+  114, 115, 116, 117, 118, 119, 120, 121,
+  127, 128, 129, 132, 136, 139, 145, 150, 154,
+]);
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
+function hasUsableWinnerAddress(walletAddress?: string | null): boolean {
+  return Boolean(walletAddress && walletAddress.toLowerCase() !== ZERO_ADDRESS);
+}
+
+async function getOldRaffleWinner(raffleId: number): Promise<string | null> {
+  for (const contractAddress of OLD_RAFFLE_WINNER_CONTRACT_ADDRESSES) {
+    const raffleInfo = await RaffleContractService.getLegacyRafflePrizeInfo(
+      raffleId.toString(),
+      contractAddress
+    );
+
+    if (hasUsableWinnerAddress(raffleInfo?.winner)) {
+      return raffleInfo!.winner;
+    }
+  }
+
+  return null;
+}
 
 async function getWinnerInfo(raffles: RaffleRow[], includeWinners: boolean): Promise<Record<string, string>> {
   if (!includeWinners) return {};
@@ -81,17 +111,23 @@ async function getWinnerInfo(raffles: RaffleRow[], includeWinners: boolean): Pro
   const winnerResults = await Promise.all(
     uncachedRaffles.map(async (raffle) => {
       try {
-        const raffleInfo = raffle.id === TARGETED_LEGACY_WINNER_RAFFLE_ID && raffle.contract_address
-          ? await RaffleContractService.getRafflePrizeInfo(raffle.id.toString(), raffle.contract_address)
-          : raffle.id >= 98 && raffle.id <= 108
-          ? await RaffleContractService.getRafflePrizeInfoFromOldContract(raffle.id.toString())
-          : await RaffleContractService.getRafflePrizeInfo(raffle.id.toString());
+        let winner: string | null = null;
 
-        if (
-          raffleInfo?.winner &&
-          raffleInfo.winner !== '0x0000000000000000000000000000000000000000'
-        ) {
-          return { raffleId: raffle.id, winner: raffleInfo.winner };
+        if (raffle.id === TARGETED_LEGACY_WINNER_RAFFLE_ID && raffle.contract_address) {
+          const raffleInfo = await RaffleContractService.getRafflePrizeInfo(
+            raffle.id.toString(),
+            raffle.contract_address
+          );
+          winner = raffleInfo?.winner || null;
+        } else if (OLD_RAFFLE_IDS.has(raffle.id)) {
+          winner = await getOldRaffleWinner(raffle.id);
+        } else {
+          const raffleInfo = await RaffleContractService.getRafflePrizeInfo(raffle.id.toString());
+          winner = raffleInfo?.winner || null;
+        }
+
+        if (hasUsableWinnerAddress(winner)) {
+          return { raffleId: raffle.id, winner };
         }
       } catch (error) {
         console.error(`Error fetching winner for raffle ${raffle.id}:`, error);

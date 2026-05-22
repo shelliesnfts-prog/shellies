@@ -70,6 +70,47 @@ function createServerWalletClient() {
 
 // Use the compiled ABI from Remix
 const raffleContractAbi = raffle_abi;
+const legacyRaffleInfoAbi = [
+  {
+    inputs: [
+      {
+        internalType: 'uint256',
+        name: 'raffleId',
+        type: 'uint256',
+      },
+    ],
+    name: 'getRaffleInfo',
+    outputs: [
+      {
+        internalType: 'address',
+        name: 'prizeToken',
+        type: 'address',
+      },
+      {
+        internalType: 'uint256',
+        name: 'prizeTokenId',
+        type: 'uint256',
+      },
+      {
+        internalType: 'uint8',
+        name: 'state',
+        type: 'uint8',
+      },
+      {
+        internalType: 'bool',
+        name: 'isNFT',
+        type: 'bool',
+      },
+      {
+        internalType: 'address',
+        name: 'winner',
+        type: 'address',
+      },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
 
 // Use built-in viem ABIs for ERC20 and ERC721
 // erc20Abi and erc721Abi are imported from viem above
@@ -428,6 +469,42 @@ export class RaffleContractService {
   }
 
   /**
+   * Get raffle prize info from legacy deployments whose getRaffleInfo returns
+   * five fields instead of the current six-field shape.
+   */
+  static async getLegacyRafflePrizeInfo(
+    raffleId: string,
+    contractAddress: string
+  ): Promise<{
+    prizeToken: string;
+    prizeTokenId: string;
+    isNFT: boolean;
+    state: number;
+    winner: string;
+  } | null> {
+    try {
+      const result = await publicClient.readContract({
+        address: contractAddress as `0x${string}`,
+        abi: legacyRaffleInfoAbi,
+        functionName: 'getRaffleInfo',
+        args: [BigInt(raffleId)],
+      });
+
+      const [prizeToken, prizeTokenId, state, isNFT, winner] = result;
+
+      return {
+        prizeToken,
+        prizeTokenId: prizeTokenId.toString(),
+        isNFT,
+        state,
+        winner,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Get raffle prize info from OLD contract (backward compatibility for raffles 98-108)
    * Old contract address: 0xE757e8Aa82b7AD9f1ef8D4fE657d90341885c0De
    */
@@ -438,31 +515,8 @@ export class RaffleContractService {
     state: number;
     winner: string;
   } | null> {
-    try {
-      const oldContractAddress = '0xE757e8Aa82b7AD9f1ef8D4fE657d90341885c0De';
-
-      const result = await publicClient.readContract({
-        address: oldContractAddress as `0x${string}`,
-        abi: raffleContractAbi,
-        functionName: 'getRaffleInfo',
-        args: [BigInt(raffleId)],
-      });
-
-      const [prizeToken, prizeTokenId, state, isNFT, winner] = result as unknown as [
-        string, bigint, number, boolean, string
-      ];
-
-      return {
-        prizeToken,
-        prizeTokenId: prizeTokenId.toString(),
-        isNFT,
-        state,
-        winner,
-      };
-    } catch (error) {
-      console.error('Error getting raffle prize info from old contract:', error);
-      return null;
-    }
+    const oldContractAddress = '0xE757e8Aa82b7AD9f1ef8D4fE657d90341885c0De';
+    return this.getLegacyRafflePrizeInfo(raffleId, oldContractAddress);
   }
 
   /**
